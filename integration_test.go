@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestFileBasedCases(t *testing.T) {
+func TestIntegration(t *testing.T) {
 	// Use a fixed date for testing
 	currentDate := "2025-06-17"
 
@@ -46,7 +46,7 @@ func TestFileBasedCases(t *testing.T) {
 				t.Fatalf("Failed to extract TODOS section: %v", err)
 			}
 
-			// Always use the new format (no blank lines) for the integration tests
+			// Process the TODOS section
 			completedTodos, uncompletedTodos, err := processTodosSection(todosSection, date, currentDate)
 			if err != nil {
 				t.Fatalf("Failed to process TODOS section: %v", err)
@@ -56,7 +56,7 @@ func TestFileBasedCases(t *testing.T) {
 			completedTodos = normalizeBlankLines(completedTodos)
 			uncompletedTodos = normalizeBlankLines(uncompletedTodos)
 
-			// Generate the completed file content (without template)
+			// Generate the completed file content (modified input)
 			completedFileContent := beforeTodos + completedTodos + afterTodos
 
 			// Generate the uncompleted file content using template
@@ -80,80 +80,15 @@ func TestFileBasedCases(t *testing.T) {
 
 			// Compare results
 			if strings.TrimSpace(uncompletedFileContent) != strings.TrimSpace(string(expectedOutputContent)) {
-				t.Errorf("Expected content doesn't match. \nGot: \n%s\n\nWant: \n%s",
+				t.Errorf("Expected output content doesn't match. \nGot: \n%s\n\nWant: \n%s",
 					uncompletedFileContent, string(expectedOutputContent))
 			}
 
 			if strings.TrimSpace(completedFileContent) != strings.TrimSpace(string(expectedInputAfterContent)) {
-				t.Errorf("Expected modified content doesn't match. \nGot: \n%s\n\nWant: \n%s",
+				t.Errorf("Expected input after processing doesn't match. \nGot: \n%s\n\nWant: \n%s",
 					completedFileContent, string(expectedInputAfterContent))
 			}
 		})
-	}
-}
-
-func TestTemplateIntegration(t *testing.T) {
-	// Use a fixed date for testing
-	currentDate := "2025-06-17"
-	testDir := "testdata/template"
-
-	// Read the input file
-	inputPath := filepath.Join(testDir, "input.md")
-	inputContent, err := os.ReadFile(inputPath)
-	if err != nil {
-		t.Fatalf("Failed to read input.md: %v", err)
-	}
-
-	// Use the shared template file
-	templatePath := filepath.Join("testdata", "shared_template.md")
-
-	// Process the file
-	date, err := extractDateFromFrontmatter(string(inputContent))
-	if err != nil {
-		t.Fatalf("Failed to extract date: %v", err)
-	}
-
-	beforeTodos, todosSection, afterTodos, err := extractTodosSection(string(inputContent))
-	if err != nil {
-		t.Fatalf("Failed to extract TODOS section: %v", err)
-	}
-
-	completedTodos, uncompletedTodos, err := processTodosSection(todosSection, date, currentDate)
-	if err != nil {
-		t.Fatalf("Failed to process TODOS section: %v", err)
-	}
-
-	// Generate the completed file content (without template)
-	completedFileContent := beforeTodos + completedTodos + afterTodos
-
-	// Generate the uncompleted file content using template
-	uncompletedFileContent, err := createFromTemplate(templatePath, uncompletedTodos, currentDate)
-	if err != nil {
-		t.Fatalf("Failed to create from template: %v", err)
-	}
-
-	// Read the expected files
-	expectedOutputPath := filepath.Join(testDir, "expected_output.md")
-	expectedOutputContent, err := os.ReadFile(expectedOutputPath)
-	if err != nil {
-		t.Fatalf("Failed to read expected_output.md: %v", err)
-	}
-
-	expectedInputAfterPath := filepath.Join(testDir, "expected_input_after.md")
-	expectedInputAfterContent, err := os.ReadFile(expectedInputAfterPath)
-	if err != nil {
-		t.Fatalf("Failed to read expected_input_after.md: %v", err)
-	}
-
-	// Compare results
-	if strings.TrimSpace(uncompletedFileContent) != strings.TrimSpace(string(expectedOutputContent)) {
-		t.Errorf("Template-generated content doesn't match. \nGot: \n%s\n\nWant: \n%s",
-			uncompletedFileContent, string(expectedOutputContent))
-	}
-
-	if strings.TrimSpace(completedFileContent) != strings.TrimSpace(string(expectedInputAfterContent)) {
-		t.Errorf("Completed content doesn't match. \nGot: \n%s\n\nWant: \n%s",
-			completedFileContent, string(expectedInputAfterContent))
 	}
 }
 
