@@ -1,9 +1,10 @@
 ---
 title: 2025-06-17
-tags: journal, daily
 ---
 
-# Daily Journal - 2025-06-17
+# Journal Entry
+
+Some content here.
 
 ## TODOS
 
@@ -18,14 +19,6 @@ tags: journal, daily
     - [ ] Review pull request #123
     - [ ] Check integration tests
 
-## Notes
+## Other Section
 
-*Add your notes for 2025-06-17 here.*
-
-## Reflection
-
-*What went well today?*
-
-## Tomorrow's Focus
-
-*What are the key priorities for tomorrow?*
+More content here.

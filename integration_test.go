@@ -32,8 +32,8 @@ func TestFileBasedCases(t *testing.T) {
 				t.Fatalf("Failed to read original.md: %v", err)
 			}
 
-			// Read the template file
-			templatePath := filepath.Join(testDir, "template.md")
+			// Use the shared template file
+			templatePath := filepath.Join("testdata", "shared_template.md")
 
 			// Process the file
 			date, err := extractDateFromFrontmatter(string(originalContent))
@@ -104,8 +104,8 @@ func TestTemplateIntegration(t *testing.T) {
 		t.Fatalf("Failed to read original.md: %v", err)
 	}
 
-	// Read the template file
-	templatePath := filepath.Join(testDir, "template.md")
+	// Use the shared template file
+	templatePath := filepath.Join("testdata", "shared_template.md")
 
 	// Process the file
 	date, err := extractDateFromFrontmatter(string(originalContent))

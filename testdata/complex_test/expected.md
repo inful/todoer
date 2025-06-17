@@ -2,9 +2,9 @@
 title: 2025-06-17
 ---
 
-# Complex Test
+# Journal Entry
 
-Some content before todos.
+Some content here.
 
 ## TODOS
 
@@ -21,6 +21,6 @@ Some content before todos.
       - [ ] Sub-subtask 3
       - [x] Sub-subtask 4 #2025-05-13
 
-## Final Section
+## Other Section
 
-Content after todos.
+More content here.
