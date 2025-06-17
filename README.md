@@ -169,10 +169,10 @@ To use this utility, run:
 
 ```bash
 go build
-./todoer <source_file> <target_file>
+./todoer <source_file> <target_file> [template_file]
 ```
 
-For example:
+### Basic Usage
 
 ```bash
 ./todoer journal.md new_journal.md
@@ -184,6 +184,68 @@ This will:
 2. Keep only completed tasks in the source file
 3. Move uncompleted tasks to the target file
 4. Add date tags to completed subtasks in the target file
+
+### Template Usage
+
+```bash
+./todoer journal.md new_journal.md template.md
+```
+
+When a template file is provided, the target file will be created using the template structure instead of copying the original file structure.
+
+#### Template Variables
+
+Templates can use the following variables:
+
+- `{{date}}` - Current date in YYYY-MM-DD format
+- `{{TODOS}}` - The uncompleted tasks section content
+
+#### Example Template
+
+```markdown
+---
+title: {{date}}
+tags: journal, daily
+---
+
+# Daily Journal - {{date}}
+
+## TODOS
+
+{{TODOS}}
+
+## Notes
+
+*Add your notes for {{date}} here.*
+
+## Reflection
+
+*What went well today?*
+
+## Tomorrow's Focus
+
+*What are the key priorities for tomorrow?*
+```
+
+#### Template with Automatic TODOS Insertion
+
+If your template doesn't use the `{{TODOS}}` placeholder but has a `## TODOS` section, the uncompleted tasks will be automatically inserted into that section:
+
+```markdown
+---
+title: {{date}}
+---
+
+# Journal Entry
+
+## TODOS
+
+## Notes
+
+Today's notes...
+```
+
+The tool will automatically insert the uncompleted tasks between the `## TODOS` header and the next section.
 
 ## Implementation Details
 

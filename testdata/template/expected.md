@@ -1,0 +1,29 @@
+---
+title: 2024-01-16
+tags: journal, daily
+---
+
+# Daily Journal - 2024-01-16
+
+## TODOS
+
+- [[2024-01-14]]
+  - [ ] Review project proposal
+  - [ ] Update documentation
+- [[2024-01-15]]
+  - [ ] Team meeting at 10am
+  - [ ] Code review
+    - [ ] Review pull request #123
+    - [ ] Check integration tests
+
+## Notes
+
+*Add your notes for 2024-01-16 here.*
+
+## Reflection
+
+*What went well today?*
+
+## Tomorrow's Focus
+
+*What are the key priorities for tomorrow?*

@@ -43,13 +43,20 @@ type TodoJournal struct {
 }
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Println("Usage: todoer <source_file> <target_file>")
+	if len(os.Args) < 3 || len(os.Args) > 4 {
+		fmt.Println("Usage: todoer <source_file> <target_file> [template_file]")
+		fmt.Println("  source_file:   Input journal file")
+		fmt.Println("  target_file:   Output file for uncompleted tasks")
+		fmt.Println("  template_file: Optional template for creating the target file")
 		os.Exit(1)
 	}
 
 	sourceFile := os.Args[1]
 	targetFile := os.Args[2]
+	var templateFile string
+	if len(os.Args) == 4 {
+		templateFile = os.Args[3]
+	}
 
 	// Validate that source and target files are different
 	if sourceFile == targetFile {
@@ -88,9 +95,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create the completed and uncompleted files
+	// Create the completed file content
 	completedFileContent := beforeTodos + completedTodos + afterTodos
-	uncompletedFileContent := beforeTodos + uncompletedTodos + afterTodos
+
+	// Create the uncompleted file content (with template if provided)
+	var uncompletedFileContent string
+	if templateFile != "" {
+		uncompletedFileContent, err = createFromTemplate(templateFile, uncompletedTodos, currentDate)
+		if err != nil {
+			fmt.Printf("Error creating file from template %s: %v\n", templateFile, err)
+			os.Exit(1)
+		}
+	} else {
+		uncompletedFileContent = beforeTodos + uncompletedTodos + afterTodos
+	}
 
 	// Write the outputs to files
 	err = os.WriteFile(sourceFile, []byte(completedFileContent), FilePermissions)
@@ -108,6 +126,59 @@ func main() {
 	fmt.Printf("Successfully processed journal.\n")
 	fmt.Printf("Completed tasks kept in: %s\n", sourceFile)
 	fmt.Printf("Uncompleted tasks moved to: %s\n", targetFile)
+	if templateFile != "" {
+		fmt.Printf("Created from template: %s\n", templateFile)
+	}
+}
+
+// createFromTemplate creates file content from a template, inserting the TODOS section and replacing template variables
+func createFromTemplate(templateFile, todosContent, currentDate string) (string, error) {
+	// Read the template file
+	templateBytes, err := os.ReadFile(templateFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to read template file: %w", err)
+	}
+
+	templateContent := string(templateBytes)
+
+	// Replace template variables
+	result := strings.ReplaceAll(templateContent, "{{date}}", currentDate)
+	result = strings.ReplaceAll(result, "{{TODOS}}", todosContent)
+
+	// If the template doesn't contain a TODOS placeholder, try to insert it in the TODOS section
+	if !strings.Contains(templateContent, "{{TODOS}}") {
+		// Find the TODOS section in the template
+		todosHeaderIndex := strings.Index(result, TodosHeader)
+		if todosHeaderIndex != -1 {
+			// Get content before TODOS (including the header)
+			headerEndIndex := todosHeaderIndex + len(TodosHeader)
+			contentAfterHeader := result[headerEndIndex:]
+
+			// Look for the next section or end of file
+			nextSectionMatch := nextSectionRegex.FindStringIndex(contentAfterHeader)
+
+			var beforeTodos, afterTodos string
+
+			if nextSectionMatch != nil {
+				// There is another section after TODOS
+				beforeTodos = result[:headerEndIndex]
+				afterTodos = contentAfterHeader[nextSectionMatch[0]:]
+			} else {
+				// TODOS is the last section
+				beforeTodos = result[:headerEndIndex]
+				afterTodos = ""
+			}
+
+			// Insert the TODOS content with proper spacing
+			if todosContent != "" {
+				result = beforeTodos + "\n\n" + todosContent + afterTodos
+			} else {
+				result = beforeTodos + afterTodos
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // extractDateFromFrontmatter extracts the date from the frontmatter title
@@ -414,11 +485,7 @@ func journalToString(journal *TodoJournal, useBlankLinesAfterHeaders bool) strin
 
 	var builder strings.Builder
 
-	for i, day := range journal.Days {
-		if i > 0 {
-			builder.WriteString("\n")
-		}
-
+	for _, day := range journal.Days {
 		builder.WriteString("- [[")
 		builder.WriteString(day.Date)
 		builder.WriteString("]]")
@@ -432,6 +499,9 @@ func journalToString(journal *TodoJournal, useBlankLinesAfterHeaders bool) strin
 		for _, item := range day.Items {
 			writeItemToString(&builder, item, 1)
 		}
+		
+		// No extra newlines between day sections in compact format
+		// The writeItemToString already adds a newline after each item
 	}
 
 	return strings.TrimRight(builder.String(), "\n")

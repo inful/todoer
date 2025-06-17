@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -236,3 +237,130 @@ func TestParsingFunctions(t *testing.T) {
 		}
 	})
 }
+
+// TestCreateFromTemplate tests the createFromTemplate function
+func TestCreateFromTemplate(t *testing.T) {
+	tests := []struct {
+		name         string
+		template     string
+		todosContent string
+		currentDate  string
+		expected     string
+	}{
+		{
+			name: "template with TODOS placeholder",
+			template: `---
+title: {{date}}
+---
+
+# Journal {{date}}
+
+## TODOS
+
+{{TODOS}}
+
+## Notes
+
+Today's notes.`,
+			todosContent: `- [[2024-01-15]]
+  - [ ] Task 1
+  - [ ] Task 2`,
+			currentDate: "2024-01-16",
+			expected: `---
+title: 2024-01-16
+---
+
+# Journal 2024-01-16
+
+## TODOS
+
+- [[2024-01-15]]
+  - [ ] Task 1
+  - [ ] Task 2
+
+## Notes
+
+Today's notes.`,
+		},
+		{
+			name: "template with TODOS section but no placeholder",
+			template: `---
+title: {{date}}
+---
+
+# Journal
+
+## TODOS
+
+## Notes
+
+Notes here.`,
+			todosContent: `- [[2024-01-15]]
+  - [ ] Task 1`,
+			currentDate: "2024-01-16",
+			expected: `---
+title: 2024-01-16
+---
+
+# Journal
+
+## TODOS
+
+- [[2024-01-15]]
+  - [ ] Task 1
+
+## Notes
+
+Notes here.`,
+		},
+		{
+			name: "template with only date placeholder",
+			template: `---
+title: {{date}}
+---
+
+# Simple Journal
+
+Content for {{date}}.`,
+			todosContent: `- [[2024-01-15]]
+  - [ ] Task 1`,
+			currentDate: "2024-01-16",
+			expected: `---
+title: 2024-01-16
+---
+
+# Simple Journal
+
+Content for 2024-01-16.`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary template file
+			tmpFile, err := os.CreateTemp("", "template*.md")
+			if err != nil {
+				t.Fatalf("Failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpFile.Name())
+
+			_, err = tmpFile.WriteString(tt.template)
+			if err != nil {
+				t.Fatalf("Failed to write template: %v", err)
+			}
+			tmpFile.Close()
+
+			// Test the function
+			result, err := createFromTemplate(tmpFile.Name(), tt.todosContent, tt.currentDate)
+			if err != nil {
+				t.Fatalf("createFromTemplate failed: %v", err)
+			}
+
+			if strings.TrimSpace(result) != strings.TrimSpace(tt.expected) {
+				t.Errorf("Expected:\n%s\n\nGot:\n%s", tt.expected, result)
+			}
+		})
+	}
+}
+
+// normalizeWhitespace removes extra whitespace for comparison
