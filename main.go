@@ -8,9 +8,24 @@ import (
 	"time"
 )
 
+// Constants for the application
+const (
+	TodosHeader     = "## TODOS"
+	FilePermissions = 0644
+	DateFormat      = "2006-01-02"
+)
+
+// Compiled regex patterns for better performance
+var (
+	frontmatterDateRegex = regexp.MustCompile(`(?s)---.*?title:\s*(\d{4}-\d{2}-\d{2}).*?---`)
+	dayHeaderRegex       = regexp.MustCompile(`- \[\[(\d{4}-\d{2}-\d{2})\]\]`)
+	todoItemRegex        = regexp.MustCompile(`^(\s*)- \[([ x])\] (.+)$`)
+	dateTagRegex         = regexp.MustCompile(`#\d{4}-\d{2}-\d{2}`)
+	nextSectionRegex     = regexp.MustCompile(`\n\n## `)
+)
+
 // TodoItem represents a todo item with its completion status and text
 type TodoItem struct {
-	Indent    string
 	Completed bool
 	Text      string
 	SubItems  []*TodoItem
@@ -36,29 +51,35 @@ func main() {
 	sourceFile := os.Args[1]
 	targetFile := os.Args[2]
 
+	// Validate that source and target files are different
+	if sourceFile == targetFile {
+		fmt.Printf("Error: source and target files cannot be the same\n")
+		os.Exit(1)
+	}
+
 	// Read the source file
 	content, err := os.ReadFile(sourceFile)
 	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
+		fmt.Printf("Error reading file %s: %v\n", sourceFile, err)
 		os.Exit(1)
 	}
 
 	// Extract the date from frontmatter
 	date, err := extractDateFromFrontmatter(string(content))
 	if err != nil {
-		fmt.Printf("Error extracting date: %v\n", err)
+		fmt.Printf("Error extracting date from %s: %v\n", sourceFile, err)
 		os.Exit(1)
 	}
 
 	// Extract TODOS section
 	beforeTodos, todosSection, afterTodos, err := extractTodosSection(string(content))
 	if err != nil {
-		fmt.Printf("Error extracting TODOS section: %v\n", err)
+		fmt.Printf("Error extracting TODOS section from %s: %v\n", sourceFile, err)
 		os.Exit(1)
 	}
 
 	// Get today's date for tagging
-	currentDate := time.Now().Format("2006-01-02")
+	currentDate := time.Now().Format(DateFormat)
 
 	// Process the TODOS section
 	completedTodos, uncompletedTodos, err := processTodosSection(todosSection, date, currentDate)
@@ -72,15 +93,15 @@ func main() {
 	uncompletedFileContent := beforeTodos + uncompletedTodos + afterTodos
 
 	// Write the outputs to files
-	err = os.WriteFile(sourceFile, []byte(completedFileContent), 0644)
+	err = os.WriteFile(sourceFile, []byte(completedFileContent), FilePermissions)
 	if err != nil {
-		fmt.Printf("Error writing to source file: %v\n", err)
+		fmt.Printf("Error writing to source file %s: %v\n", sourceFile, err)
 		os.Exit(1)
 	}
 
-	err = os.WriteFile(targetFile, []byte(uncompletedFileContent), 0644)
+	err = os.WriteFile(targetFile, []byte(uncompletedFileContent), FilePermissions)
 	if err != nil {
-		fmt.Printf("Error writing to target file: %v\n", err)
+		fmt.Printf("Error writing to target file %s: %v\n", targetFile, err)
 		os.Exit(1)
 	}
 
@@ -92,12 +113,11 @@ func main() {
 // extractDateFromFrontmatter extracts the date from the frontmatter title
 func extractDateFromFrontmatter(content string) (string, error) {
 	// Look for the title in frontmatter
-	re := regexp.MustCompile(`(?s)---.*?title:\s*(\d{4}-\d{2}-\d{2}).*?---`)
-	matches := re.FindStringSubmatch(content)
+	matches := frontmatterDateRegex.FindStringSubmatch(content)
 
 	if len(matches) < 2 {
 		// If no date found in frontmatter, use today's date
-		return time.Now().Format("2006-01-02"), nil
+		return time.Now().Format(DateFormat), nil
 	}
 
 	return matches[1], nil
@@ -106,27 +126,26 @@ func extractDateFromFrontmatter(content string) (string, error) {
 // extractTodosSection extracts the TODOS section from the file content
 func extractTodosSection(content string) (string, string, string, error) {
 	// Find the TODOS section header
-	todosHeaderIndex := strings.Index(content, "## TODOS")
+	todosHeaderIndex := strings.Index(content, TodosHeader)
 	if todosHeaderIndex == -1 {
-		return "", "", "", fmt.Errorf("could not find TODOS section in file")
+		return "", "", "", fmt.Errorf("could not find '%s' section in file", TodosHeader)
 	}
 
-	// Get content before TODOS
-	beforeTodos := content[:todosHeaderIndex+8] // Include "## TODOS"
+	// Get content before TODOS (including the header)
+	headerEndIndex := todosHeaderIndex + len(TodosHeader)
+	contentAfterHeader := content[headerEndIndex:]
 
 	// Find the first blank line after the header
-	headerEndIndex := todosHeaderIndex + 8
-	contentAfterHeader := content[headerEndIndex:]
 	firstBlankLineIndex := strings.Index(contentAfterHeader, "\n\n")
 	if firstBlankLineIndex == -1 {
-		return "", "", "", fmt.Errorf("invalid TODOS section format")
+		return "", "", "", fmt.Errorf("invalid %s section format: expected blank line after header", TodosHeader)
 	}
 
-	beforeTodos = content[:headerEndIndex+firstBlankLineIndex+2] // Include the blank line
+	beforeTodos := content[:headerEndIndex+firstBlankLineIndex+2] // Include the blank line
 
 	// Find the next section header (if any)
 	afterHeaderContent := content[headerEndIndex+firstBlankLineIndex+2:]
-	nextSectionMatch := regexp.MustCompile(`\n\n## `).FindStringIndex(afterHeaderContent)
+	nextSectionMatch := nextSectionRegex.FindStringIndex(afterHeaderContent)
 
 	var todosSection string
 	var afterTodos string
@@ -179,95 +198,96 @@ func parseTodosSection(content string) (*TodoJournal, error) {
 	}
 
 	lines := strings.Split(content, "\n")
-
 	var currentDay *DaySection
 	var currentIndentStack []int
 	var currentItemStack []*TodoItem
 
-	for i := 0; i < len(lines); i++ {
-		line := lines[i]
+	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-
 		if trimmedLine == "" {
 			continue
 		}
 
-		// Check for day header - format: - [[YYYY-MM-DD]]
-		dateMatch := regexp.MustCompile(`- \[\[(\d{4}-\d{2}-\d{2})\]\]`).FindStringSubmatch(trimmedLine)
-		if dateMatch != nil {
-			if currentDay != nil {
-				journal.Days = append(journal.Days, currentDay)
-			}
-			currentDay = &DaySection{
-				Date:  dateMatch[1],
-				Items: []*TodoItem{},
-			}
+		// Check for day header
+		if dateMatch := dayHeaderRegex.FindStringSubmatch(trimmedLine); dateMatch != nil {
+			currentDay = createNewDaySection(journal, currentDay, dateMatch[1])
 			currentIndentStack = []int{}
 			currentItemStack = []*TodoItem{}
 			continue
 		}
 
-		// Check for todo item - format: - [ ] text or - [x] text
-		todoMatch := regexp.MustCompile(`^(\s*)- \[([ x])\] (.+)$`).FindStringSubmatch(line)
-		if todoMatch != nil && currentDay != nil {
-			indent := todoMatch[1]
-			indentLevel := len(indent)
-			completed := todoMatch[2] == "x"
-			text := todoMatch[3]
-
-			item := &TodoItem{
-				Indent:    indent,
-				Completed: completed,
-				Text:      text,
-				SubItems:  []*TodoItem{},
-			}
-
-			// Determine where to add this item in the hierarchy
-			if len(currentIndentStack) == 0 {
-				// This is a top-level item
-				currentDay.Items = append(currentDay.Items, item)
-				currentIndentStack = append(currentIndentStack, indentLevel)
-				currentItemStack = append(currentItemStack, item)
-			} else {
-				// Find the parent item based on indentation
-				lastIndentLevel := currentIndentStack[len(currentIndentStack)-1]
-
-				if indentLevel > lastIndentLevel {
-					// This is a child of the previous item
-					parentItem := currentItemStack[len(currentItemStack)-1]
-					parentItem.SubItems = append(parentItem.SubItems, item)
-					currentIndentStack = append(currentIndentStack, indentLevel)
-					currentItemStack = append(currentItemStack, item)
-				} else {
-					// Pop the stack until we find the right parent level
-					for len(currentIndentStack) > 0 && indentLevel <= currentIndentStack[len(currentIndentStack)-1] {
-						currentIndentStack = currentIndentStack[:len(currentIndentStack)-1]
-						currentItemStack = currentItemStack[:len(currentItemStack)-1]
-					}
-
-					// Now add this item
-					if len(currentItemStack) == 0 {
-						// This is a top-level item
-						currentDay.Items = append(currentDay.Items, item)
-					} else {
-						// This is a child of some parent
-						parentItem := currentItemStack[len(currentItemStack)-1]
-						parentItem.SubItems = append(parentItem.SubItems, item)
-					}
-
-					currentIndentStack = append(currentIndentStack, indentLevel)
-					currentItemStack = append(currentItemStack, item)
-				}
-			}
+		// Check for todo item
+		if todoMatch := todoItemRegex.FindStringSubmatch(line); todoMatch != nil && currentDay != nil {
+			item := createTodoItem(todoMatch)
+			currentIndentStack, currentItemStack = addItemToHierarchy(
+				currentDay, item, len(todoMatch[1]), currentIndentStack, currentItemStack)
 		}
 	}
 
-	// Don't forget to add the last day
+	// Add the last day if it exists
 	if currentDay != nil {
 		journal.Days = append(journal.Days, currentDay)
 	}
 
 	return journal, nil
+}
+
+// createNewDaySection creates a new day section and adds the previous one to the journal
+func createNewDaySection(journal *TodoJournal, currentDay *DaySection, date string) *DaySection {
+	if currentDay != nil {
+		journal.Days = append(journal.Days, currentDay)
+	}
+	return &DaySection{
+		Date:  date,
+		Items: []*TodoItem{},
+	}
+}
+
+// createTodoItem creates a TodoItem from regex matches
+func createTodoItem(matches []string) *TodoItem {
+	return &TodoItem{
+		Completed: matches[2] == "x",
+		Text:      matches[3],
+		SubItems:  []*TodoItem{},
+	}
+}
+
+// addItemToHierarchy adds a todo item to the correct position in the hierarchy
+func addItemToHierarchy(currentDay *DaySection, item *TodoItem, indentLevel int,
+	currentIndentStack []int, currentItemStack []*TodoItem) ([]int, []*TodoItem) {
+
+	if len(currentIndentStack) == 0 {
+		// This is a top-level item
+		currentDay.Items = append(currentDay.Items, item)
+		return append(currentIndentStack, indentLevel), append(currentItemStack, item)
+	}
+
+	lastIndentLevel := currentIndentStack[len(currentIndentStack)-1]
+
+	if indentLevel > lastIndentLevel {
+		// This is a child of the previous item
+		parentItem := currentItemStack[len(currentItemStack)-1]
+		parentItem.SubItems = append(parentItem.SubItems, item)
+		return append(currentIndentStack, indentLevel), append(currentItemStack, item)
+	}
+
+	// Pop the stack until we find the right parent level
+	for len(currentIndentStack) > 0 && indentLevel <= currentIndentStack[len(currentIndentStack)-1] {
+		currentIndentStack = currentIndentStack[:len(currentIndentStack)-1]
+		currentItemStack = currentItemStack[:len(currentItemStack)-1]
+	}
+
+	// Add this item
+	if len(currentItemStack) == 0 {
+		// This is a top-level item
+		currentDay.Items = append(currentDay.Items, item)
+	} else {
+		// This is a child of some parent
+		parentItem := currentItemStack[len(currentItemStack)-1]
+		parentItem.SubItems = append(parentItem.SubItems, item)
+	}
+
+	return append(currentIndentStack, indentLevel), append(currentItemStack, item)
 }
 
 // splitJournal splits the journal into completed and uncompleted tasks
@@ -337,7 +357,6 @@ func isCompleted(item *TodoItem) bool {
 // deepCopyItem creates a deep copy of a todo item
 func deepCopyItem(item *TodoItem) *TodoItem {
 	copy := &TodoItem{
-		Indent:    item.Indent,
 		Completed: item.Completed,
 		Text:      item.Text,
 		SubItems:  []*TodoItem{},
@@ -358,18 +377,8 @@ func tagCompletedItems(journal *TodoJournal, currentDate string) {
 				item.Text += " #" + currentDate
 			}
 			// Also tag subitems
-			tagCompletedSubitemsWithDate(item, currentDate)
+			tagCompletedSubitemsRecursive(item, currentDate)
 		}
-	}
-}
-
-// tagCompletedSubitemsWithDate adds date tags to completed subitems
-func tagCompletedSubitemsWithDate(item *TodoItem, date string) {
-	for _, subItem := range item.SubItems {
-		if subItem.Completed && !hasDateTag(subItem.Text) {
-			subItem.Text += " #" + date
-		}
-		tagCompletedSubitemsWithDate(subItem, date)
 	}
 }
 
@@ -377,24 +386,24 @@ func tagCompletedSubitemsWithDate(item *TodoItem, date string) {
 func tagCompletedSubtasks(journal *TodoJournal) {
 	for _, day := range journal.Days {
 		for _, item := range day.Items {
-			tagCompletedSubitemsWithOriginalDate(item, day.Date)
+			tagCompletedSubitemsRecursive(item, day.Date)
 		}
 	}
 }
 
-// tagCompletedSubitemsWithOriginalDate adds date tags to completed subitems using the original date
-func tagCompletedSubitemsWithOriginalDate(item *TodoItem, date string) {
+// tagCompletedSubitemsRecursive adds date tags to completed subitems recursively
+func tagCompletedSubitemsRecursive(item *TodoItem, date string) {
 	for _, subItem := range item.SubItems {
 		if subItem.Completed && !hasDateTag(subItem.Text) {
 			subItem.Text += " #" + date
 		}
-		tagCompletedSubitemsWithOriginalDate(subItem, date)
+		tagCompletedSubitemsRecursive(subItem, date)
 	}
 }
 
 // hasDateTag checks if text already has a date tag
 func hasDateTag(text string) bool {
-	return regexp.MustCompile(`#\d{4}-\d{2}-\d{2}`).MatchString(text)
+	return dateTagRegex.MatchString(text)
 }
 
 // journalToString converts a journal to string format
