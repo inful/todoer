@@ -18,7 +18,7 @@ func TestFileBasedCases(t *testing.T) {
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == "template" {
+		if !entry.IsDir() {
 			continue
 		}
 
@@ -31,6 +31,9 @@ func TestFileBasedCases(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to read original.md: %v", err)
 			}
+
+			// Read the template file
+			templatePath := filepath.Join(testDir, "template.md")
 
 			// Process the file
 			date, err := extractDateFromFrontmatter(string(originalContent))
@@ -53,9 +56,14 @@ func TestFileBasedCases(t *testing.T) {
 			completedTodos = normalizeBlankLines(completedTodos)
 			uncompletedTodos = normalizeBlankLines(uncompletedTodos)
 
-			// Generate the expected results
+			// Generate the completed file content (without template)
 			completedFileContent := beforeTodos + completedTodos + afterTodos
-			uncompletedFileContent := beforeTodos + uncompletedTodos + afterTodos
+
+			// Generate the uncompleted file content using template
+			uncompletedFileContent, err := createFromTemplate(templatePath, uncompletedTodos, currentDate)
+			if err != nil {
+				t.Fatalf("Failed to create from template: %v", err)
+			}
 
 			// Read the expected files
 			expectedPath := filepath.Join(testDir, "expected.md")
@@ -86,7 +94,7 @@ func TestFileBasedCases(t *testing.T) {
 
 func TestTemplateIntegration(t *testing.T) {
 	// Use a fixed date for testing
-	currentDate := "2024-01-16"
+	currentDate := "2025-06-17"
 	testDir := "testdata/template"
 
 	// Read the original file

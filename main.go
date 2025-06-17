@@ -12,17 +12,32 @@ const (
 )
 
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Println("Usage: todoer <source_file> <target_file> <template_file>")
-		fmt.Println("  source_file:   Input journal file")
-		fmt.Println("  target_file:   Output file for uncompleted tasks")
-		fmt.Println("  template_file: Template for creating the target file")
+	if len(os.Args) < 4 || len(os.Args) > 5 {
+		fmt.Println("Usage: todoer <source_file> <target_file> <template_file> [template_date]")
+		fmt.Println("  source_file:    Input journal file")
+		fmt.Println("  target_file:    Output file for uncompleted tasks")
+		fmt.Println("  template_file:  Template for creating the target file")
+		fmt.Println("  template_date:  Optional date for template rendering (YYYY-MM-DD)")
+		fmt.Println("                  If not provided, current date will be used")
 		os.Exit(1)
 	}
 
 	sourceFile := os.Args[1]
 	targetFile := os.Args[2]
 	templateFile := os.Args[3]
+
+	var templateDate string
+	if len(os.Args) == 5 {
+		templateDate = os.Args[4]
+		// Validate the template date format
+		if err := validateDate(templateDate); err != nil {
+			fmt.Printf("Error: invalid template date format '%s': %v\n", templateDate, err)
+			os.Exit(1)
+		}
+	} else {
+		// Use current date if not provided
+		templateDate = time.Now().Format(DateFormat)
+	}
 
 	// Validate that source and target files are different
 	if sourceFile == targetFile {
@@ -51,7 +66,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Get today's date for tagging
+	// Get today's date for tagging completed items
 	currentDate := time.Now().Format(DateFormat)
 
 	// Process the TODOS section
@@ -64,8 +79,8 @@ func main() {
 	// Create the completed file content
 	completedFileContent := beforeTodos + completedTodos + afterTodos
 
-	// Create the uncompleted file content using the template
-	uncompletedFileContent, err := createFromTemplate(templateFile, uncompletedTodos, currentDate)
+	// Create the uncompleted file content using the template with specified date
+	uncompletedFileContent, err := createFromTemplate(templateFile, uncompletedTodos, templateDate)
 	if err != nil {
 		fmt.Printf("Error creating file from template %s: %v\n", templateFile, err)
 		os.Exit(1)
@@ -87,5 +102,5 @@ func main() {
 	fmt.Printf("Successfully processed journal.\n")
 	fmt.Printf("Completed tasks kept in: %s\n", sourceFile)
 	fmt.Printf("Uncompleted tasks moved to: %s\n", targetFile)
-	fmt.Printf("Created from template: %s\n", templateFile)
+	fmt.Printf("Created from template: %s (using date: %s)\n", templateFile, templateDate)
 }

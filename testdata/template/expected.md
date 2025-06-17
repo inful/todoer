@@ -1,9 +1,9 @@
 ---
-title: 2024-01-16
+title: 2025-06-17
 tags: journal, daily
 ---
 
-# Daily Journal - 2024-01-16
+# Daily Journal - 2025-06-17
 
 ## TODOS
 
@@ -20,7 +20,7 @@ tags: journal, daily
 
 ## Notes
 
-*Add your notes for 2024-01-16 here.*
+*Add your notes for 2025-06-17 here.*
 
 ## Reflection
 
