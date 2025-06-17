@@ -1,3 +1,15 @@
+// Package main provides parsing functionality for TODO items in markdown journal files.
+//
+// This parser handles hierarchical TODO structures with the following features:
+// - Validates date formats in day headers
+// - Supports nested TODO items with proper indentation
+// - Handles mixed content (bullet points, continuations)
+// - Normalizes tabs to spaces for consistent indentation
+// - Provides comprehensive error reporting with context
+// - Efficiently deep copies TODO items when splitting journals
+//
+// The parser uses a state machine approach to handle complex markdown structures
+// while maintaining performance and readability.
 package main
 
 import (
@@ -13,6 +25,37 @@ const (
 	TodosHeader = "## TODOS"
 	DateFormat  = "2006-01-02"
 )
+
+// validateDate validates that a date string is in the correct format
+func validateDate(dateStr string) error {
+	_, err := time.Parse(DateFormat, dateStr)
+	if err != nil {
+		return fmt.Errorf("invalid date format '%s', expected YYYY-MM-DD", dateStr)
+	}
+	return err
+}
+
+// parserState holds the state during parsing to reduce parameter passing
+type parserState struct {
+	currentDay         *DaySection
+	currentIndentStack []int
+	currentItemStack   []*TodoItem
+}
+
+// newParserState creates a new parser state
+func newParserState() *parserState {
+	return &parserState{
+		currentDay:         nil,
+		currentIndentStack: []int{},
+		currentItemStack:   []*TodoItem{},
+	}
+}
+
+// reset resets the parser state for a new day
+func (ps *parserState) reset() {
+	ps.currentIndentStack = []int{}
+	ps.currentItemStack = []*TodoItem{}
+}
 
 // Compiled regex patterns for better performance
 var (
@@ -51,78 +94,114 @@ func parseTodosSection(content string) (*TodoJournal, error) {
 	}
 
 	lines := strings.Split(content, "\n")
-	var currentDay *DaySection
-	var currentIndentStack []int
-	var currentItemStack []*TodoItem
+	state := newParserState()
 
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		if trimmedLine == "" {
-			continue
-		}
-
-		// Check for day header
-		if dateMatch := dayHeaderRegex.FindStringSubmatch(trimmedLine); dateMatch != nil {
-			currentDay = createNewDaySection(journal, currentDay, dateMatch[1])
-			currentIndentStack = []int{}
-			currentItemStack = []*TodoItem{}
-			continue
-		}
-
-		// Skip processing if we don't have a current day
-		if currentDay == nil {
-			continue
-		}
-
-		// Check for todo item first
-		if todoMatch := todoItemRegex.FindStringSubmatch(line); todoMatch != nil {
-			item := createTodoItem(todoMatch)
-			currentIndentStack, currentItemStack = addItemToHierarchy(
-				currentDay, item, len(todoMatch[1]), currentIndentStack, currentItemStack)
-			continue
-		}
-
-		// Check for bullet entry (- something that's not a todo)
-		if bulletMatch := bulletEntryRegex.FindStringSubmatch(line); bulletMatch != nil {
-			// This is a bullet entry, add it to the last todo item if we have one
-			if len(currentItemStack) > 0 {
-				bulletIndent := len(bulletMatch[1])
-
-				// Find the appropriate parent based on indentation
-				targetItem := findTargetItemForBullet(currentItemStack, currentIndentStack, bulletIndent)
-				if targetItem != nil {
-					// Store the bullet line with its original indentation relative to the todo item
-					targetItem.BulletLines = append(targetItem.BulletLines, line)
-				}
-			}
-			continue
-		}
-
-		// Check for continuation line (indented text that's part of a bullet or todo)
-		if contMatch := continuationRegex.FindStringSubmatch(line); contMatch != nil {
-			// This is a continuation line, add it to the last bullet entry or todo item
-			if len(currentItemStack) > 0 {
-				contIndent := len(contMatch[1])
-
-				// Find the appropriate parent for this continuation line
-				targetItem := findTargetItemForBullet(currentItemStack, currentIndentStack, contIndent)
-				if targetItem != nil {
-					targetItem.BulletLines = append(targetItem.BulletLines, line)
-				}
-			}
-			continue
+	for lineNum, line := range lines {
+		if err := processLine(journal, state, line, lineNum+1); err != nil {
+			return nil, err
 		}
 	}
 
 	// Add the last day if it exists
-	if currentDay != nil {
-		journal.Days = append(journal.Days, currentDay)
+	if state.currentDay != nil {
+		journal.Days = append(journal.Days, state.currentDay)
 	}
 
 	return journal, nil
 }
 
+// processLine processes a single line of the TODOS section
+func processLine(journal *TodoJournal, state *parserState, line string, lineNum int) error {
+	trimmedLine := strings.TrimSpace(line)
+	if trimmedLine == "" {
+		return nil
+	}
+
+	// Check for day header
+	if dateMatch := dayHeaderRegex.FindStringSubmatch(trimmedLine); dateMatch != nil {
+		return processDayHeader(journal, state, dateMatch[1])
+	}
+
+	// Skip processing if we don't have a current day
+	if state.currentDay == nil {
+		return nil
+	}
+
+	// Check for todo item first
+	if todoMatch := todoItemRegex.FindStringSubmatch(line); todoMatch != nil {
+		return processTodoItem(state, todoMatch)
+	}
+
+	// Check for bullet entry (- something that's not a todo)
+	if bulletMatch := bulletEntryRegex.FindStringSubmatch(line); bulletMatch != nil {
+		return processBulletEntry(state, line, bulletMatch)
+	}
+
+	// Check for continuation line (indented text that's part of a bullet or todo)
+	if contMatch := continuationRegex.FindStringSubmatch(line); contMatch != nil {
+		return processContinuationLine(state, line, contMatch)
+	}
+
+	return nil
+}
+
+// processDayHeader processes a day header line
+func processDayHeader(journal *TodoJournal, state *parserState, dateStr string) error {
+	// Validate the date format
+	if err := validateDate(dateStr); err != nil {
+		return fmt.Errorf("invalid date in day header: %w", err)
+	}
+
+	state.currentDay = createNewDaySection(journal, state.currentDay, dateStr)
+	state.reset()
+	return nil
+}
+
+// processTodoItem processes a todo item line
+func processTodoItem(state *parserState, todoMatch []string) error {
+	item := createTodoItem(todoMatch)
+	indentLevel := getIndentLevel(todoMatch[1])
+	state.currentIndentStack, state.currentItemStack = addItemToHierarchy(
+		state.currentDay, item, indentLevel, state.currentIndentStack, state.currentItemStack)
+	return nil
+}
+
+// processBulletEntry processes a bullet entry line
+func processBulletEntry(state *parserState, line string, bulletMatch []string) error {
+	if len(state.currentItemStack) > 0 {
+		normalizedLine := normalizeIndentation(line)
+		bulletIndent := getIndentLevel(bulletMatch[1])
+		targetItem := findTargetItemForBullet(state.currentItemStack, state.currentIndentStack, bulletIndent)
+		if targetItem != nil {
+			targetItem.BulletLines = append(targetItem.BulletLines, normalizedLine)
+		}
+	}
+	return nil
+}
+
+// processContinuationLine processes a continuation line
+func processContinuationLine(state *parserState, line string, contMatch []string) error {
+	if len(state.currentItemStack) > 0 {
+		normalizedLine := normalizeIndentation(line)
+		contIndent := getIndentLevel(contMatch[1])
+		targetItem := findTargetItemForBullet(state.currentItemStack, state.currentIndentStack, contIndent)
+		if targetItem != nil {
+			targetItem.BulletLines = append(targetItem.BulletLines, normalizedLine)
+		}
+	}
+	return nil
+}
+
 // findTargetItemForBullet finds the appropriate todo item to attach a bullet entry to
+// based on indentation level. It traverses the current item stack from the most
+// recent item backwards to find the first item whose indentation level is less
+// than the bullet's indentation, indicating it should be the parent.
+//
+// Example:
+//   - [ ] Todo item (indent 0)
+//   - Bullet entry (indent 2) -> attaches to todo above
+//   - [ ] Sub todo (indent 4)
+//   - Sub bullet (indent 6) -> attaches to sub todo above
 func findTargetItemForBullet(currentItemStack []*TodoItem, currentIndentStack []int, bulletIndent int) *TodoItem {
 	// Find the todo item that should contain this bullet entry based on indentation
 	for i := len(currentIndentStack) - 1; i >= 0; i-- {
@@ -260,21 +339,45 @@ func isCompleted(item *TodoItem) bool {
 	return true
 }
 
+// getIndentLevel calculates the indentation level of a line (number of leading spaces/tabs)
+// Treats tabs as 2 spaces for consistency
+func getIndentLevel(line string) int {
+	indent := 0
+	for _, char := range line {
+		if char == ' ' {
+			indent++
+		} else if char == '\t' {
+			indent += 2 // Treat tab as 2 spaces
+		} else {
+			break
+		}
+	}
+	return indent
+}
+
+// normalizeIndentation converts tabs to spaces for consistent indentation handling
+func normalizeIndentation(line string) string {
+	return strings.ReplaceAll(line, "\t", "  ")
+}
+
 // deepCopyItem creates a deep copy of a todo item
+// Pre-allocates slices for better performance with large hierarchies
 func deepCopyItem(item *TodoItem) *TodoItem {
+	if item == nil {
+		return nil
+	}
+
 	copy := &TodoItem{
 		Completed:   item.Completed,
 		Text:        item.Text,
-		SubItems:    []*TodoItem{},
+		SubItems:    make([]*TodoItem, 0, len(item.SubItems)),
 		BulletLines: make([]string, len(item.BulletLines)),
 	}
 
 	// Copy bullet lines
-	for i, line := range item.BulletLines {
-		copy.BulletLines[i] = line
-	}
+	copy.BulletLines = append(copy.BulletLines[:0], item.BulletLines...)
 
-	// Copy subitems
+	// Copy subitems recursively
 	for _, subItem := range item.SubItems {
 		copy.SubItems = append(copy.SubItems, deepCopyItem(subItem))
 	}
@@ -409,7 +512,8 @@ func extractTodosSection(content string) (string, string, string, error) {
 	// Find the first blank line after the header
 	firstBlankLineIndex := strings.Index(contentAfterHeader, "\n\n")
 	if firstBlankLineIndex == -1 {
-		return "", "", "", fmt.Errorf("invalid %s section format: expected blank line after header", TodosHeader)
+		return "", "", "", fmt.Errorf("invalid %s section format: expected blank line after header at position %d",
+			TodosHeader, headerEndIndex)
 	}
 
 	beforeTodos := content[:headerEndIndex+firstBlankLineIndex+2] // Include the blank line
@@ -463,10 +567,19 @@ func processTodosSection(todosSection string, originalDate string, currentDate s
 
 // createFromTemplate creates file content from a template, inserting the TODOS section and replacing template variables
 func createFromTemplate(templateFile, todosContent, currentDate string) (string, error) {
+	// Validate inputs
+	if templateFile == "" {
+		return "", fmt.Errorf("template file path cannot be empty")
+	}
+
+	if err := validateDate(currentDate); err != nil {
+		return "", fmt.Errorf("invalid current date: %w", err)
+	}
+
 	// Read the template file
 	templateBytes, err := os.ReadFile(templateFile)
 	if err != nil {
-		return "", fmt.Errorf("failed to read template file: %w", err)
+		return "", fmt.Errorf("failed to read template file '%s': %w", templateFile, err)
 	}
 
 	templateContent := string(templateBytes)
