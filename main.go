@@ -20,15 +20,18 @@ var (
 	frontmatterDateRegex = regexp.MustCompile(`(?s)---.*?title:\s*(\d{4}-\d{2}-\d{2}).*?---`)
 	dayHeaderRegex       = regexp.MustCompile(`- \[\[(\d{4}-\d{2}-\d{2})\]\]`)
 	todoItemRegex        = regexp.MustCompile(`^(\s*)- \[([ x])\] (.+)$`)
+	bulletEntryRegex     = regexp.MustCompile(`^(\s*)- (.+)$`)
+	continuationRegex    = regexp.MustCompile(`^(\s+)(.+)$`)
 	dateTagRegex         = regexp.MustCompile(`#\d{4}-\d{2}-\d{2}`)
 	nextSectionRegex     = regexp.MustCompile(`\n\n## `)
 )
 
 // TodoItem represents a todo item with its completion status and text
 type TodoItem struct {
-	Completed bool
-	Text      string
-	SubItems  []*TodoItem
+	Completed   bool
+	Text        string
+	SubItems    []*TodoItem
+	BulletLines []string // Non-todo bullet entries and multiline content
 }
 
 // DaySection represents a day's todo items
@@ -287,11 +290,48 @@ func parseTodosSection(content string) (*TodoJournal, error) {
 			continue
 		}
 
-		// Check for todo item
-		if todoMatch := todoItemRegex.FindStringSubmatch(line); todoMatch != nil && currentDay != nil {
+		// Skip processing if we don't have a current day
+		if currentDay == nil {
+			continue
+		}
+
+		// Check for todo item first
+		if todoMatch := todoItemRegex.FindStringSubmatch(line); todoMatch != nil {
 			item := createTodoItem(todoMatch)
 			currentIndentStack, currentItemStack = addItemToHierarchy(
 				currentDay, item, len(todoMatch[1]), currentIndentStack, currentItemStack)
+			continue
+		}
+
+		// Check for bullet entry (- something that's not a todo)
+		if bulletMatch := bulletEntryRegex.FindStringSubmatch(line); bulletMatch != nil {
+			// This is a bullet entry, add it to the last todo item if we have one
+			if len(currentItemStack) > 0 {
+				bulletIndent := len(bulletMatch[1])
+
+				// Find the appropriate parent based on indentation
+				targetItem := findTargetItemForBullet(currentItemStack, currentIndentStack, bulletIndent)
+				if targetItem != nil {
+					// Store the bullet line with its original indentation relative to the todo item
+					targetItem.BulletLines = append(targetItem.BulletLines, line)
+				}
+			}
+			continue
+		}
+
+		// Check for continuation line (indented text that's part of a bullet or todo)
+		if contMatch := continuationRegex.FindStringSubmatch(line); contMatch != nil {
+			// This is a continuation line, add it to the last bullet entry or todo item
+			if len(currentItemStack) > 0 {
+				contIndent := len(contMatch[1])
+
+				// Find the appropriate parent for this continuation line
+				targetItem := findTargetItemForBullet(currentItemStack, currentIndentStack, contIndent)
+				if targetItem != nil {
+					targetItem.BulletLines = append(targetItem.BulletLines, line)
+				}
+			}
+			continue
 		}
 	}
 
@@ -301,6 +341,21 @@ func parseTodosSection(content string) (*TodoJournal, error) {
 	}
 
 	return journal, nil
+}
+
+// findTargetItemForBullet finds the appropriate todo item to attach a bullet entry to
+func findTargetItemForBullet(currentItemStack []*TodoItem, currentIndentStack []int, bulletIndent int) *TodoItem {
+	// Find the todo item that should contain this bullet entry based on indentation
+	for i := len(currentIndentStack) - 1; i >= 0; i-- {
+		if bulletIndent > currentIndentStack[i] {
+			return currentItemStack[i]
+		}
+	}
+	// If no suitable parent found, attach to the last item
+	if len(currentItemStack) > 0 {
+		return currentItemStack[len(currentItemStack)-1]
+	}
+	return nil
 }
 
 // createNewDaySection creates a new day section and adds the previous one to the journal
@@ -317,9 +372,10 @@ func createNewDaySection(journal *TodoJournal, currentDay *DaySection, date stri
 // createTodoItem creates a TodoItem from regex matches
 func createTodoItem(matches []string) *TodoItem {
 	return &TodoItem{
-		Completed: matches[2] == "x",
-		Text:      matches[3],
-		SubItems:  []*TodoItem{},
+		Completed:   matches[2] == "x",
+		Text:        matches[3],
+		SubItems:    []*TodoItem{},
+		BulletLines: []string{},
 	}
 }
 
@@ -428,11 +484,18 @@ func isCompleted(item *TodoItem) bool {
 // deepCopyItem creates a deep copy of a todo item
 func deepCopyItem(item *TodoItem) *TodoItem {
 	copy := &TodoItem{
-		Completed: item.Completed,
-		Text:      item.Text,
-		SubItems:  []*TodoItem{},
+		Completed:   item.Completed,
+		Text:        item.Text,
+		SubItems:    []*TodoItem{},
+		BulletLines: make([]string, len(item.BulletLines)),
 	}
 
+	// Copy bullet lines
+	for i, line := range item.BulletLines {
+		copy.BulletLines[i] = line
+	}
+
+	// Copy subitems
 	for _, subItem := range item.SubItems {
 		copy.SubItems = append(copy.SubItems, deepCopyItem(subItem))
 	}
@@ -499,7 +562,7 @@ func journalToString(journal *TodoJournal, useBlankLinesAfterHeaders bool) strin
 		for _, item := range day.Items {
 			writeItemToString(&builder, item, 1)
 		}
-		
+
 		// No extra newlines between day sections in compact format
 		// The writeItemToString already adds a newline after each item
 	}
@@ -526,6 +589,12 @@ func writeItemToString(builder *strings.Builder, item *TodoItem, depth int) {
 	// Write the text
 	builder.WriteString(item.Text)
 	builder.WriteString("\n")
+
+	// Write bullet lines (preserve original indentation)
+	for _, bulletLine := range item.BulletLines {
+		builder.WriteString(bulletLine)
+		builder.WriteString("\n")
+	}
 
 	// Write subitems
 	for _, subItem := range item.SubItems {

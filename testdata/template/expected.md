@@ -10,6 +10,8 @@ tags: journal, daily
 - [[2024-01-14]]
   - [ ] Review project proposal
   - [ ] Update documentation
+    - Here is a multiline
+      addition
 - [[2024-01-15]]
   - [ ] Team meeting at 10am
   - [ ] Code review

@@ -13,6 +13,8 @@ tags: journal, daily
     - [x] Write test for parser
     - [x] Write test for validator
   - [ ] Update documentation
+    - Here is a multiline
+      addition
 - [[2024-01-15]]
   - [ ] Team meeting at 10am
   - [ ] Code review
