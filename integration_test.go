@@ -25,23 +25,23 @@ func TestFileBasedCases(t *testing.T) {
 		t.Run(entry.Name(), func(t *testing.T) {
 			testDir := filepath.Join("testdata", entry.Name())
 
-			// Read the original file
-			originalPath := filepath.Join(testDir, "original.md")
-			originalContent, err := os.ReadFile(originalPath)
+			// Read the input file
+			inputPath := filepath.Join(testDir, "input.md")
+			inputContent, err := os.ReadFile(inputPath)
 			if err != nil {
-				t.Fatalf("Failed to read original.md: %v", err)
+				t.Fatalf("Failed to read input.md: %v", err)
 			}
 
 			// Use the shared template file
 			templatePath := filepath.Join("testdata", "shared_template.md")
 
 			// Process the file
-			date, err := extractDateFromFrontmatter(string(originalContent))
+			date, err := extractDateFromFrontmatter(string(inputContent))
 			if err != nil {
 				t.Fatalf("Failed to extract date: %v", err)
 			}
 
-			beforeTodos, todosSection, afterTodos, err := extractTodosSection(string(originalContent))
+			beforeTodos, todosSection, afterTodos, err := extractTodosSection(string(inputContent))
 			if err != nil {
 				t.Fatalf("Failed to extract TODOS section: %v", err)
 			}
@@ -66,27 +66,27 @@ func TestFileBasedCases(t *testing.T) {
 			}
 
 			// Read the expected files
-			expectedPath := filepath.Join(testDir, "expected.md")
-			expectedContent, err := os.ReadFile(expectedPath)
+			expectedOutputPath := filepath.Join(testDir, "expected_output.md")
+			expectedOutputContent, err := os.ReadFile(expectedOutputPath)
 			if err != nil {
-				t.Fatalf("Failed to read expected.md: %v", err)
+				t.Fatalf("Failed to read expected_output.md: %v", err)
 			}
 
-			expectedModifiedPath := filepath.Join(testDir, "expected_modified_original.md")
-			expectedModifiedContent, err := os.ReadFile(expectedModifiedPath)
+			expectedInputAfterPath := filepath.Join(testDir, "expected_input_after.md")
+			expectedInputAfterContent, err := os.ReadFile(expectedInputAfterPath)
 			if err != nil {
-				t.Fatalf("Failed to read expected_modified_original.md: %v", err)
+				t.Fatalf("Failed to read expected_input_after.md: %v", err)
 			}
 
 			// Compare results
-			if strings.TrimSpace(uncompletedFileContent) != strings.TrimSpace(string(expectedContent)) {
+			if strings.TrimSpace(uncompletedFileContent) != strings.TrimSpace(string(expectedOutputContent)) {
 				t.Errorf("Expected content doesn't match. \nGot: \n%s\n\nWant: \n%s",
-					uncompletedFileContent, string(expectedContent))
+					uncompletedFileContent, string(expectedOutputContent))
 			}
 
-			if strings.TrimSpace(completedFileContent) != strings.TrimSpace(string(expectedModifiedContent)) {
+			if strings.TrimSpace(completedFileContent) != strings.TrimSpace(string(expectedInputAfterContent)) {
 				t.Errorf("Expected modified content doesn't match. \nGot: \n%s\n\nWant: \n%s",
-					completedFileContent, string(expectedModifiedContent))
+					completedFileContent, string(expectedInputAfterContent))
 			}
 		})
 	}
@@ -97,23 +97,23 @@ func TestTemplateIntegration(t *testing.T) {
 	currentDate := "2025-06-17"
 	testDir := "testdata/template"
 
-	// Read the original file
-	originalPath := filepath.Join(testDir, "original.md")
-	originalContent, err := os.ReadFile(originalPath)
+	// Read the input file
+	inputPath := filepath.Join(testDir, "input.md")
+	inputContent, err := os.ReadFile(inputPath)
 	if err != nil {
-		t.Fatalf("Failed to read original.md: %v", err)
+		t.Fatalf("Failed to read input.md: %v", err)
 	}
 
 	// Use the shared template file
 	templatePath := filepath.Join("testdata", "shared_template.md")
 
 	// Process the file
-	date, err := extractDateFromFrontmatter(string(originalContent))
+	date, err := extractDateFromFrontmatter(string(inputContent))
 	if err != nil {
 		t.Fatalf("Failed to extract date: %v", err)
 	}
 
-	beforeTodos, todosSection, afterTodos, err := extractTodosSection(string(originalContent))
+	beforeTodos, todosSection, afterTodos, err := extractTodosSection(string(inputContent))
 	if err != nil {
 		t.Fatalf("Failed to extract TODOS section: %v", err)
 	}
@@ -133,27 +133,27 @@ func TestTemplateIntegration(t *testing.T) {
 	}
 
 	// Read the expected files
-	expectedPath := filepath.Join(testDir, "expected.md")
-	expectedContent, err := os.ReadFile(expectedPath)
+	expectedOutputPath := filepath.Join(testDir, "expected_output.md")
+	expectedOutputContent, err := os.ReadFile(expectedOutputPath)
 	if err != nil {
-		t.Fatalf("Failed to read expected.md: %v", err)
+		t.Fatalf("Failed to read expected_output.md: %v", err)
 	}
 
-	expectedModifiedPath := filepath.Join(testDir, "expected_modified_original.md")
-	expectedModifiedContent, err := os.ReadFile(expectedModifiedPath)
+	expectedInputAfterPath := filepath.Join(testDir, "expected_input_after.md")
+	expectedInputAfterContent, err := os.ReadFile(expectedInputAfterPath)
 	if err != nil {
-		t.Fatalf("Failed to read expected_modified_original.md: %v", err)
+		t.Fatalf("Failed to read expected_input_after.md: %v", err)
 	}
 
 	// Compare results
-	if strings.TrimSpace(uncompletedFileContent) != strings.TrimSpace(string(expectedContent)) {
+	if strings.TrimSpace(uncompletedFileContent) != strings.TrimSpace(string(expectedOutputContent)) {
 		t.Errorf("Template-generated content doesn't match. \nGot: \n%s\n\nWant: \n%s",
-			uncompletedFileContent, string(expectedContent))
+			uncompletedFileContent, string(expectedOutputContent))
 	}
 
-	if strings.TrimSpace(completedFileContent) != strings.TrimSpace(string(expectedModifiedContent)) {
+	if strings.TrimSpace(completedFileContent) != strings.TrimSpace(string(expectedInputAfterContent)) {
 		t.Errorf("Completed content doesn't match. \nGot: \n%s\n\nWant: \n%s",
-			completedFileContent, string(expectedModifiedContent))
+			completedFileContent, string(expectedInputAfterContent))
 	}
 }
 
