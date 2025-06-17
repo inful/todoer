@@ -250,14 +250,14 @@ func TestCreateFromTemplate(t *testing.T) {
 		{
 			name: "template with TODOS placeholder",
 			template: `---
-title: {{date}}
+title: {{.Date}}
 ---
 
-# Journal {{date}}
+# Journal {{.Date}}
 
 ## TODOS
 
-{{TODOS}}
+{{.TODOS}}
 
 ## Notes
 
@@ -285,7 +285,7 @@ Today's notes.`,
 		{
 			name: "template with TODOS section but no placeholder",
 			template: `---
-title: {{date}}
+title: {{.Date}}
 ---
 
 # Journal
@@ -316,12 +316,12 @@ Notes here.`,
 		{
 			name: "template with only date placeholder",
 			template: `---
-title: {{date}}
+title: {{.Date}}
 ---
 
 # Simple Journal
 
-Content for {{date}}.`,
+Content for {{.Date}}.`,
 			todosContent: `- [[2024-01-15]]
   - [ ] Task 1`,
 			currentDate: "2024-01-16",

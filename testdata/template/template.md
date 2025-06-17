@@ -1,17 +1,17 @@
 ---
-title: {{date}}
+title: {{.Date}}
 tags: journal, daily
 ---
 
-# Daily Journal - {{date}}
+# Daily Journal - {{.Date}}
 
 ## TODOS
 
-{{TODOS}}
+{{.TODOS}}
 
 ## Notes
 
-*Add your notes for {{date}} here.*
+*Add your notes for {{.Date}} here.*
 
 ## Reflection
 
