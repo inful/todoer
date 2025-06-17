@@ -597,82 +597,16 @@ func createFromTemplate(templateFile, todosContent, currentDate string) (string,
 		TODOS: todosContent,
 	}
 
-	// Check if the template uses Go template syntax
-	if strings.Contains(templateContent, "{{") {
-		// Check if template has TODOS placeholder
-		hasTodosPlaceholder := strings.Contains(templateContent, "{{.TODOS}}")
-
-		// Parse and execute the Go template
-		tmpl, err := template.New("journal").Parse(templateContent)
-		if err != nil {
-			return "", fmt.Errorf("failed to parse template: %w", err)
-		}
-
-		var result strings.Builder
-		if err := tmpl.Execute(&result, data); err != nil {
-			return "", fmt.Errorf("failed to execute template: %w", err)
-		}
-
-		// If there was no TODOS placeholder in the template,
-		// try to insert the TODOS content into the TODOS section
-		if !hasTodosPlaceholder {
-			return insertTodosIntoSection(result.String(), todosContent), nil
-		}
-
-		return result.String(), nil
+	// Parse and execute the Go template
+	tmpl, err := template.New("journal").Parse(templateContent)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
 
-	// No template syntax found, try to insert TODOS in the TODOS section
-	return insertTodosIntoSection(templateContent, todosContent), nil
-}
-
-// insertTodosIntoSection inserts TODOS content into an existing TODOS section
-func insertTodosIntoSection(content, todosContent string) string {
-	// Find the TODOS section in the template
-	todosHeaderIndex := strings.Index(content, TodosHeader)
-	if todosHeaderIndex == -1 {
-		return content
+	var result strings.Builder
+	if err := tmpl.Execute(&result, data); err != nil {
+		return "", fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	// Get content before TODOS (including the header)
-	headerEndIndex := todosHeaderIndex + len(TodosHeader)
-
-	// Find the content after the header
-	contentAfterHeader := content[headerEndIndex:]
-
-	// Find the first newline after the header
-	firstNewlineIndex := strings.Index(contentAfterHeader, "\n")
-	if firstNewlineIndex == -1 {
-		// No newline found, append at the end
-		if todosContent != "" {
-			return content + "\n\n" + todosContent
-		}
-		return content
-	}
-
-	// Look for the next section starting with "## " (can have varying whitespace before)
-	afterNewline := contentAfterHeader[firstNewlineIndex+1:]
-
-	// Use a more flexible regex to find the next section
-	nextSectionRegex := regexp.MustCompile(`(?m)^## `)
-	nextSectionMatch := nextSectionRegex.FindStringIndex(afterNewline)
-
-	var beforeTodos, afterTodos string
-
-	if nextSectionMatch != nil {
-		// There is another section after TODOS
-		nextSectionStart := headerEndIndex + firstNewlineIndex + 1 + nextSectionMatch[0]
-		beforeTodos = content[:headerEndIndex+firstNewlineIndex+1]
-		afterTodos = "\n" + content[nextSectionStart:]
-	} else {
-		// TODOS is the last section
-		beforeTodos = content[:headerEndIndex+firstNewlineIndex+1]
-		afterTodos = ""
-	}
-
-	// Insert the TODOS content with proper spacing
-	if todosContent != "" {
-		return beforeTodos + "\n" + todosContent + "\n" + afterTodos
-	}
-	return beforeTodos + afterTodos
+	return result.String(), nil
 }

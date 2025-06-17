@@ -283,7 +283,7 @@ title: 2024-01-16
 Today's notes.`,
 		},
 		{
-			name: "template with TODOS section but no placeholder",
+			name: "template with TODOS placeholder in section",
 			template: `---
 title: {{.Date}}
 ---
@@ -291,6 +291,8 @@ title: {{.Date}}
 # Journal
 
 ## TODOS
+
+{{.TODOS}}
 
 ## Notes
 
@@ -312,26 +314,6 @@ title: 2024-01-16
 ## Notes
 
 Notes here.`,
-		},
-		{
-			name: "template with only date placeholder",
-			template: `---
-title: {{.Date}}
----
-
-# Simple Journal
-
-Content for {{.Date}}.`,
-			todosContent: `- [[2024-01-15]]
-  - [ ] Task 1`,
-			currentDate: "2024-01-16",
-			expected: `---
-title: 2024-01-16
----
-
-# Simple Journal
-
-Content for 2024-01-16.`,
 		},
 	}
 
