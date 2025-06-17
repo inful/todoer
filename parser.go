@@ -610,3 +610,34 @@ func createFromTemplate(templateFile, todosContent, currentDate string) (string,
 
 	return result.String(), nil
 }
+
+// createFromTemplateContent creates file content from template content using Go template syntax
+func createFromTemplateContent(templateContent, todosContent, currentDate string) (string, error) {
+	// Validate inputs
+	if templateContent == "" {
+		return "", fmt.Errorf("template content cannot be empty")
+	}
+
+	if err := validateDate(currentDate); err != nil {
+		return "", fmt.Errorf("invalid current date: %w", err)
+	}
+
+	// Create template data
+	data := TemplateData{
+		Date:  currentDate,
+		TODOS: todosContent,
+	}
+
+	// Parse and execute the Go template
+	tmpl, err := template.New("journal").Parse(templateContent)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	var result strings.Builder
+	if err := tmpl.Execute(&result, data); err != nil {
+		return "", fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	return result.String(), nil
+}
