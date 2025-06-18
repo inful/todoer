@@ -8,9 +8,9 @@ Some content here.
 
 ## TODOS
 
-- [[2025-05-14]]
+- [[2025-05-12]]
   - [ ] Partially completed
-    - [x] Completed subtask #2025-05-14
+    - [x] Completed subtask #2025-05-12
     - [ ] Uncompleted subtask
 - [[2025-05-13]]
   - [ ] Complex task

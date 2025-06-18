@@ -9,8 +9,7 @@ Some content here.
 ## TODOS
 
 - [[2025-05-12]]
-  - [x] A completed todo #2025-06-13
-    - bullet entry
+  - [x] A finished todo #2025-05-13
 
 ## Other Section
 

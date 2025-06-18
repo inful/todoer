@@ -1,5 +1,5 @@
 ---
-title: 2025-05-13
+title: 2025-06-17
 ---
 
 # Journal Entry
@@ -8,9 +8,8 @@ Some content here.
 
 ## TODOS
 
-- [[2025-05-12]]
-  - [x] A completed todo #2025-06-13
-    - bullet entry
+- [[2025-05-11]]
+  - [ ] An unfinished todo
 
 ## Other Section
 

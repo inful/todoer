@@ -1,5 +1,5 @@
 ---
-title: 2025-06-17
+title: 2025-05-13
 ---
 
 # Journal Entry
@@ -12,10 +12,6 @@ Some content here.
   - [ ] An unfinished todo
 - [[2025-05-11]]
   - [ ] Unfinished
-    - [ ] Unfinished subtask
-  - [ ] Unfinished 2
-    - [x] Completed subtask #2025-05-13
-    - [ ] Uncompleted subtask
 
 ## Other Section
 

@@ -16,7 +16,7 @@ Some content here.
   - [ ] Unfinished
     - [ ] Unfinished subtask
   - [ ] Unfinished 2
-    - [x] Completed subtask #2025-05-11
+    - [x] Completed subtask #2025-05-13
     - [ ] Uncompleted subtask
 
 ## Other Section

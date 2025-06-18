@@ -74,9 +74,9 @@ Any conttent here
 ## TODOS
 
 - [[2025-05-12]]
-  - [x] A completed todo #2025-06-17
+  - [x] A completed todo #2025-05-13
 - [[2025-05-10]]
-  - [x] Completed #2025-06-17
+  - [x] Completed #2025-05-13
 
 ## Section
 
