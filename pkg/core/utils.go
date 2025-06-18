@@ -5,15 +5,26 @@ import (
 	"strings"
 )
 
-// GetIndentLevel calculates the indentation level of a line (number of leading spaces/tabs)
-// Treats tabs as 2 spaces for consistency (standardized from original parser.go behavior)
+// Constants for indentation handling
+const (
+	// TabSpaces defines how many spaces a tab character represents
+	TabSpaces = 2
+)
+
+// GetIndentLevel calculates the indentation level of a line (number of leading spaces/tabs).
+// Treats tabs as TabSpaces (2) spaces for consistency.
+// Returns 0 for nil or empty strings.
 func GetIndentLevel(line string) int {
+	if line == "" {
+		return 0
+	}
+
 	indent := 0
 	for _, char := range line {
 		if char == ' ' {
 			indent++
 		} else if char == '\t' {
-			indent += 2 // Treat tab as 2 spaces (standardized)
+			indent += TabSpaces
 		} else {
 			break
 		}
@@ -21,13 +32,19 @@ func GetIndentLevel(line string) int {
 	return indent
 }
 
-// NormalizeIndentation converts tabs to spaces for consistent indentation handling
+// NormalizeIndentation converts tabs to spaces for consistent indentation handling.
+// Uses TabSpaces constant to ensure consistency across the application.
+// Returns empty string for empty input.
 func NormalizeIndentation(line string) string {
-	return strings.ReplaceAll(line, "\t", "  ") // 2 spaces per tab (standardized)
+	if line == "" {
+		return ""
+	}
+	return strings.ReplaceAll(line, "\t", strings.Repeat(" ", TabSpaces))
 }
 
-// DeepCopyItem creates a deep copy of a todo item
-// Pre-allocates slices for better performance with large hierarchies
+// DeepCopyItem creates a deep copy of a todo item and all its nested content.
+// Returns nil if the input item is nil.
+// Pre-allocates slices for better performance with large hierarchies.
 func DeepCopyItem(item *TodoItem) *TodoItem {
 	if item == nil {
 		return nil
@@ -37,23 +54,29 @@ func DeepCopyItem(item *TodoItem) *TodoItem {
 		Completed:   item.Completed,
 		Text:        item.Text,
 		SubItems:    make([]*TodoItem, 0, len(item.SubItems)),
-		BulletLines: make([]string, len(item.BulletLines)),
+		BulletLines: make([]string, 0, len(item.BulletLines)),
 	}
 
-	// Copy bullet lines
-	copy.BulletLines = append(copy.BulletLines[:0], item.BulletLines...)
+	// Copy bullet lines efficiently
+	if len(item.BulletLines) > 0 {
+		copy.BulletLines = append(copy.BulletLines, item.BulletLines...)
+	}
 
 	// Copy subitems recursively
 	for _, subItem := range item.SubItems {
-		copy.SubItems = append(copy.SubItems, DeepCopyItem(subItem))
+		if copiedSubItem := DeepCopyItem(subItem); copiedSubItem != nil {
+			copy.SubItems = append(copy.SubItems, copiedSubItem)
+		}
 	}
 
 	return copy
 }
 
-// IsCompleted checks if a todo item and all its subitems are completed
+// IsCompleted checks if a todo item and all its subitems are completed.
+// Returns false if the item is nil or if any subitem is not completed.
+// Uses recursive checking to ensure the entire hierarchy is completed.
 func IsCompleted(item *TodoItem) bool {
-	if !item.Completed {
+	if item == nil || !item.Completed {
 		return false
 	}
 
@@ -67,7 +90,66 @@ func IsCompleted(item *TodoItem) bool {
 	return true
 }
 
-// HasDateTag checks if text already has a date tag
+// HasDateTag checks if text already contains a date tag in the format #YYYY-MM-DD.
+// Returns false for empty strings.
 func HasDateTag(text string) bool {
+	if text == "" {
+		return false
+	}
 	return DateTagRegex.MatchString(text)
+}
+
+// CountTotalItems recursively counts all todo items in a slice, including nested subitems.
+// This is useful for getting statistics about the total number of tasks.
+func CountTotalItems(items []*TodoItem) int {
+	if len(items) == 0 {
+		return 0
+	}
+
+	count := len(items) // Count top-level items
+	for _, item := range items {
+		if item != nil && len(item.SubItems) > 0 {
+			count += CountTotalItems(item.SubItems) // Add nested items recursively
+		}
+	}
+	return count
+}
+
+// CountCompletedItems recursively counts all completed todo items in a slice.
+// Only counts items where IsCompleted returns true (item and all subitems completed).
+func CountCompletedItems(items []*TodoItem) int {
+	if len(items) == 0 {
+		return 0
+	}
+
+	count := 0
+	for _, item := range items {
+		if IsCompleted(item) {
+			count++
+		}
+		// Always check subitems, even if parent is not completed
+		if item != nil && len(item.SubItems) > 0 {
+			count += CountCompletedItems(item.SubItems)
+		}
+	}
+	return count
+}
+
+// GetMaxIndentLevel finds the maximum indentation level in a slice of todo items.
+// This can be useful for formatting or layout calculations.
+func GetMaxIndentLevel(items []*TodoItem, currentLevel int) int {
+	if len(items) == 0 {
+		return currentLevel
+	}
+
+	maxLevel := currentLevel
+	for _, item := range items {
+		if item != nil && len(item.SubItems) > 0 {
+			subMaxLevel := GetMaxIndentLevel(item.SubItems, currentLevel+1)
+			if subMaxLevel > maxLevel {
+				maxLevel = subMaxLevel
+			}
+		}
+	}
+	return maxLevel
 }

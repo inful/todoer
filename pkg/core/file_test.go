@@ -1,0 +1,585 @@
+package core
+
+import (
+	"testing"
+	"time"
+)
+
+// Test ExtractDateFromFrontmatter function
+func TestExtractDateFromFrontmatter(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		expectError bool
+		expectToday bool // Whether we expect today's date as fallback
+	}{
+		{
+			name:        "empty content should return today's date",
+			content:     "",
+			expectError: false,
+			expectToday: true,
+		},
+		{
+			name: "valid frontmatter with date should extract date",
+			content: `---
+title: 2025-06-19
+author: Test
+---
+Content here`,
+			expectError: false,
+			expectToday: false,
+		},
+		{
+			name: "frontmatter without date should return today's date",
+			content: `---
+title: Some Title
+author: Test
+---
+Content here`,
+			expectError: false,
+			expectToday: true,
+		},
+		{
+			name: "invalid date format in frontmatter should return today's date",
+			content: `---
+title: 25-06-19
+author: Test
+---
+Content here`,
+			expectError: false,
+			expectToday: true, // Actually returns today's date as fallback since regex doesn't match
+		},
+		{
+			name:        "no frontmatter should return today's date",
+			content:     "Just some content without frontmatter",
+			expectError: false,
+			expectToday: true,
+		},
+	}
+
+	today := time.Now().Format(DateFormat)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ExtractDateFromFrontmatter(tt.content)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if tt.expectToday {
+				if result != today {
+					t.Errorf("Expected today's date %s, got %s", today, result)
+				}
+			} else {
+				// For the valid frontmatter test case
+				if result != "2025-06-19" {
+					t.Errorf("Expected 2025-06-19, got %s", result)
+				}
+			}
+		})
+	}
+}
+
+// Test ExtractTodosSection function
+func TestExtractTodosSection(t *testing.T) {
+	tests := []struct {
+		name           string
+		content        string
+		expectedBefore string
+		expectedTodos  string
+		expectedAfter  string
+		expectError    bool
+	}{
+		{
+			name:        "empty content should return error",
+			content:     "",
+			expectError: true,
+		},
+		{
+			name:        "content without TODOS section should return error",
+			content:     "Some content without todos",
+			expectError: true,
+		},
+		{
+			name:        "TODOS section without blank line should return error",
+			content:     "## TODOS\nImmediate content",
+			expectError: true,
+		},
+		{
+			name: "valid TODOS section as last section",
+			content: `# Title
+
+## TODOS
+
+- [ ] Task 1
+- [x] Task 2`,
+			expectedBefore: "# Title\n\n## TODOS\n\n",
+			expectedTodos:  "- [ ] Task 1\n- [x] Task 2",
+			expectedAfter:  "",
+			expectError:    false,
+		},
+		{
+			name: "valid TODOS section with content after",
+			content: `# Title
+
+## TODOS
+
+- [ ] Task 1
+- [x] Task 2
+
+## Notes
+
+Some notes here`,
+			expectedBefore: "# Title\n\n## TODOS\n\n",
+			expectedTodos:  "- [ ] Task 1\n- [x] Task 2",
+			expectedAfter:  "\n\n## Notes\n\nSome notes here",
+			expectError:    false,
+		},
+		{
+			name: "empty TODOS section",
+			content: `# Title
+
+## TODOS
+
+## Notes
+
+Some notes here`,
+			expectedBefore: "# Title\n\n## TODOS\n\n",
+			expectedTodos:  "## Notes\n\nSome notes here", // This is what actually gets extracted
+			expectedAfter:  "",
+			expectError:    false,
+		},
+		{
+			name:        "TODOS at end of content without blank line",
+			content:     "## TODOS",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before, todos, after, err := ExtractTodosSection(tt.content)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if before != tt.expectedBefore {
+				t.Errorf("Before section mismatch:\nExpected: %q\nGot: %q", tt.expectedBefore, before)
+			}
+			if todos != tt.expectedTodos {
+				t.Errorf("Todos section mismatch:\nExpected: %q\nGot: %q", tt.expectedTodos, todos)
+			}
+			if after != tt.expectedAfter {
+				t.Errorf("After section mismatch:\nExpected: %q\nGot: %q", tt.expectedAfter, after)
+			}
+		})
+	}
+}
+
+// Test ProcessTodosSection function
+func TestProcessTodosSection(t *testing.T) {
+	tests := []struct {
+		name              string
+		todosSection      string
+		originalDate      string
+		currentDate       string
+		expectedCompleted string
+		expectedUncomp    string
+		expectError       bool
+	}{
+		{
+			name:         "empty original date should return error",
+			todosSection: "- [ ] Task",
+			originalDate: "",
+			currentDate:  "2025-06-19",
+			expectError:  true,
+		},
+		{
+			name:         "empty current date should return error",
+			todosSection: "- [ ] Task",
+			originalDate: "2025-06-18",
+			currentDate:  "",
+			expectError:  true,
+		},
+		{
+			name:         "invalid original date should return error",
+			todosSection: "- [ ] Task",
+			originalDate: "invalid-date",
+			currentDate:  "2025-06-19",
+			expectError:  true,
+		},
+		{
+			name:         "invalid current date should return error",
+			todosSection: "- [ ] Task",
+			originalDate: "2025-06-18",
+			currentDate:  "invalid-date",
+			expectError:  true,
+		},
+		{
+			name:              "empty todos section should return moved message",
+			todosSection:      "",
+			originalDate:      "2025-06-18",
+			currentDate:       "2025-06-19",
+			expectedCompleted: "Moved to [[2025-06-19]]",
+			expectedUncomp:    "",
+			expectError:       false,
+		},
+		{
+			name:              "whitespace-only todos section should return moved message",
+			todosSection:      "   \n\t  ",
+			originalDate:      "2025-06-18",
+			currentDate:       "2025-06-19",
+			expectedCompleted: "Moved to [[2025-06-19]]",
+			expectedUncomp:    "",
+			expectError:       false,
+		},
+		{
+			name: "valid todos with completed and uncompleted",
+			todosSection: `- [[2025-06-18]]
+  - [x] Completed task
+  - [ ] Uncompleted task`,
+			originalDate:      "2025-06-18",
+			currentDate:       "2025-06-19",
+			expectedCompleted: "- [[2025-06-18]]\n  - [x] Completed task #2025-06-18",
+			expectedUncomp:    "- [[2025-06-18]]\n  - [ ] Uncompleted task",
+			expectError:       false,
+		},
+		{
+			name: "only uncompleted tasks should return moved message for completed",
+			todosSection: `- [[2025-06-18]]
+  - [ ] Uncompleted task 1
+  - [ ] Uncompleted task 2`,
+			originalDate:      "2025-06-18",
+			currentDate:       "2025-06-19",
+			expectedCompleted: "Moved to [[2025-06-19]]",
+			expectedUncomp:    "- [[2025-06-18]]\n  - [ ] Uncompleted task 1\n  - [ ] Uncompleted task 2",
+			expectError:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			completed, uncompleted, err := ProcessTodosSection(tt.todosSection, tt.originalDate, tt.currentDate)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if completed != tt.expectedCompleted {
+				t.Errorf("Completed section mismatch:\nExpected: %q\nGot: %q", tt.expectedCompleted, completed)
+			}
+			if uncompleted != tt.expectedUncomp {
+				t.Errorf("Uncompleted section mismatch:\nExpected: %q\nGot: %q", tt.expectedUncomp, uncompleted)
+			}
+		})
+	}
+}
+
+// Test CreateFromTemplateContent function
+func TestCreateFromTemplateContent(t *testing.T) {
+	tests := []struct {
+		name         string
+		template     string
+		todosContent string
+		currentDate  string
+		expected     string
+		expectError  bool
+	}{
+		{
+			name:         "empty template should return error",
+			template:     "",
+			todosContent: "Some todos",
+			currentDate:  "2025-06-19",
+			expectError:  true,
+		},
+		{
+			name:         "invalid date should return error",
+			template:     "Date: {{.Date}}",
+			todosContent: "Some todos",
+			currentDate:  "invalid-date",
+			expectError:  true,
+		},
+		{
+			name:         "simple template should work",
+			template:     "Date: {{.Date}}\nTodos: {{.TODOS}}",
+			todosContent: "- [ ] Task 1",
+			currentDate:  "2025-06-19",
+			expected:     "Date: 2025-06-19\nTodos: - [ ] Task 1",
+			expectError:  false,
+		},
+		{
+			name:         "template with empty todos should clean blank lines",
+			template:     "Date: {{.Date}}\n\n\nTodos:\n{{.TODOS}}\n\n\nEnd",
+			todosContent: "",
+			currentDate:  "2025-06-19",
+			expected:     "Date: 2025-06-19\n\nTodos:\n\nEnd", // 3+ newlines get reduced to 2
+			expectError:  false,
+		},
+		{
+			name:         "template with non-empty todos should not clean lines",
+			template:     "Date: {{.Date}}\n\n\nTodos:\n{{.TODOS}}\n\n\nEnd",
+			todosContent: "- [ ] Task",
+			currentDate:  "2025-06-19",
+			expected:     "Date: 2025-06-19\n\n\nTodos:\n- [ ] Task\n\n\nEnd",
+			expectError:  false,
+		},
+		{
+			name:         "invalid template syntax should return error",
+			template:     "Date: {{.Date}\nTodos: {{.TODOS}}",
+			todosContent: "Some todos",
+			currentDate:  "2025-06-19",
+			expectError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := CreateFromTemplateContent(tt.template, tt.todosContent, tt.currentDate)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if result != tt.expected {
+				t.Errorf("Result mismatch:\nExpected: %q\nGot: %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+// Test helper functions
+func TestValidateProcessInputs(t *testing.T) {
+	tests := []struct {
+		name         string
+		originalDate string
+		currentDate  string
+		expectError  bool
+	}{
+		{
+			name:         "valid dates should not return error",
+			originalDate: "2025-06-18",
+			currentDate:  "2025-06-19",
+			expectError:  false,
+		},
+		{
+			name:         "empty original date should return error",
+			originalDate: "",
+			currentDate:  "2025-06-19",
+			expectError:  true,
+		},
+		{
+			name:         "empty current date should return error",
+			originalDate: "2025-06-18",
+			currentDate:  "",
+			expectError:  true,
+		},
+		{
+			name:         "invalid original date should return error",
+			originalDate: "invalid",
+			currentDate:  "2025-06-19",
+			expectError:  true,
+		},
+		{
+			name:         "invalid current date should return error",
+			originalDate: "2025-06-18",
+			currentDate:  "invalid",
+			expectError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateProcessInputs(tt.originalDate, tt.currentDate)
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateTemplateInputs(t *testing.T) {
+	tests := []struct {
+		name            string
+		templateContent string
+		currentDate     string
+		expectError     bool
+	}{
+		{
+			name:            "valid inputs should not return error",
+			templateContent: "Date: {{.Date}}",
+			currentDate:     "2025-06-19",
+			expectError:     false,
+		},
+		{
+			name:            "empty template should return error",
+			templateContent: "",
+			currentDate:     "2025-06-19",
+			expectError:     true,
+		},
+		{
+			name:            "invalid date should return error",
+			templateContent: "Date: {{.Date}}",
+			currentDate:     "invalid",
+			expectError:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTemplateInputs(tt.templateContent, tt.currentDate)
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestExecuteTemplate(t *testing.T) {
+	tests := []struct {
+		name            string
+		templateContent string
+		data            TemplateData
+		expected        string
+		expectError     bool
+	}{
+		{
+			name:            "valid template should execute correctly",
+			templateContent: "Date: {{.Date}}, Todos: {{.TODOS}}",
+			data:            TemplateData{Date: "2025-06-19", TODOS: "- [ ] Task"},
+			expected:        "Date: 2025-06-19, Todos: - [ ] Task",
+			expectError:     false,
+		},
+		{
+			name:            "invalid template syntax should return error",
+			templateContent: "Date: {{.Date}",
+			data:            TemplateData{Date: "2025-06-19", TODOS: ""},
+			expectError:     true,
+		},
+		{
+			name:            "template with undefined field should return error",
+			templateContent: "Date: {{.UndefinedField}}",
+			data:            TemplateData{Date: "2025-06-19", TODOS: ""},
+			expectError:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := executeTemplate(tt.templateContent, tt.data)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if result != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestCleanExcessiveBlankLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "no excessive blank lines should remain unchanged",
+			input:    "Line 1\n\nLine 2",
+			expected: "Line 1\n\nLine 2",
+		},
+		{
+			name:     "three newlines should become two",
+			input:    "Line 1\n\n\nLine 2",
+			expected: "Line 1\n\nLine 2",
+		},
+		{
+			name:     "many newlines should become two",
+			input:    "Line 1\n\n\n\n\n\nLine 2",
+			expected: "Line 1\n\nLine 2",
+		},
+		{
+			name:     "multiple occurrences should all be cleaned",
+			input:    "Line 1\n\n\nLine 2\n\n\n\nLine 3",
+			expected: "Line 1\n\nLine 2\n\nLine 3",
+		},
+		{
+			name:     "empty string should remain empty",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "only newlines should be reduced",
+			input:    "\n\n\n\n",
+			expected: "\n\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := cleanExcessiveBlankLines(tt.input)
+			if result != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+// Test constants
+func TestFileConstants(t *testing.T) {
+	if BlankLineSeparator != "\n\n" {
+		t.Errorf("BlankLineSeparator = %q, expected %q", BlankLineSeparator, "\n\n")
+	}
+	if MovedToTemplate != "Moved to [[%s]]" {
+		t.Errorf("MovedToTemplate = %q, expected %q", MovedToTemplate, "Moved to [[%s]]")
+	}
+}

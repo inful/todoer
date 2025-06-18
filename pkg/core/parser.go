@@ -18,9 +18,9 @@ func ValidateDate(dateStr string) error {
 
 // parserState holds the state during parsing to reduce parameter passing
 type parserState struct {
-	currentDay         *DaySection
-	currentIndentStack []int
-	currentItemStack   []*TodoItem
+	currentDay         *DaySection // The current day being parsed
+	currentIndentStack []int       // A stack of indentation levels for the current hierarchy of todo items
+	currentItemStack   []*TodoItem // A stack of todo items corresponding to the indent stack
 }
 
 // newParserState creates a new parser state
@@ -32,7 +32,7 @@ func newParserState() *parserState {
 	}
 }
 
-// reset resets the parser state for a new day
+// reset resets the parser state for a new day, clearing the indentation and item stacks.
 func (ps *parserState) reset() {
 	ps.currentIndentStack = []int{}
 	ps.currentItemStack = []*TodoItem{}
@@ -85,15 +85,17 @@ func processLine(journal *TodoJournal, state *parserState, line string, lineNum 
 
 	// Check for bullet entry (- something that's not a todo)
 	if bulletMatch := BulletEntryRegex.FindStringSubmatch(line); bulletMatch != nil {
-		return processBulletEntry(state, line, bulletMatch)
+		return processAssociatedLine(state, line, bulletMatch)
 	}
 
 	// Check for continuation line (indented text that's part of a bullet or todo)
 	if contMatch := ContinuationRegex.FindStringSubmatch(line); contMatch != nil {
-		return processContinuationLine(state, line, contMatch)
+		return processAssociatedLine(state, line, contMatch)
 	}
 
-	return nil
+	// If we have a current day and the line is not empty but doesn't match any pattern,
+	// it's an unparseable line.
+	return fmt.Errorf("unparseable line %d: %q", lineNum, line)
 }
 
 // processDayHeader processes a day header line
@@ -117,25 +119,14 @@ func processTodoItem(state *parserState, todoMatch []string) error {
 	return nil
 }
 
-// processBulletEntry processes a bullet entry line
-func processBulletEntry(state *parserState, line string, bulletMatch []string) error {
+// processAssociatedLine processes a line that is associated with a todo item,
+// like a bullet point or a continuation line. It finds the correct parent todo item
+// based on indentation and appends the line to its BulletLines.
+func processAssociatedLine(state *parserState, line string, matches []string) error {
 	if len(state.currentItemStack) > 0 {
 		normalizedLine := NormalizeIndentation(line)
-		bulletIndent := GetIndentLevel(bulletMatch[1])
-		targetItem := findTargetItemForBullet(state.currentItemStack, state.currentIndentStack, bulletIndent)
-		if targetItem != nil {
-			targetItem.BulletLines = append(targetItem.BulletLines, normalizedLine)
-		}
-	}
-	return nil
-}
-
-// processContinuationLine processes a continuation line
-func processContinuationLine(state *parserState, line string, contMatch []string) error {
-	if len(state.currentItemStack) > 0 {
-		normalizedLine := NormalizeIndentation(line)
-		contIndent := GetIndentLevel(contMatch[1])
-		targetItem := findTargetItemForBullet(state.currentItemStack, state.currentIndentStack, contIndent)
+		indent := GetIndentLevel(matches[1])
+		targetItem := findTargetItemForBullet(state.currentItemStack, state.currentIndentStack, indent)
 		if targetItem != nil {
 			targetItem.BulletLines = append(targetItem.BulletLines, normalizedLine)
 		}
@@ -147,6 +138,10 @@ func processContinuationLine(state *parserState, line string, contMatch []string
 // based on indentation level. It traverses the current item stack from the most
 // recent item backwards to find the first item whose indentation level is less
 // than the bullet's indentation, indicating it should be the parent.
+//
+// If no such parent is found (e.g., the bullet's indentation is less than or
+// equal to all items in the stack), it attaches the bullet to the most recently
+// added todo item as a reasonable default.
 //
 // Example:
 //   - [ ] Todo item (indent 0)
