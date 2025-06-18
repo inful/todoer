@@ -1,13 +1,15 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"io"
 	"os"
 	"time"
-
 	"todoer/pkg/core"
 	"todoer/pkg/generator"
+
+	"github.com/alecthomas/kong"
 )
 
 // Constants for the application
@@ -15,58 +17,73 @@ const (
 	FilePermissions = 0644
 )
 
-func main() {
+// CLI defines the command-line arguments structure for kong
+var CLI struct {
+	SourceFile   string `arg:"" name:"source_file" help:"Input journal file" type:"existingfile"`
+	TargetFile   string `arg:"" name:"target_file" help:"Output file for uncompleted tasks"`
+	TemplateFile string `arg:"optional" name:"template_file" help:"Template for creating the target file (optional, will check $XDG_CONFIG_HOME/todoer/template.md or use embedded default)"`
+	TemplateDate string `arg:"optional" name:"template_date" help:"Optional date for template rendering (YYYY-MM-DD)"`
+}
 
-	if len(os.Args) < 4 || len(os.Args) > 5 {
-		fmt.Println("Usage: todoer <source_file> <target_file> <template_file> [template_date]")
-		fmt.Println("       todoer --examples  (run library usage examples)")
-		fmt.Println("  source_file:    Input journal file")
-		fmt.Println("  target_file:    Output file for uncompleted tasks")
-		fmt.Println("  template_file:  Template for creating the target file")
-		fmt.Println("  template_date:  Optional date for template rendering (YYYY-MM-DD)")
-		fmt.Println("                  If not provided, current date will be used")
+//go:embed default_template.md
+var defaultTemplate string
+
+func main() {
+	ctx := kong.Parse(&CLI,
+		kong.Name("todoer"),
+		kong.Description("Process daily journal files, carrying over unfinished tasks in the TODO section."),
+		kong.UsageOnError(),
+	)
+
+	if CLI.SourceFile == CLI.TargetFile {
+		fmt.Printf("Error: source and target files cannot be the same\n")
 		os.Exit(1)
 	}
 
-	sourceFile := os.Args[1]
-	targetFile := os.Args[2]
-	templateFile := os.Args[3]
-
-	var templateDate string
-	if len(os.Args) == 5 {
-		templateDate = os.Args[4]
-		// Validate the template date format
+	templateDate := CLI.TemplateDate
+	if templateDate == "" {
+		templateDate = time.Now().Format(core.DateFormat)
+	} else {
 		_, err := time.Parse(core.DateFormat, templateDate)
 		if err != nil {
 			fmt.Printf("Error: invalid template date format '%s': %v\n", templateDate, err)
 			os.Exit(1)
 		}
+	}
+
+	var gen *generator.Generator
+	var err error
+	var templateSource string
+
+	if CLI.TemplateFile != "" {
+		gen, err = generator.NewGeneratorFromFile(CLI.TemplateFile, templateDate)
+		templateSource = CLI.TemplateFile
 	} else {
-		// Use current date if not provided
-		templateDate = time.Now().Format(core.DateFormat)
+		configHome := os.Getenv("XDG_CONFIG_HOME")
+		if configHome == "" {
+			configHome = os.Getenv("HOME") + "/.config"
+		}
+		configTemplate := configHome + "/todoer/template.md"
+		if _, statErr := os.Stat(configTemplate); statErr == nil {
+			gen, err = generator.NewGeneratorFromFile(configTemplate, templateDate)
+			templateSource = configTemplate
+		}
+		if gen == nil {
+			gen, err = generator.NewGenerator(defaultTemplate, templateDate)
+			templateSource = "embedded default template"
+		}
 	}
-
-	// Validate that source and target files are different
-	if sourceFile == targetFile {
-		fmt.Printf("Error: source and target files cannot be the same\n")
-		os.Exit(1)
-	}
-
-	// Create generator from template file
-	gen, err := generator.NewGeneratorFromFile(templateFile, templateDate)
 	if err != nil {
-		fmt.Printf("Error creating generator from template %s: %v\n", templateFile, err)
+		fmt.Printf("Error creating generator from template: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Process the source file
-	result, err := gen.ProcessFile(sourceFile)
+	result, err := gen.ProcessFile(CLI.SourceFile)
 	if err != nil {
-		fmt.Printf("Error processing file %s: %v\n", sourceFile, err)
+		fmt.Printf("Error processing file %s: %v\n", CLI.SourceFile, err)
 		os.Exit(1)
 	}
 
-	// Read the results
 	modifiedContentBytes, err := io.ReadAll(result.ModifiedOriginal)
 	if err != nil {
 		fmt.Printf("Error reading modified content: %v\n", err)
@@ -79,21 +96,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Write the outputs to files
-	err = os.WriteFile(sourceFile, modifiedContentBytes, FilePermissions)
+	err = os.WriteFile(CLI.TargetFile, newContentBytes, FilePermissions)
 	if err != nil {
-		fmt.Printf("Error writing to source file %s: %v\n", sourceFile, err)
+		fmt.Printf("Error writing to target file %s: %v\n", CLI.TargetFile, err)
 		os.Exit(1)
 	}
 
-	err = os.WriteFile(targetFile, newContentBytes, FilePermissions)
-	if err != nil {
-		fmt.Printf("Error writing to target file %s: %v\n", targetFile, err)
-		os.Exit(1)
-	}
+	fmt.Printf("Successfully processed %s -> %s (template: %s)\n", CLI.SourceFile, CLI.TargetFile, templateSource)
 
-	fmt.Printf("Successfully processed journal.\n")
-	fmt.Printf("Completed tasks kept in: %s\n", sourceFile)
-	fmt.Printf("Uncompleted tasks moved to: %s\n", targetFile)
-	fmt.Printf("Created from template: %s (using date: %s)\n", templateFile, templateDate)
+	if len(modifiedContentBytes) > 0 {
+		backupFile := CLI.SourceFile + ".bak"
+		err = os.WriteFile(backupFile, modifiedContentBytes, FilePermissions)
+		if err != nil {
+			fmt.Printf("Error creating backup file %s: %v\n", backupFile, err)
+			os.Exit(1)
+		}
+		fmt.Printf("Backup of original file created: %s\n", backupFile)
+	} else {
+		fmt.Printf("No modifications found in the original file, backup not created.\n")
+	}
+	ctx.Exit(0)
 }
