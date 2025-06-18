@@ -18,7 +18,8 @@ type Generator struct {
 	currentDate     string
 }
 
-// NewGenerator creates a new Generator instance with the specified template and dates
+// NewGenerator creates a new Generator instance with the specified template content and template date.
+// Returns an error if the template date is invalid.
 func NewGenerator(templateContent, templateDate string) (*Generator, error) {
 	// Validate the template date format
 	if err := core.ValidateDate(templateDate); err != nil {
@@ -35,7 +36,8 @@ func NewGenerator(templateContent, templateDate string) (*Generator, error) {
 	}, nil
 }
 
-// NewGeneratorFromFile creates a new Generator by reading the template from a file
+// NewGeneratorFromFile creates a new Generator by reading the template from a file.
+// Returns an error if the file cannot be read or the template date is invalid.
 func NewGeneratorFromFile(templateFile, templateDate string) (*Generator, error) {
 	templateBytes, err := os.ReadFile(templateFile)
 	if err != nil {
@@ -51,7 +53,8 @@ type ProcessResult struct {
 	NewFile          io.Reader
 }
 
-// Process processes the original journal content and returns readers for both outputs
+// Process processes the original journal content and returns a ProcessResult containing readers for both the modified original and the new file.
+// Returns an error if parsing or processing fails.
 func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	// Extract the date from frontmatter
 	date, err := core.ExtractDateFromFrontmatter(originalContent)
@@ -86,7 +89,8 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	}, nil
 }
 
-// ProcessFile processes a journal file and returns readers for both outputs
+// ProcessFile processes a journal file and returns a ProcessResult containing readers for both the modified original and the new file.
+// Returns an error if the file cannot be read or processing fails.
 func (g *Generator) ProcessFile(filename string) (*ProcessResult, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -101,22 +105,26 @@ func (g *Generator) createFromTemplateWithDate(todosContent string, dateToUse st
 	return core.CreateFromTemplateContent(g.templateContent, todosContent, dateToUse)
 }
 
-// ExtractDateFromFrontmatter extracts the date from the frontmatter title
+// ExtractDateFromFrontmatter extracts the date from the frontmatter title of the given content.
+// Returns the extracted date or an error if extraction fails.
 func ExtractDateFromFrontmatter(content string) (string, error) {
 	return core.ExtractDateFromFrontmatter(content)
 }
 
-// ExtractTodosSection extracts the TODOS section from the file content
+// ExtractTodosSection extracts the TODOS section from the file content.
+// Returns the content before the section, the section itself, the content after, and an error if extraction fails.
 func ExtractTodosSection(content string) (string, string, string, error) {
 	return core.ExtractTodosSection(content)
 }
 
-// CreateFromTemplateContent creates file content from template content using Go template syntax
+// CreateFromTemplateContent creates file content from template content using Go template syntax.
+// Returns the generated content or an error if template processing fails.
 func CreateFromTemplateContent(templateContent, todosContent, currentDate string) (string, error) {
 	return core.CreateFromTemplateContent(templateContent, todosContent, currentDate)
 }
 
-// IsCompleted checks if a todo item is completed
+// IsCompleted checks if a todo item is completed.
+// Returns true if the item is completed, false otherwise.
 func IsCompleted(item *core.TodoItem) bool {
 	return core.IsCompleted(item)
 }

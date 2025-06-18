@@ -5,6 +5,14 @@ import (
 	"strings"
 )
 
+// Constants for journal operations
+const (
+	// DefaultBuilderCapacity is the initial capacity for string builders
+	DefaultBuilderCapacity = 1024
+	// IndentSpaces is the number of spaces per indentation level
+	IndentSpaces = 2
+)
+
 // SplitJournal splits the journal into completed and uncompleted tasks.
 // It returns two separate journals: one containing only completed items and their
 // associated bullet points, and another containing only uncompleted items.
@@ -14,23 +22,28 @@ func SplitJournal(journal *TodoJournal) (*TodoJournal, *TodoJournal) {
 		return &TodoJournal{Days: []*DaySection{}}, &TodoJournal{Days: []*DaySection{}}
 	}
 
+	// Pre-allocate with estimated capacity for better performance
 	completedJournal := &TodoJournal{
-		Days: []*DaySection{},
+		Days: make([]*DaySection, 0, len(journal.Days)),
 	}
 
 	uncompletedJournal := &TodoJournal{
-		Days: []*DaySection{},
+		Days: make([]*DaySection, 0, len(journal.Days)),
 	}
 
 	for _, day := range journal.Days {
+		if day == nil {
+			continue
+		}
+
 		completedDay := &DaySection{
 			Date:  day.Date,
-			Items: []*TodoItem{},
+			Items: make([]*TodoItem, 0, len(day.Items)),
 		}
 
 		uncompletedDay := &DaySection{
 			Date:  day.Date,
-			Items: []*TodoItem{},
+			Items: make([]*TodoItem, 0, len(day.Items)),
 		}
 
 		hasCompletedItems := false
@@ -40,11 +53,15 @@ func SplitJournal(journal *TodoJournal) (*TodoJournal, *TodoJournal) {
 			if IsCompleted(item) {
 				hasCompletedItems = true
 				// Create a deep copy of the item for the completed journal
-				completedDay.Items = append(completedDay.Items, DeepCopyItem(item))
+				if copiedItem := DeepCopyItem(item); copiedItem != nil {
+					completedDay.Items = append(completedDay.Items, copiedItem)
+				}
 			} else {
 				hasUncompletedItems = true
 				// Create a deep copy of the item for the uncompleted journal
-				uncompletedDay.Items = append(uncompletedDay.Items, DeepCopyItem(item))
+				if copiedItem := DeepCopyItem(item); copiedItem != nil {
+					uncompletedDay.Items = append(uncompletedDay.Items, copiedItem)
+				}
 			}
 		}
 
