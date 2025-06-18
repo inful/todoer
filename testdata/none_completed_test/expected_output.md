@@ -1,5 +1,5 @@
 ---
-title: 2025-05-13
+title: 2025-06-17
 ---
 
 # Journal Entry

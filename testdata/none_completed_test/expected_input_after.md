@@ -8,7 +8,7 @@ Some content here.
 
 ## TODOS
 
-Moved to [[2025-05-17]]
+Moved to [[2025-06-17]]
 
 ## Other Section
 
