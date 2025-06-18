@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"todoer/pkg/generator"
 )
 
 func TestGeneratorLibraryInterface(t *testing.T) {
@@ -40,13 +41,13 @@ End of journal.`
 	templateDate := "2025-12-25"
 
 	// Create generator
-	generator, err := NewGenerator(templateContent, templateDate)
+	gen, err := generator.NewGenerator(templateContent, templateDate)
 	if err != nil {
 		t.Fatalf("Failed to create generator: %v", err)
 	}
 
 	// Process the content
-	result, err := generator.Process(originalContent)
+	result, err := gen.Process(originalContent)
 	if err != nil {
 		t.Fatalf("Failed to process content: %v", err)
 	}
@@ -109,7 +110,7 @@ func TestGeneratorFromFile(t *testing.T) {
 	templateDate := "2025-03-15"
 
 	// Create generator from file
-	generator, err := NewGeneratorFromFile(tempTemplateFile, templateDate)
+	gen, err := generator.NewGeneratorFromFile(tempTemplateFile, templateDate)
 	if err != nil {
 		t.Fatalf("Failed to create generator from file: %v", err)
 	}
@@ -126,7 +127,7 @@ title: "2025-01-01"
 - [[2024-12-31]]
   - [ ] Simple task`
 
-	result, err := generator.Process(originalContent)
+	result, err := gen.Process(originalContent)
 	if err != nil {
 		t.Fatalf("Failed to process with file-based generator: %v", err)
 	}

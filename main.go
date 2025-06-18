@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
+
+	"todoer/pkg/core"
+	"todoer/pkg/generator"
 )
 
 // Constants for the application
@@ -13,103 +15,7 @@ const (
 	FilePermissions = 0644
 )
 
-// Generator represents a TODO journal generator that can process journal files
-// and generate both modified original content and new uncompleted task files
-type Generator struct {
-	templateContent string
-	templateDate    string
-	currentDate     string
-}
-
-// NewGenerator creates a new Generator instance with the specified template and dates
-func NewGenerator(templateContent, templateDate string) (*Generator, error) {
-	// Validate the template date format
-	if err := validateDate(templateDate); err != nil {
-		return nil, fmt.Errorf("invalid template date: %w", err)
-	}
-
-	// Use current date for completion tagging
-	currentDate := time.Now().Format(DateFormat)
-
-	return &Generator{
-		templateContent: templateContent,
-		templateDate:    templateDate,
-		currentDate:     currentDate,
-	}, nil
-}
-
-// NewGeneratorFromFile creates a new Generator by reading the template from a file
-func NewGeneratorFromFile(templateFile, templateDate string) (*Generator, error) {
-	templateBytes, err := os.ReadFile(templateFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read template file '%s': %w", templateFile, err)
-	}
-
-	return NewGenerator(string(templateBytes), templateDate)
-}
-
-// ProcessResult holds the results of processing a journal
-type ProcessResult struct {
-	ModifiedOriginal io.Reader
-	NewFile          io.Reader
-}
-
-// Process processes the original journal content and returns readers for both outputs
-func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
-	// Extract the date from frontmatter
-	date, err := extractDateFromFrontmatter(originalContent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract date from frontmatter: %w", err)
-	}
-
-	// Extract TODOS section
-	beforeTodos, todosSection, afterTodos, err := extractTodosSection(originalContent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract TODOS section: %w", err)
-	}
-
-	// Process the TODOS section
-	completedTodos, uncompletedTodos, err := processTodosSection(todosSection, date, g.currentDate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to process TODOS section: %w", err)
-	}
-
-	// Create the completed file content
-	completedFileContent := beforeTodos + completedTodos + afterTodos
-
-	// Create the uncompleted file content using the template
-	uncompletedFileContent, err := g.createFromTemplate(uncompletedTodos)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create content from template: %w", err)
-	}
-
-	return &ProcessResult{
-		ModifiedOriginal: strings.NewReader(completedFileContent),
-		NewFile:          strings.NewReader(uncompletedFileContent),
-	}, nil
-}
-
-// ProcessFile processes a journal file and returns readers for both outputs
-func (g *Generator) ProcessFile(filename string) (*ProcessResult, error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file '%s': %w", filename, err)
-	}
-
-	return g.Process(string(content))
-}
-
-// createFromTemplate creates file content from the generator's template
-func (g *Generator) createFromTemplate(todosContent string) (string, error) {
-	return createFromTemplateContent(g.templateContent, todosContent, g.templateDate)
-}
-
 func main() {
-	// Special case for running examples
-	if len(os.Args) == 2 && os.Args[1] == "--examples" {
-		RunExamples()
-		return
-	}
 
 	if len(os.Args) < 4 || len(os.Args) > 5 {
 		fmt.Println("Usage: todoer <source_file> <target_file> <template_file> [template_date]")
@@ -130,13 +36,14 @@ func main() {
 	if len(os.Args) == 5 {
 		templateDate = os.Args[4]
 		// Validate the template date format
-		if err := validateDate(templateDate); err != nil {
+		_, err := time.Parse(core.DateFormat, templateDate)
+		if err != nil {
 			fmt.Printf("Error: invalid template date format '%s': %v\n", templateDate, err)
 			os.Exit(1)
 		}
 	} else {
 		// Use current date if not provided
-		templateDate = time.Now().Format(DateFormat)
+		templateDate = time.Now().Format(core.DateFormat)
 	}
 
 	// Validate that source and target files are different
@@ -145,55 +52,41 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Read the source file
-	content, err := os.ReadFile(sourceFile)
+	// Create generator from template file
+	gen, err := generator.NewGeneratorFromFile(templateFile, templateDate)
 	if err != nil {
-		fmt.Printf("Error reading file %s: %v\n", sourceFile, err)
+		fmt.Printf("Error creating generator from template %s: %v\n", templateFile, err)
 		os.Exit(1)
 	}
 
-	// Extract the date from frontmatter
-	date, err := extractDateFromFrontmatter(string(content))
+	// Process the source file
+	result, err := gen.ProcessFile(sourceFile)
 	if err != nil {
-		fmt.Printf("Error extracting date from %s: %v\n", sourceFile, err)
+		fmt.Printf("Error processing file %s: %v\n", sourceFile, err)
 		os.Exit(1)
 	}
 
-	// Extract TODOS section
-	beforeTodos, todosSection, afterTodos, err := extractTodosSection(string(content))
+	// Read the results
+	modifiedContentBytes, err := io.ReadAll(result.ModifiedOriginal)
 	if err != nil {
-		fmt.Printf("Error extracting TODOS section from %s: %v\n", sourceFile, err)
+		fmt.Printf("Error reading modified content: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Get today's date for tagging completed items
-	currentDate := time.Now().Format(DateFormat)
-
-	// Process the TODOS section
-	completedTodos, uncompletedTodos, err := processTodosSection(todosSection, date, currentDate)
+	newContentBytes, err := io.ReadAll(result.NewFile)
 	if err != nil {
-		fmt.Printf("Error processing TODOS section: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Create the completed file content
-	completedFileContent := beforeTodos + completedTodos + afterTodos
-
-	// Create the uncompleted file content using the template with specified date
-	uncompletedFileContent, err := createFromTemplate(templateFile, uncompletedTodos, templateDate)
-	if err != nil {
-		fmt.Printf("Error creating file from template %s: %v\n", templateFile, err)
+		fmt.Printf("Error reading new file content: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Write the outputs to files
-	err = os.WriteFile(sourceFile, []byte(completedFileContent), FilePermissions)
+	err = os.WriteFile(sourceFile, modifiedContentBytes, FilePermissions)
 	if err != nil {
 		fmt.Printf("Error writing to source file %s: %v\n", sourceFile, err)
 		os.Exit(1)
 	}
 
-	err = os.WriteFile(targetFile, []byte(uncompletedFileContent), FilePermissions)
+	err = os.WriteFile(targetFile, newContentBytes, FilePermissions)
 	if err != nil {
 		fmt.Printf("Error writing to target file %s: %v\n", targetFile, err)
 		os.Exit(1)

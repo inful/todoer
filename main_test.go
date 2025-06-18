@@ -1,9 +1,11 @@
 package main
 
 import (
-	"os"
 	"strings"
 	"testing"
+
+	"todoer/pkg/core"
+	"todoer/pkg/generator"
 )
 
 // TestExtractDateFromFrontmatter tests the date extraction functionality
@@ -50,13 +52,13 @@ Content here
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := extractDateFromFrontmatter(tt.content)
+			got, err := core.ExtractDateFromFrontmatter(tt.content)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("extractDateFromFrontmatter() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("core.ExtractDateFromFrontmatter() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if tt.want != "" && got != tt.want {
-				t.Errorf("extractDateFromFrontmatter() = %v, want %v", got, tt.want)
+				t.Errorf("core.ExtractDateFromFrontmatter() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -138,23 +140,23 @@ Content here
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotBeforeTodos, gotTodosSection, gotAfterTodos, err := extractTodosSection(tt.content)
+			gotBeforeTodos, gotTodosSection, gotAfterTodos, err := core.ExtractTodosSection(tt.content)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("extractTodosSection() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("core.ExtractTodosSection() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr {
 				// Compare the content regardless of exact whitespace
 				if !strings.Contains(gotBeforeTodos, tt.wantBeforeTodos) {
-					t.Errorf("extractTodosSection() gotBeforeTodos should contain %q, got %q", tt.wantBeforeTodos, gotBeforeTodos)
+					t.Errorf("core.ExtractTodosSection() gotBeforeTodos should contain %q, got %q", tt.wantBeforeTodos, gotBeforeTodos)
 				}
 
 				if strings.TrimSpace(gotTodosSection) != strings.TrimSpace(tt.wantTodosSection) {
-					t.Errorf("extractTodosSection() gotTodosSection = %q, want %q", gotTodosSection, tt.wantTodosSection)
+					t.Errorf("core.ExtractTodosSection() gotTodosSection = %q, want %q", gotTodosSection, tt.wantTodosSection)
 				}
 
 				if tt.wantAfterTodos != "" && !strings.Contains(gotAfterTodos, tt.wantAfterTodos) {
-					t.Errorf("extractTodosSection() gotAfterTodos should contain %q, got %q", tt.wantAfterTodos, gotAfterTodos)
+					t.Errorf("core.ExtractTodosSection() gotAfterTodos should contain %q, got %q", tt.wantAfterTodos, gotAfterTodos)
 				}
 			}
 		})
@@ -166,79 +168,79 @@ func TestParsingFunctions(t *testing.T) {
 	// Test isCompleted
 	t.Run("isCompleted", func(t *testing.T) {
 		// A completed item with no subitems
-		completedItem := &TodoItem{
+		completedItem := &core.TodoItem{
 			Completed: true,
 			Text:      "Completed task",
-			SubItems:  []*TodoItem{},
+			SubItems:  []*core.TodoItem{},
 		}
 
-		if !isCompleted(completedItem) {
-			t.Errorf("isCompleted() should return true for a completed item with no subitems")
+		if !core.IsCompleted(completedItem) {
+			t.Errorf("core.IsCompleted() should return true for a completed item with no subitems")
 		}
 
 		// A completed item with completed subitems
-		completedItemWithSubitems := &TodoItem{
+		completedItemWithSubitems := &core.TodoItem{
 			Completed: true,
 			Text:      "Completed task",
-			SubItems: []*TodoItem{
+			SubItems: []*core.TodoItem{
 				{
 					Completed: true,
 					Text:      "Completed subtask",
-					SubItems:  []*TodoItem{},
+					SubItems:  []*core.TodoItem{},
 				},
 			},
 		}
 
-		if !isCompleted(completedItemWithSubitems) {
-			t.Errorf("isCompleted() should return true for a completed item with completed subitems")
+		if !core.IsCompleted(completedItemWithSubitems) {
+			t.Errorf("core.IsCompleted() should return true for a completed item with completed subitems")
 		}
 
 		// A completed item with uncompleted subitems
-		mixedItem := &TodoItem{
+		mixedItem := &core.TodoItem{
 			Completed: true,
 			Text:      "Completed task",
-			SubItems: []*TodoItem{
+			SubItems: []*core.TodoItem{
 				{
 					Completed: false,
 					Text:      "Uncompleted subtask",
-					SubItems:  []*TodoItem{},
+					SubItems:  []*core.TodoItem{},
 				},
 			},
 		}
 
-		if isCompleted(mixedItem) {
-			t.Errorf("isCompleted() should return false for a completed item with uncompleted subitems")
+		if core.IsCompleted(mixedItem) {
+			t.Errorf("core.IsCompleted() should return false for a completed item with uncompleted subitems")
 		}
 
 		// An uncompleted item
-		uncompletedItem := &TodoItem{
+		uncompletedItem := &core.TodoItem{
 			Completed: false,
 			Text:      "Uncompleted task",
-			SubItems:  []*TodoItem{},
+			SubItems:  []*core.TodoItem{},
 		}
 
-		if isCompleted(uncompletedItem) {
-			t.Errorf("isCompleted() should return false for an uncompleted item")
+		if core.IsCompleted(uncompletedItem) {
+			t.Errorf("core.IsCompleted() should return false for an uncompleted item")
 		}
 	})
 
 	// Test hasDateTag
 	t.Run("hasDateTag", func(t *testing.T) {
-		if !hasDateTag("Task with tag #2025-05-13") {
-			t.Errorf("hasDateTag() should return true for text with a date tag")
+		if !core.HasDateTag("Task with tag #2025-05-13") {
+			t.Errorf("core.HasDateTag() should return true for text with a date tag")
 		}
 
-		if hasDateTag("Task without tag") {
-			t.Errorf("hasDateTag() should return false for text without a date tag")
+		if core.HasDateTag("Task without tag") {
+			t.Errorf("core.HasDateTag() should return false for text without a date tag")
 		}
 
-		if hasDateTag("Task with invalid tag #20250513") {
-			t.Errorf("hasDateTag() should return false for text with an invalid date tag format")
+		if core.HasDateTag("Task with invalid tag #20250513") {
+			t.Errorf("core.HasDateTag() should return false for text with an invalid date tag format")
 		}
 	})
 }
 
-// TestCreateFromTemplate tests the createFromTemplate function
+// TestCreateFromTemplate tests the template functionality through the generator package
 func TestCreateFromTemplate(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -319,23 +321,10 @@ Notes here.`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a temporary template file
-			tmpFile, err := os.CreateTemp("", "template*.md")
+			// Test the function via the generator package (which uses core)
+			result, err := generator.CreateFromTemplateContent(tt.template, tt.todosContent, tt.currentDate)
 			if err != nil {
-				t.Fatalf("Failed to create temp file: %v", err)
-			}
-			defer os.Remove(tmpFile.Name())
-
-			_, err = tmpFile.WriteString(tt.template)
-			if err != nil {
-				t.Fatalf("Failed to write template: %v", err)
-			}
-			tmpFile.Close()
-
-			// Test the function
-			result, err := createFromTemplate(tmpFile.Name(), tt.todosContent, tt.currentDate)
-			if err != nil {
-				t.Fatalf("createFromTemplate failed: %v", err)
+				t.Fatalf("generator.CreateFromTemplateContent failed: %v", err)
 			}
 
 			if strings.TrimSpace(result) != strings.TrimSpace(tt.expected) {

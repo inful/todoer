@@ -1,10 +1,13 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"todoer/pkg/generator"
 )
 
 func TestIntegration(t *testing.T) {
@@ -35,69 +38,83 @@ func TestIntegration(t *testing.T) {
 			// Use the shared template file
 			templatePath := filepath.Join("testdata", "shared_template.md")
 
-			// Process the file
-			date, err := extractDateFromFrontmatter(string(inputContent))
+			// Create generator
+			gen, err := generator.NewGeneratorFromFile(templatePath, currentDate)
 			if err != nil {
-				t.Fatalf("Failed to extract date: %v", err)
+				t.Fatalf("Failed to create generator: %v", err)
 			}
 
-			beforeTodos, todosSection, afterTodos, err := extractTodosSection(string(inputContent))
+			// Process the content
+			result, err := gen.Process(string(inputContent))
 			if err != nil {
-				t.Fatalf("Failed to extract TODOS section: %v", err)
+				t.Fatalf("Failed to process content: %v", err)
 			}
 
-			// Process the TODOS section
-			completedTodos, uncompletedTodos, err := processTodosSection(todosSection, date, currentDate)
+			// Read results
+			modifiedOriginalBytes, err := io.ReadAll(result.ModifiedOriginal)
 			if err != nil {
-				t.Fatalf("Failed to process TODOS section: %v", err)
+				t.Fatalf("Failed to read modified original: %v", err)
+			}
+
+			newFileBytes, err := io.ReadAll(result.NewFile)
+			if err != nil {
+				t.Fatalf("Failed to read new file: %v", err)
 			}
 
 			// Replace consecutive blank lines to ensure consistent formatting
-			completedTodos = normalizeBlankLines(completedTodos)
-			uncompletedTodos = normalizeBlankLines(uncompletedTodos)
+			completedTodos := normalizeBlankLines(string(modifiedOriginalBytes))
+			uncompletedTodos := normalizeBlankLines(string(newFileBytes))
 
-			// Generate the completed file content (modified input)
-			completedFileContent := beforeTodos + completedTodos + afterTodos
-
-			// Generate the uncompleted file content using template
-			uncompletedFileContent, err := createFromTemplate(templatePath, uncompletedTodos, currentDate)
-			if err != nil {
-				t.Fatalf("Failed to create from template: %v", err)
-			}
-
-			// Read the expected files
+			// Read expected outputs
 			expectedOutputPath := filepath.Join(testDir, "expected_output.md")
-			expectedOutputContent, err := os.ReadFile(expectedOutputPath)
+			expectedOutput, err := os.ReadFile(expectedOutputPath)
 			if err != nil {
-				t.Fatalf("Failed to read expected_output.md: %v", err)
+				t.Fatalf("Failed to read expected output: %v", err)
 			}
 
 			expectedInputAfterPath := filepath.Join(testDir, "expected_input_after.md")
-			expectedInputAfterContent, err := os.ReadFile(expectedInputAfterPath)
+			expectedInputAfter, err := os.ReadFile(expectedInputAfterPath)
 			if err != nil {
-				t.Fatalf("Failed to read expected_input_after.md: %v", err)
+				t.Fatalf("Failed to read expected input after: %v", err)
 			}
+
+			expectedCompletedTodos := normalizeBlankLines(string(expectedInputAfter))
+			expectedUncompletedTodos := normalizeBlankLines(string(expectedOutput))
 
 			// Compare results
-			if strings.TrimSpace(uncompletedFileContent) != strings.TrimSpace(string(expectedOutputContent)) {
-				t.Errorf("Expected output content doesn't match. \nGot: \n%s\n\nWant: \n%s",
-					uncompletedFileContent, string(expectedOutputContent))
+			if completedTodos != expectedCompletedTodos {
+				t.Errorf("Completed todos do not match expected.\nExpected:\n%s\nActual:\n%s",
+					expectedCompletedTodos, completedTodos)
 			}
 
-			if strings.TrimSpace(completedFileContent) != strings.TrimSpace(string(expectedInputAfterContent)) {
-				t.Errorf("Expected input after processing doesn't match. \nGot: \n%s\n\nWant: \n%s",
-					completedFileContent, string(expectedInputAfterContent))
+			if uncompletedTodos != expectedUncompletedTodos {
+				t.Errorf("Uncompleted todos do not match expected.\nExpected:\n%s\nActual:\n%s",
+					expectedUncompletedTodos, uncompletedTodos)
 			}
 		})
 	}
 }
 
-// normalizeBlankLines replaces consecutive newlines with a single newline
-// This is useful to ensure consistent formatting between day headers
+// normalizeBlankLines replaces consecutive blank lines with a single blank line
 func normalizeBlankLines(content string) string {
-	// Replace any sequence of blank lines with a single newline for day headers
-	normalized := strings.ReplaceAll(content, "\n\n- [[", "\n- [[")
+	// Split into lines
+	lines := strings.Split(content, "\n")
+	var result []string
+	prevWasBlank := false
 
-	// Return the normalized content
-	return normalized
+	for _, line := range lines {
+		isBlank := strings.TrimSpace(line) == ""
+
+		if isBlank {
+			if !prevWasBlank {
+				result = append(result, line)
+			}
+			prevWasBlank = true
+		} else {
+			result = append(result, line)
+			prevWasBlank = false
+		}
+	}
+
+	return strings.Join(result, "\n")
 }
