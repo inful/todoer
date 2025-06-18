@@ -424,7 +424,7 @@ func hasDateTag(text string) bool {
 }
 
 // journalToString converts a journal to string format
-func journalToString(journal *TodoJournal, useBlankLinesAfterHeaders bool) string {
+func journalToString(journal *TodoJournal) string {
 	if len(journal.Days) == 0 {
 		return ""
 	}
@@ -434,13 +434,7 @@ func journalToString(journal *TodoJournal, useBlankLinesAfterHeaders bool) strin
 	for _, day := range journal.Days {
 		builder.WriteString("- [[")
 		builder.WriteString(day.Date)
-		builder.WriteString("]]")
-
-		if useBlankLinesAfterHeaders {
-			builder.WriteString("\n\n")
-		} else {
-			builder.WriteString("\n")
-		}
+		builder.WriteString("]]\n")
 
 		for _, item := range day.Items {
 			writeItemToString(&builder, item, 1)
@@ -557,12 +551,9 @@ func processTodosSection(todosSection string, originalDate string, currentDate s
 	// Add date tags to completed subtasks in uncompleted tasks
 	tagCompletedSubtasks(uncompletedJournal, originalDate)
 
-	// Check if the input format has blank lines after day headers
-	hasBlankLinesAfterHeaders := strings.Contains(todosSection, "- [[") && strings.Contains(todosSection, "]]\n\n")
-
-	// Convert back to string format, with the appropriate format
-	completedTodos := journalToString(completedJournal, hasBlankLinesAfterHeaders)
-	uncompletedTodos := journalToString(uncompletedJournal, hasBlankLinesAfterHeaders)
+	// Convert back to string format
+	completedTodos := journalToString(completedJournal)
+	uncompletedTodos := journalToString(uncompletedJournal)
 
 	// If there are no completed tasks, show "Moved to [[date]]"
 	if len(completedJournal.Days) == 0 {

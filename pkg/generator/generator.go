@@ -25,7 +25,6 @@ var (
 	todoItemRegex        = regexp.MustCompile(`^(\s*)- \[([ x])\] (.+)$`)
 	bulletEntryRegex     = regexp.MustCompile(`^(\s*)- (.+)$`)
 	continuationRegex    = regexp.MustCompile(`^(\s+)(.+)$`)
-	dateTagRegex         = regexp.MustCompile(`#\d{4}-\d{2}-\d{2}`)
 )
 
 // TodoItem represents a todo item with its completion status and text
@@ -148,11 +147,6 @@ func (g *Generator) ProcessFile(filename string) (*ProcessResult, error) {
 	return g.Process(string(content))
 }
 
-// createFromTemplate creates file content from the generator's template
-func (g *Generator) createFromTemplate(todosContent string) (string, error) {
-	return createFromTemplateContent(g.templateContent, todosContent, g.templateDate)
-}
-
 // createFromTemplateWithDate creates file content from the generator's template using a specific date
 func (g *Generator) createFromTemplateWithDate(todosContent string, dateToUse string) (string, error) {
 	return createFromTemplateContent(g.templateContent, todosContent, dateToUse)
@@ -240,12 +234,9 @@ func processTodosSection(todosSection string, originalDate string, currentDate s
 	// Add date tags to completed subtasks in uncompleted tasks
 	tagCompletedSubtasks(uncompletedJournal, originalDate)
 
-	// Check if the input format has blank lines after day headers
-	hasBlankLinesAfterHeaders := strings.Contains(todosSection, "- [[") && strings.Contains(todosSection, "]]\n\n")
-
-	// Convert back to string format, with the appropriate format
-	completedTodos := journalToString(completedJournal, hasBlankLinesAfterHeaders)
-	uncompletedTodos := journalToString(uncompletedJournal, hasBlankLinesAfterHeaders)
+	// Convert back to string format
+	completedTodos := journalToString(completedJournal)
+	uncompletedTodos := journalToString(uncompletedJournal)
 
 	// If there are no completed tasks, show "Moved to [[date]]"
 	if len(completedJournal.Days) == 0 {
@@ -669,7 +660,7 @@ func tagCompletedSubtasksRecursive(item *TodoItem, currentDate string) {
 }
 
 // journalToString converts a TodoJournal back to string format
-func journalToString(journal *TodoJournal, hasBlankLinesAfterHeaders bool) string {
+func journalToString(journal *TodoJournal) string {
 	var result strings.Builder
 
 	for dayIndex, day := range journal.Days {
@@ -678,11 +669,7 @@ func journalToString(journal *TodoJournal, hasBlankLinesAfterHeaders bool) strin
 		}
 
 		// Write day header
-		result.WriteString("- [[" + day.Date + "]]")
-		if hasBlankLinesAfterHeaders {
-			result.WriteString("\n")
-		}
-		result.WriteString("\n")
+		result.WriteString("- [[" + day.Date + "]]\n")
 
 		// Write items for this day
 		for _, item := range day.Items {
