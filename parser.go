@@ -400,10 +400,10 @@ func tagCompletedItems(journal *TodoJournal, currentDate string) {
 }
 
 // tagCompletedSubtasks adds date tags to completed subtasks in uncompleted parent tasks
-func tagCompletedSubtasks(journal *TodoJournal) {
+func tagCompletedSubtasks(journal *TodoJournal, originalDate string) {
 	for _, day := range journal.Days {
 		for _, item := range day.Items {
-			tagCompletedSubitemsRecursive(item, day.Date)
+			tagCompletedSubitemsRecursive(item, originalDate)
 		}
 	}
 }
@@ -552,10 +552,10 @@ func processTodosSection(todosSection string, originalDate string, currentDate s
 	completedJournal, uncompletedJournal := splitJournal(journal)
 
 	// Add date tags to completed tasks
-	tagCompletedItems(completedJournal, currentDate)
+	tagCompletedItems(completedJournal, originalDate)
 
 	// Add date tags to completed subtasks in uncompleted tasks
-	tagCompletedSubtasks(uncompletedJournal)
+	tagCompletedSubtasks(uncompletedJournal, originalDate)
 
 	// Check if the input format has blank lines after day headers
 	hasBlankLinesAfterHeaders := strings.Contains(todosSection, "- [[") && strings.Contains(todosSection, "]]\n\n")
@@ -563,6 +563,12 @@ func processTodosSection(todosSection string, originalDate string, currentDate s
 	// Convert back to string format, with the appropriate format
 	completedTodos := journalToString(completedJournal, hasBlankLinesAfterHeaders)
 	uncompletedTodos := journalToString(uncompletedJournal, hasBlankLinesAfterHeaders)
+
+	// If there are no completed tasks, show "Moved to [[date]]"
+	if len(completedJournal.Days) == 0 {
+		completedTodos = "Moved to [[" + currentDate + "]]"
+	}
+
 	return completedTodos, uncompletedTodos, nil
 }
 
@@ -639,5 +645,13 @@ func createFromTemplateContent(templateContent, todosContent, currentDate string
 		return "", fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	return result.String(), nil
+	// Clean up extra blank lines when TODOS is empty
+	output := result.String()
+	if strings.TrimSpace(todosContent) == "" {
+		// Replace any sequence of 3+ newlines with just 2 newlines (one blank line)
+		re := regexp.MustCompile(`\n{3,}`)
+		output = re.ReplaceAllString(output, "\n\n")
+	}
+
+	return output, nil
 }
