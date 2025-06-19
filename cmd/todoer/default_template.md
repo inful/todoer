@@ -1,9 +1,9 @@
 ---
+type: daily-note
 title: {{.Date}}
 ---
 
 # Daily notes {{.Date}}
-
 
 ## TODOS
 
@@ -11,3 +11,6 @@ title: {{.Date}}
 
 ## Notes
 
+## Meetings
+
+## Lookup
