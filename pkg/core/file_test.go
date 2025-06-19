@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -376,6 +377,105 @@ func TestCreateFromTemplateContent(t *testing.T) {
 
 			if result != tt.expected {
 				t.Errorf("Result mismatch:\nExpected: %q\nGot: %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+// Test enhanced date variables in CreateFromTemplateContent
+func TestCreateFromTemplateContentWithDateVariables(t *testing.T) {
+	tests := []struct {
+		name            string
+		templateContent string
+		currentDate     string
+		previousDate    string
+		todosContent    string
+		expectedContains []string
+		expectError     bool
+	}{
+		{
+			name: "template with current date variables should format correctly",
+			templateContent: `Date: {{.Date}}
+Short: {{.DateShort}}
+Long: {{.DateLong}}
+Year: {{.Year}}
+Month: {{.Month}} ({{.MonthName}})
+Day: {{.Day}} ({{.DayName}})
+Week: {{.WeekNumber}}`,
+			currentDate:     "2025-06-20",
+			previousDate:    "",
+			todosContent:    "",
+			expectedContains: []string{
+				"Date: 2025-06-20",
+				"Short: 06/20/25",
+				"Long: June 20, 2025",
+				"Year: 2025",
+				"Month: 06 (June)",
+				"Day: 20 (Friday)",
+				"Week: 25",
+			},
+			expectError: false,
+		},
+		{
+			name: "template with previous date variables should format correctly",
+			templateContent: `Previous: {{.PreviousDate}}
+PrevShort: {{.PreviousDateShort}}
+PrevLong: {{.PreviousDateLong}}
+PrevYear: {{.PreviousYear}}
+PrevMonth: {{.PreviousMonth}} ({{.PreviousMonthName}})
+PrevDay: {{.PreviousDay}} ({{.PreviousDayName}})
+PrevWeek: {{.PreviousWeekNumber}}`,
+			currentDate:     "2025-06-20",
+			previousDate:    "2025-06-19",
+			todosContent:    "",
+			expectedContains: []string{
+				"Previous: 2025-06-19",
+				"PrevShort: 06/19/25",
+				"PrevLong: June 19, 2025",
+				"PrevYear: 2025",
+				"PrevMonth: 06 (June)",
+				"PrevDay: 19 (Thursday)",
+				"PrevWeek: 25",
+			},
+			expectError: false,
+		},
+		{
+			name: "template with empty previous date should handle gracefully",
+			templateContent: `Previous: '{{.PreviousDate}}'
+PrevShort: '{{.PreviousDateShort}}'
+PrevLong: '{{.PreviousDateLong}}'`,
+			currentDate:     "2025-06-20",
+			previousDate:    "",
+			todosContent:    "",
+			expectedContains: []string{
+				"Previous: ''",
+				"PrevShort: ''",
+				"PrevLong: ''",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := CreateFromTemplateContent(tt.templateContent, tt.todosContent, tt.currentDate, tt.previousDate)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			for _, expected := range tt.expectedContains {
+				if !strings.Contains(result, expected) {
+					t.Errorf("Result does not contain expected string '%s'. Result:\n%s", expected, result)
+				}
 			}
 		})
 	}

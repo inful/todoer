@@ -160,18 +160,44 @@ func validateProcessInputs(originalDate, currentDate string) error {
 
 // CreateFromTemplateContent creates file content from template content using Go template syntax.
 // It validates inputs, executes the template with the provided data, and cleans up formatting.
-// The template receives TemplateData with Date, TODOS, and PreviousDate fields.
+// The template receives TemplateData with comprehensive date formatting and todo variables.
 func CreateFromTemplateContent(templateContent, todosContent, currentDate, previousDate string) (string, error) {
 	// Validate inputs
 	if err := validateTemplateInputs(templateContent, currentDate); err != nil {
 		return "", err
 	}
 
-	// Create template data
+	// Format current date variables
+	currentDateVars := FormatDateVariables(currentDate)
+	
+	// Format previous date variables
+	previousDateVars := FormatDateVariables(previousDate)
+
+	// Create template data with all date variants
 	data := TemplateData{
 		Date:         currentDate,
 		TODOS:        todosContent,
 		PreviousDate: previousDate,
+		
+		// Current date variants
+		DateShort:     currentDateVars.Short,
+		DateLong:      currentDateVars.Long,
+		Year:          currentDateVars.Year,
+		Month:         currentDateVars.Month,
+		MonthName:     currentDateVars.MonthName,
+		Day:           currentDateVars.Day,
+		DayName:       currentDateVars.DayName,
+		WeekNumber:    currentDateVars.WeekNumber,
+		
+		// Previous date variants
+		PreviousDateShort:  previousDateVars.Short,
+		PreviousDateLong:   previousDateVars.Long,
+		PreviousYear:       previousDateVars.Year,
+		PreviousMonth:      previousDateVars.Month,
+		PreviousMonthName:  previousDateVars.MonthName,
+		PreviousDay:        previousDateVars.Day,
+		PreviousDayName:    previousDateVars.DayName,
+		PreviousWeekNumber: previousDateVars.WeekNumber,
 	}
 
 	// Parse and execute the Go template

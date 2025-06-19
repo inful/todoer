@@ -149,9 +149,30 @@ Templates customize the structure of new journal files. For working examples, se
 
 #### Template Variables
 
-- `{{.Date}}` - Current date in YYYY-MM-DD format  
+**Current Date Variables:**
+- `{{.Date}}` - Current date in YYYY-MM-DD format (e.g., `2025-06-20`)
+- `{{.DateShort}}` - Short date format (e.g., `06/20/25`)
+- `{{.DateLong}}` - Long date format (e.g., `June 20, 2025`)
+- `{{.Year}}` - Year (e.g., `2025`)
+- `{{.Month}}` - Month number (e.g., `06`)
+- `{{.MonthName}}` - Month name (e.g., `June`)
+- `{{.Day}}` - Day number (e.g., `20`)
+- `{{.DayName}}` - Day name (e.g., `Friday`)
+- `{{.WeekNumber}}` - Week number of year (e.g., `25`)
+
+**Previous Date Variables** (empty if no previous journal):
+- `{{.PreviousDate}}` - Previous journal date in YYYY-MM-DD format
+- `{{.PreviousDateShort}}` - Short format (e.g., `06/19/25`)
+- `{{.PreviousDateLong}}` - Long format (e.g., `June 19, 2025`)
+- `{{.PreviousYear}}` - Previous year
+- `{{.PreviousMonth}}` - Previous month number  
+- `{{.PreviousMonthName}}` - Previous month name
+- `{{.PreviousDay}}` - Previous day number
+- `{{.PreviousDayName}}` - Previous day name (e.g., `Thursday`)
+- `{{.PreviousWeekNumber}}` - Previous week number
+
+**Content Variables:**
 - `{{.TODOS}}` - The uncompleted tasks section content
-- `{{.PreviousDate}}` - Date of the previous journal that todos came from (YYYY-MM-DD format, empty if no previous journal)
 
 #### Template Fallback
 
@@ -161,23 +182,33 @@ Templates customize the structure of new journal files. For working examples, se
 
 If a template has a `## Todos` section without the `{{.TODOS}}` placeholder, uncompleted tasks are automatically inserted into that section.
 
-**Example template using PreviousDate:**
+**Example template using enhanced date variables:**
 
 ```markdown
 ---
 title: {{.Date}}
-{{if .PreviousDate}}previous: {{.PreviousDate}}{{end}}
+created: {{.DateLong}}
+week: {{.WeekNumber}}
+{{if .PreviousDate}}from: {{.PreviousDateLong}}{{end}}
 ---
 
-# Daily Journal - {{.Date}}
+# {{.DayName}} Journal - Week {{.WeekNumber}}
 
-{{if .PreviousDate}}## Todos (from {{.PreviousDate}}){{else}}## Todos{{end}}
+## {{.DateLong}}
+
+{{if .PreviousDate}}
+### Todos (from {{.PreviousDayName}}, {{.PreviousDateShort}})
+{{else}}
+### Todos  
+{{end}}
 
 {{.TODOS}}
 
-## Notes
+### Focus for {{.DayName}}
+*Key priorities for today*
 
-*Today's notes go here*
+### Notes
+*{{.MonthName}} {{.Day}}, {{.Year}} reflections*
 ```
 
 ## Implementation Details

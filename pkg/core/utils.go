@@ -3,6 +3,7 @@ package core
 
 import (
 	"strings"
+	"time"
 )
 
 // Constants for indentation handling
@@ -152,4 +153,45 @@ func GetMaxIndentLevel(items []*TodoItem, currentLevel int) int {
 		}
 	}
 	return maxLevel
+}
+
+// DateVariables holds formatted date variants for template usage
+type DateVariables struct {
+	Short      string // 06/20/25
+	Long       string // June 20, 2025
+	Year       string // 2025
+	Month      string // 06
+	MonthName  string // June
+	Day        string // 20
+	DayName    string // Friday
+	WeekNumber int    // 25 (week of year)
+}
+
+// FormatDateVariables creates formatted date variants from a date string in YYYY-MM-DD format.
+// Returns empty DateVariables if the date string is empty or invalid.
+func FormatDateVariables(dateStr string) DateVariables {
+	vars := DateVariables{}
+
+	if dateStr == "" {
+		return vars
+	}
+
+	date, err := time.Parse(DateFormat, dateStr)
+	if err != nil {
+		return vars
+	}
+
+	vars.Short = date.Format("01/02/06")
+	vars.Long = date.Format("January 2, 2006")
+	vars.Year = date.Format("2006")
+	vars.Month = date.Format("01")
+	vars.MonthName = date.Format("January")
+	vars.Day = date.Format("02")
+	vars.DayName = date.Format("Monday")
+
+	// Calculate week number (ISO 8601 week)
+	_, week := date.ISOWeek()
+	vars.WeekNumber = week
+
+	return vars
 }

@@ -464,3 +464,61 @@ func TestTabSpacesConstant(t *testing.T) {
 		t.Errorf("TabSpaces = %d, expected 2", TabSpaces)
 	}
 }
+
+// Test FormatDateVariables function
+func TestFormatDateVariables(t *testing.T) {
+	tests := []struct {
+		name     string
+		dateStr  string
+		expected DateVariables
+	}{
+		{
+			name:    "valid date should format correctly",
+			dateStr: "2025-06-20",
+			expected: DateVariables{
+				Short:      "06/20/25",
+				Long:       "June 20, 2025",
+				Year:       "2025",
+				Month:      "06",
+				MonthName:  "June",
+				Day:        "20",
+				DayName:    "Friday",
+				WeekNumber: 25,
+			},
+		},
+		{
+			name:    "empty date should return empty variables",
+			dateStr: "",
+			expected: DateVariables{},
+		},
+		{
+			name:    "invalid date should return empty variables",
+			dateStr: "invalid-date",
+			expected: DateVariables{},
+		},
+		{
+			name:    "new year date should handle week correctly",
+			dateStr: "2025-01-01",
+			expected: DateVariables{
+				Short:      "01/01/25",
+				Long:       "January 1, 2025",
+				Year:       "2025",
+				Month:      "01",
+				MonthName:  "January",
+				Day:        "01",
+				DayName:    "Wednesday",
+				WeekNumber: 1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatDateVariables(tt.dateStr)
+
+			if result != tt.expected {
+				t.Errorf("FormatDateVariables() = %+v, want %+v", result, tt.expected)
+			}
+		})
+	}
+}
