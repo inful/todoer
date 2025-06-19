@@ -487,13 +487,13 @@ func TestFormatDateVariables(t *testing.T) {
 			},
 		},
 		{
-			name:    "empty date should return empty variables",
-			dateStr: "",
+			name:     "empty date should return empty variables",
+			dateStr:  "",
 			expected: DateVariables{},
 		},
 		{
-			name:    "invalid date should return empty variables",
-			dateStr: "invalid-date",
+			name:     "invalid date should return empty variables",
+			dateStr:  "invalid-date",
 			expected: DateVariables{},
 		},
 		{
@@ -518,6 +518,169 @@ func TestFormatDateVariables(t *testing.T) {
 
 			if result != tt.expected {
 				t.Errorf("FormatDateVariables() = %+v, want %+v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// Test CalculateTodoStatistics function
+func TestCalculateTodoStatistics(t *testing.T) {
+	tests := []struct {
+		name        string
+		journal     *TodoJournal
+		currentDate string
+		expected    TodoStatistics
+	}{
+		{
+			name:        "nil journal should return empty statistics",
+			journal:     nil,
+			currentDate: "2025-06-20",
+			expected:    TodoStatistics{},
+		},
+		{
+			name:        "empty journal should return empty statistics",
+			journal:     &TodoJournal{},
+			currentDate: "2025-06-20",
+			expected:    TodoStatistics{},
+		},
+		{
+			name: "journal with only incomplete todos should calculate correctly",
+			journal: &TodoJournal{
+				Days: []*DaySection{
+					{
+						Date: "2025-06-18",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Task 1"},
+							{Completed: false, Text: "Task 2"},
+						},
+					},
+					{
+						Date: "2025-06-19",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Task 3"},
+						},
+					},
+				},
+			},
+			currentDate: "2025-06-20",
+			expected: TodoStatistics{
+				TotalTodos:     3,
+				CompletedTodos: 0,
+				TodoDates:      []string{"2025-06-18", "2025-06-19"},
+				OldestTodoDate: "2025-06-18",
+				TodoDaysSpan:   2,
+			},
+		},
+		{
+			name: "journal with mixed todos should calculate correctly",
+			journal: &TodoJournal{
+				Days: []*DaySection{
+					{
+						Date: "2025-06-17",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Incomplete task"},
+							{Completed: true, Text: "Completed task"},
+						},
+					},
+					{
+						Date: "2025-06-19",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Another incomplete"},
+						},
+					},
+				},
+			},
+			currentDate: "2025-06-20",
+			expected: TodoStatistics{
+				TotalTodos:     2,
+				CompletedTodos: 1,
+				TodoDates:      []string{"2025-06-17", "2025-06-19"},
+				OldestTodoDate: "2025-06-17",
+				TodoDaysSpan:   3,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CalculateTodoStatistics(tt.journal, tt.currentDate)
+
+			if result.TotalTodos != tt.expected.TotalTodos {
+				t.Errorf("TotalTodos = %d, want %d", result.TotalTodos, tt.expected.TotalTodos)
+			}
+			if result.CompletedTodos != tt.expected.CompletedTodos {
+				t.Errorf("CompletedTodos = %d, want %d", result.CompletedTodos, tt.expected.CompletedTodos)
+			}
+			if result.OldestTodoDate != tt.expected.OldestTodoDate {
+				t.Errorf("OldestTodoDate = %s, want %s", result.OldestTodoDate, tt.expected.OldestTodoDate)
+			}
+			if result.TodoDaysSpan != tt.expected.TodoDaysSpan {
+				t.Errorf("TodoDaysSpan = %d, want %d", result.TodoDaysSpan, tt.expected.TodoDaysSpan)
+			}
+			if len(result.TodoDates) != len(tt.expected.TodoDates) {
+				t.Errorf("TodoDates length = %d, want %d", len(result.TodoDates), len(tt.expected.TodoDates))
+			} else {
+				for i, date := range result.TodoDates {
+					if date != tt.expected.TodoDates[i] {
+						t.Errorf("TodoDates[%d] = %s, want %s", i, date, tt.expected.TodoDates[i])
+					}
+				}
+			}
+		})
+	}
+}
+
+// Test calculateDaysSpan function
+func TestCalculateDaysSpan(t *testing.T) {
+	tests := []struct {
+		name      string
+		startDate string
+		endDate   string
+		expected  int
+	}{
+		{
+			name:      "same date should return 0",
+			startDate: "2025-06-20",
+			endDate:   "2025-06-20",
+			expected:  0,
+		},
+		{
+			name:      "consecutive dates should return 1",
+			startDate: "2025-06-19",
+			endDate:   "2025-06-20",
+			expected:  1,
+		},
+		{
+			name:      "week span should return 7",
+			startDate: "2025-06-13",
+			endDate:   "2025-06-20",
+			expected:  7,
+		},
+		{
+			name:      "empty start date should return 0",
+			startDate: "",
+			endDate:   "2025-06-20",
+			expected:  0,
+		},
+		{
+			name:      "invalid date should return 0",
+			startDate: "invalid",
+			endDate:   "2025-06-20",
+			expected:  0,
+		},
+		{
+			name:      "end before start should return 0",
+			startDate: "2025-06-20",
+			endDate:   "2025-06-19",
+			expected:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calculateDaysSpan(tt.startDate, tt.endDate)
+			if result != tt.expected {
+				t.Errorf("calculateDaysSpan(%s, %s) = %d, want %d", tt.startDate, tt.endDate, result, tt.expected)
 			}
 		})
 	}

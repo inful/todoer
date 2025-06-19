@@ -169,7 +169,7 @@ func CreateFromTemplateContent(templateContent, todosContent, currentDate, previ
 
 	// Format current date variables
 	currentDateVars := FormatDateVariables(currentDate)
-	
+
 	// Format previous date variables
 	previousDateVars := FormatDateVariables(previousDate)
 
@@ -178,17 +178,17 @@ func CreateFromTemplateContent(templateContent, todosContent, currentDate, previ
 		Date:         currentDate,
 		TODOS:        todosContent,
 		PreviousDate: previousDate,
-		
+
 		// Current date variants
-		DateShort:     currentDateVars.Short,
-		DateLong:      currentDateVars.Long,
-		Year:          currentDateVars.Year,
-		Month:         currentDateVars.Month,
-		MonthName:     currentDateVars.MonthName,
-		Day:           currentDateVars.Day,
-		DayName:       currentDateVars.DayName,
-		WeekNumber:    currentDateVars.WeekNumber,
-		
+		DateShort:  currentDateVars.Short,
+		DateLong:   currentDateVars.Long,
+		Year:       currentDateVars.Year,
+		Month:      currentDateVars.Month,
+		MonthName:  currentDateVars.MonthName,
+		Day:        currentDateVars.Day,
+		DayName:    currentDateVars.DayName,
+		WeekNumber: currentDateVars.WeekNumber,
+
 		// Previous date variants
 		PreviousDateShort:  previousDateVars.Short,
 		PreviousDateLong:   previousDateVars.Long,
@@ -244,4 +244,111 @@ func executeTemplate(templateContent string, data TemplateData) (string, error) 
 // This prevents excessive whitespace when template sections are empty.
 func cleanExcessiveBlankLines(content string) string {
 	return excessiveBlankLinesRegex.ReplaceAllString(content, BlankLineSeparator)
+}
+
+// CreateFromTemplateContentWithStats creates file content from template content using Go template syntax with todo statistics.
+// It validates inputs, calculates todo statistics, executes the template with comprehensive data, and cleans up formatting.
+// The template receives TemplateData with date formatting, todo statistics, and content variables.
+func CreateFromTemplateContentWithStats(templateContent, todosContent, currentDate, previousDate string, journal *TodoJournal) (string, error) {
+	// Validate inputs
+	if err := validateTemplateInputs(templateContent, currentDate); err != nil {
+		return "", err
+	}
+
+	// Format current date variables
+	currentDateVars := FormatDateVariables(currentDate)
+
+	// Format previous date variables
+	previousDateVars := FormatDateVariables(previousDate)
+
+	// Calculate todo statistics
+	todoStats := CalculateTodoStatistics(journal, currentDate)
+
+	// Create template data with all variants and statistics
+	data := TemplateData{
+		Date:         currentDate,
+		TODOS:        todosContent,
+		PreviousDate: previousDate,
+
+		// Current date variants
+		DateShort:  currentDateVars.Short,
+		DateLong:   currentDateVars.Long,
+		Year:       currentDateVars.Year,
+		Month:      currentDateVars.Month,
+		MonthName:  currentDateVars.MonthName,
+		Day:        currentDateVars.Day,
+		DayName:    currentDateVars.DayName,
+		WeekNumber: currentDateVars.WeekNumber,
+
+		// Previous date variants
+		PreviousDateShort:  previousDateVars.Short,
+		PreviousDateLong:   previousDateVars.Long,
+		PreviousYear:       previousDateVars.Year,
+		PreviousMonth:      previousDateVars.Month,
+		PreviousMonthName:  previousDateVars.MonthName,
+		PreviousDay:        previousDateVars.Day,
+		PreviousDayName:    previousDateVars.DayName,
+		PreviousWeekNumber: previousDateVars.WeekNumber,
+
+		// Todo statistics
+		TotalTodos:     todoStats.TotalTodos,
+		CompletedTodos: todoStats.CompletedTodos,
+		TodoDates:      todoStats.TodoDates,
+		OldestTodoDate: todoStats.OldestTodoDate,
+		TodoDaysSpan:   todoStats.TodoDaysSpan,
+	}
+
+	// Parse and execute the Go template
+	output, err := executeTemplate(templateContent, data)
+	if err != nil {
+		return "", err
+	}
+
+	// Clean up extra blank lines when TODOS is empty
+	if strings.TrimSpace(todosContent) == "" {
+		output = cleanExcessiveBlankLines(output)
+	}
+
+	return output, nil
+}
+
+// ProcessTodosSectionWithStats processes the Todos section and returns completed/uncompleted sections plus parsed journal.
+// Similar to ProcessTodosSection but also returns the original parsed journal for statistics calculation.
+func ProcessTodosSectionWithStats(todosSection string, originalDate string, currentDate string) (string, string, *TodoJournal, error) {
+	// Validate inputs
+	if err := validateProcessInputs(originalDate, currentDate); err != nil {
+		return "", "", nil, err
+	}
+
+	// Handle empty todos section
+	if strings.TrimSpace(todosSection) == "" {
+		return fmt.Sprintf(MovedToTemplate, currentDate), "", &TodoJournal{}, nil
+	}
+
+	// Parse the Todos section into a structured format
+	journal, err := ParseTodosSection(todosSection)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to parse todos section: %w", err)
+	}
+
+	// Split the journal into completed and uncompleted tasks
+	completedJournal, uncompletedJournal := SplitJournal(journal)
+
+	// Add date tags to completed tasks
+	TagCompletedItems(completedJournal, originalDate)
+
+	// Add date tags to completed subtasks in uncompleted tasks
+	TagCompletedSubitems(uncompletedJournal, originalDate)
+
+	// Convert back to string format
+	completedSection := JournalToString(completedJournal)
+	uncompletedSection := JournalToString(uncompletedJournal)
+
+	// If no completed tasks, provide moved message
+	if strings.TrimSpace(completedSection) == "" {
+		completedSection = fmt.Sprintf(MovedToTemplate, currentDate)
+	}
+
+	// Return original journal for statistics calculation
+	return completedSection, uncompletedSection, journal, nil
 }

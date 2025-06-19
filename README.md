@@ -172,7 +172,16 @@ Templates customize the structure of new journal files. For working examples, se
 - `{{.PreviousWeekNumber}}` - Previous week number
 
 **Content Variables:**
+
 - `{{.TODOS}}` - The uncompleted tasks section content
+
+**Todo Statistics Variables:**
+
+- `{{.TotalTodos}}` - Number of incomplete todos being carried over
+- `{{.CompletedTodos}}` - Number of completed todos found in source journal
+- `{{.TodoDates}}` - List of unique dates that todos came from (array of strings)
+- `{{.OldestTodoDate}}` - Date of the oldest incomplete todo (YYYY-MM-DD format, empty if no todos)
+- `{{.TodoDaysSpan}}` - Number of days spanned by todos (from oldest to current date)
 
 #### Template Fallback
 
@@ -209,6 +218,38 @@ week: {{.WeekNumber}}
 
 ### Notes
 *{{.MonthName}} {{.Day}}, {{.Year}} reflections*
+```
+
+**Example template using todo statistics:**
+
+```markdown
+---
+date: {{.Date}}
+---
+
+# Daily Journal - {{.DateLong}} ({{.DayName}})
+
+## Summary
+
+Today is {{.DateLong}}, which is a {{.DayName}}.
+
+{{if .PreviousDate}}Previous entry: {{.PreviousDateLong}} ({{.PreviousDayName}}){{end}}
+
+## Todo Statistics
+
+- **Total active todos**: {{.TotalTodos}}
+- **Completed todos**: {{.CompletedTodos}}
+{{if .OldestTodoDate}}- **Oldest todo date**: {{.OldestTodoDate}}{{end}}
+{{if .TodoDaysSpan}}- **Days spanned by todos**: {{.TodoDaysSpan}}{{end}}
+{{if .TodoDates}}- **Todo dates**: {{range $i, $date := .TodoDates}}{{if $i}}, {{end}}{{$date}}{{end}}{{end}}
+
+## Today's Tasks
+
+{{.TODOS}}
+
+## Notes
+
+Today's reflections...
 ```
 
 ## Implementation Details

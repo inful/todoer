@@ -110,22 +110,22 @@ func (j *TodoJournal) DayCount() int {
 }
 
 // TemplateData holds the data to be passed to Go templates when generating journal files.
-// It provides comprehensive variables for flexible template rendering.
+// It provides comprehensive variables for flexible template rendering including date formatting and todo statistics.
 type TemplateData struct {
 	Date         string // Current date in YYYY-MM-DD format
 	TODOS        string // Formatted todos content to be inserted into the template
 	PreviousDate string // Date of the previous journal that todos came from (YYYY-MM-DD format, empty if no previous journal)
-	
+
 	// Current date formatting variants
-	DateShort     string // 06/20/25
-	DateLong      string // June 20, 2025
-	Year          string // 2025
-	Month         string // 06
-	MonthName     string // June
-	Day           string // 20
-	DayName       string // Friday
-	WeekNumber    int    // 25 (week of year)
-	
+	DateShort  string // 06/20/25
+	DateLong   string // June 20, 2025
+	Year       string // 2025
+	Month      string // 06
+	MonthName  string // June
+	Day        string // 20
+	DayName    string // Friday
+	WeekNumber int    // 25 (week of year)
+
 	// Previous date formatting variants (empty if no previous journal)
 	PreviousDateShort  string // 06/19/25
 	PreviousDateLong   string // June 19, 2025
@@ -135,4 +135,11 @@ type TemplateData struct {
 	PreviousDay        string // 19
 	PreviousDayName    string // Thursday
 	PreviousWeekNumber int    // 25 (week of year)
+
+	// Todo statistics
+	TotalTodos     int      // Total number of incomplete todos being carried over
+	CompletedTodos int      // Number of completed todos found in source journal
+	TodoDates      []string // List of unique dates that todos came from (YYYY-MM-DD format)
+	OldestTodoDate string   // Date of the oldest incomplete todo (YYYY-MM-DD format, empty if no todos)
+	TodoDaysSpan   int      // Number of days spanned by todos (from oldest to current date)
 }

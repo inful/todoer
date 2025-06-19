@@ -195,3 +195,120 @@ func FormatDateVariables(dateStr string) DateVariables {
 
 	return vars
 }
+
+// TodoStatistics holds calculated statistics about todos for template usage
+type TodoStatistics struct {
+	TotalTodos     int      // Total number of incomplete todos
+	CompletedTodos int      // Number of completed todos
+	TodoDates      []string // Unique dates that todos came from
+	OldestTodoDate string   // Date of the oldest incomplete todo
+	TodoDaysSpan   int      // Number of days spanned by todos
+}
+
+// CalculateTodoStatistics analyzes a journal and calculates statistics for template usage.
+// Returns statistics about incomplete and completed todos, date spans, etc.
+func CalculateTodoStatistics(journal *TodoJournal, currentDate string) TodoStatistics {
+	stats := TodoStatistics{}
+
+	if journal == nil || journal.IsEmpty() {
+		return stats
+	}
+
+	// Split journal into completed and incomplete todos
+	completed, incomplete := SplitJournal(journal)
+
+	// Calculate basic counts
+	stats.TotalTodos = CountTotalItems(getAllTodosFromJournal(incomplete))
+	stats.CompletedTodos = CountTotalItems(getAllTodosFromJournal(completed))
+
+	// Extract unique dates from both completed and incomplete todos
+	dateSet := make(map[string]bool)
+	var oldestDate string
+
+	// Add dates from incomplete todos (these are the active todo dates)
+	for _, day := range incomplete.Days {
+		if day != nil && !day.IsEmpty() {
+			dateSet[day.Date] = true
+			if oldestDate == "" || day.Date < oldestDate {
+				oldestDate = day.Date
+			}
+		}
+	}
+
+	// Also add dates from completed todos for a complete picture
+	for _, day := range completed.Days {
+		if day != nil && !day.IsEmpty() {
+			dateSet[day.Date] = true
+			if oldestDate == "" || day.Date < oldestDate {
+				oldestDate = day.Date
+			}
+		}
+	}
+
+	// Convert date set to sorted slice
+	for date := range dateSet {
+		stats.TodoDates = append(stats.TodoDates, date)
+	}
+
+	// Sort dates
+	if len(stats.TodoDates) > 1 {
+		for i := 0; i < len(stats.TodoDates)-1; i++ {
+			for j := i + 1; j < len(stats.TodoDates); j++ {
+				if stats.TodoDates[i] > stats.TodoDates[j] {
+					stats.TodoDates[i], stats.TodoDates[j] = stats.TodoDates[j], stats.TodoDates[i]
+				}
+			}
+		}
+	}
+
+	stats.OldestTodoDate = oldestDate
+
+	// Calculate days span if we have an oldest date
+	if oldestDate != "" && currentDate != "" {
+		stats.TodoDaysSpan = calculateDaysSpan(oldestDate, currentDate)
+	}
+
+	return stats
+}
+
+// getAllTodosFromJournal extracts all todo items from a journal as a flat slice
+func getAllTodosFromJournal(journal *TodoJournal) []*TodoItem {
+	var allTodos []*TodoItem
+
+	if journal == nil {
+		return allTodos
+	}
+
+	for _, day := range journal.Days {
+		if day != nil {
+			allTodos = append(allTodos, day.Items...)
+		}
+	}
+
+	return allTodos
+}
+
+// calculateDaysSpan calculates the number of days between two dates in YYYY-MM-DD format
+func calculateDaysSpan(startDate, endDate string) int {
+	if startDate == "" || endDate == "" {
+		return 0
+	}
+
+	start, err := time.Parse(DateFormat, startDate)
+	if err != nil {
+		return 0
+	}
+
+	end, err := time.Parse(DateFormat, endDate)
+	if err != nil {
+		return 0
+	}
+
+	if end.Before(start) {
+		return 0
+	}
+
+	// Calculate difference in days
+	diff := end.Sub(start)
+	return int(diff.Hours() / 24)
+}

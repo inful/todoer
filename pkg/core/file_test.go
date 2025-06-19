@@ -385,13 +385,13 @@ func TestCreateFromTemplateContent(t *testing.T) {
 // Test enhanced date variables in CreateFromTemplateContent
 func TestCreateFromTemplateContentWithDateVariables(t *testing.T) {
 	tests := []struct {
-		name            string
-		templateContent string
-		currentDate     string
-		previousDate    string
-		todosContent    string
+		name             string
+		templateContent  string
+		currentDate      string
+		previousDate     string
+		todosContent     string
 		expectedContains []string
-		expectError     bool
+		expectError      bool
 	}{
 		{
 			name: "template with current date variables should format correctly",
@@ -402,9 +402,9 @@ Year: {{.Year}}
 Month: {{.Month}} ({{.MonthName}})
 Day: {{.Day}} ({{.DayName}})
 Week: {{.WeekNumber}}`,
-			currentDate:     "2025-06-20",
-			previousDate:    "",
-			todosContent:    "",
+			currentDate:  "2025-06-20",
+			previousDate: "",
+			todosContent: "",
 			expectedContains: []string{
 				"Date: 2025-06-20",
 				"Short: 06/20/25",
@@ -425,9 +425,9 @@ PrevYear: {{.PreviousYear}}
 PrevMonth: {{.PreviousMonth}} ({{.PreviousMonthName}})
 PrevDay: {{.PreviousDay}} ({{.PreviousDayName}})
 PrevWeek: {{.PreviousWeekNumber}}`,
-			currentDate:     "2025-06-20",
-			previousDate:    "2025-06-19",
-			todosContent:    "",
+			currentDate:  "2025-06-20",
+			previousDate: "2025-06-19",
+			todosContent: "",
 			expectedContains: []string{
 				"Previous: 2025-06-19",
 				"PrevShort: 06/19/25",
@@ -444,9 +444,9 @@ PrevWeek: {{.PreviousWeekNumber}}`,
 			templateContent: `Previous: '{{.PreviousDate}}'
 PrevShort: '{{.PreviousDateShort}}'
 PrevLong: '{{.PreviousDateLong}}'`,
-			currentDate:     "2025-06-20",
-			previousDate:    "",
-			todosContent:    "",
+			currentDate:  "2025-06-20",
+			previousDate: "",
+			todosContent: "",
 			expectedContains: []string{
 				"Previous: ''",
 				"PrevShort: ''",
@@ -459,6 +459,99 @@ PrevLong: '{{.PreviousDateLong}}'`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := CreateFromTemplateContent(tt.templateContent, tt.todosContent, tt.currentDate, tt.previousDate)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			for _, expected := range tt.expectedContains {
+				if !strings.Contains(result, expected) {
+					t.Errorf("Result does not contain expected string '%s'. Result:\n%s", expected, result)
+				}
+			}
+		})
+	}
+}
+
+// Test CreateFromTemplateContentWithStats function
+func TestCreateFromTemplateContentWithStats(t *testing.T) {
+	tests := []struct {
+		name             string
+		templateContent  string
+		todosContent     string
+		currentDate      string
+		previousDate     string
+		journal          *TodoJournal
+		expectedContains []string
+		expectError      bool
+	}{
+		{
+			name: "template with todo statistics should render correctly",
+			templateContent: `Date: {{.Date}}
+Total Todos: {{.TotalTodos}}
+Completed: {{.CompletedTodos}}
+Oldest: {{.OldestTodoDate}}
+Days Span: {{.TodoDaysSpan}}
+Dates: {{range .TodoDates}}{{.}} {{end}}`,
+			todosContent: "- [ ] Task 1\n- [ ] Task 2",
+			currentDate:  "2025-06-20",
+			previousDate: "2025-06-19",
+			journal: &TodoJournal{
+				Days: []*DaySection{
+					{
+						Date: "2025-06-18",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Task 1"},
+							{Completed: true, Text: "Done task"},
+						},
+					},
+					{
+						Date: "2025-06-19",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Task 2"},
+						},
+					},
+				},
+			},
+			expectedContains: []string{
+				"Date: 2025-06-20",
+				"Total Todos: 2",
+				"Completed: 1",
+				"Oldest: 2025-06-18",
+				"Days Span: 2",
+				"Dates: 2025-06-18 2025-06-19",
+			},
+			expectError: false,
+		},
+		{
+			name: "template with empty journal should handle gracefully",
+			templateContent: `Todos: {{.TotalTodos}}
+Completed: {{.CompletedTodos}}
+Oldest: {{.OldestTodoDate}}`,
+			todosContent: "",
+			currentDate:  "2025-06-20",
+			previousDate: "",
+			journal:      &TodoJournal{},
+			expectedContains: []string{
+				"Todos: 0",
+				"Completed: 0",
+				"Oldest: ",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := CreateFromTemplateContentWithStats(tt.templateContent, tt.todosContent, tt.currentDate, tt.previousDate, tt.journal)
 
 			if tt.expectError {
 				if err == nil {

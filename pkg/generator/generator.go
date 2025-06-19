@@ -82,8 +82,8 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 		return nil, fmt.Errorf("failed to extract TODOS section: %w", err)
 	}
 
-	// Process the TODOS section
-	completedTodos, uncompletedTodos, err := core.ProcessTodosSection(todosSection, date, g.templateDate)
+	// Process the TODOS section with statistics
+	completedTodos, uncompletedTodos, journal, err := core.ProcessTodosSectionWithStats(todosSection, date, g.templateDate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process TODOS section: %w", err)
 	}
@@ -91,8 +91,8 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	// Create the completed file content
 	completedFileContent := beforeTodos + completedTodos + afterTodos
 
-	// Create the uncompleted file content using the template
-	uncompletedFileContent, err := g.createFromTemplateWithDate(uncompletedTodos, g.templateDate)
+	// Create the uncompleted file content using the template with statistics
+	uncompletedFileContent, err := g.createFromTemplateWithStats(uncompletedTodos, g.templateDate, journal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create content from template: %w", err)
 	}
@@ -117,6 +117,11 @@ func (g *Generator) ProcessFile(filename string) (*ProcessResult, error) {
 // createFromTemplateWithDate creates file content from the generator's template using a specific date
 func (g *Generator) createFromTemplateWithDate(todosContent string, dateToUse string) (string, error) {
 	return core.CreateFromTemplateContent(g.templateContent, todosContent, dateToUse, g.previousDate)
+}
+
+// createFromTemplateWithStats creates file content from the generator's template with todo statistics
+func (g *Generator) createFromTemplateWithStats(todosContent string, dateToUse string, journal *core.TodoJournal) (string, error) {
+	return core.CreateFromTemplateContentWithStats(g.templateContent, todosContent, dateToUse, g.previousDate, journal)
 }
 
 // ExtractDateFromFrontmatter extracts the date from the frontmatter title of the given content.
