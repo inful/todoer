@@ -1,254 +1,167 @@
-# Keeping track of todos in a daily journal
+# Todoer - Daily Journal Todo Management
 
-In a journal, I keep a list of TODOS in the following format
+A CLI tool for managing todos in daily journal files. Automatically carries over incomplete tasks between journal entries while preserving completed tasks with date annotations.
 
-```markdown
----
-title: 2025-05-13
----
+## Quick Start
 
-# Title
+```bash
+# Build from source
+go build -o todoer ./cmd/todoer
 
-Any content here
+# Create today's journal (uses previous journal as source)
+./todoer new
 
-## Todos
-
-- [[2025-05-12]]
-  - [ ] An unfinished todo
-  - [x] A completed todo
-- [[2025-05-11]]
-  - [ ] Unfinished
-    - [ ] Unfinished subtask
-  - [ ] Unfinished 2
-    - [x] Completed subtask
-    - [ ] Uncompleted subtask
-- [[2025-05-10]]
-  - [x] Completed
-
-## Section
-
-Any content here
-
+# Process any journal file
+./todoer process source.md target.md
 ```
 
-I would like to create a utility in go that moves uncompleted tasks
-to a new journal file in the following way:
+## Installation
 
-```markdown
----
-title: 2025-05-14
----
+### From Source
 
-# Title
-
-Any content here
-
-## Todos
-
-- [[2025-05-12]]
-  - [ ] An unfinished todo
-- [[2025-05-11]]
-  - [ ] Unfinished
-    - [ ] Unfinished subtask
-  - [ ] Unfinished 2
-    - [x] Completed subtask #2025-05-13
-    - [ ] Uncompleted subtask
-
-## Section
-
-Any content here
-
+```bash
+git clone <repository-url>
+cd todoer
+go build -o todoer ./cmd/todoer
 ```
 
-and the original file should keep the following
+### Usage Requirements
 
-```markdown
----
-title: 2025-05-13
----
+- Go 1.24.3 or later (for building)
+- Journals must use the specific todo format (see below)
 
-# Title
+## Features
 
-Any conttent here
+- **Automatic daily journal creation** in `YYYY/MM/YYYY-MM-DD.md` structure
+- **Smart todo carryover** from previous journals
+- **Configurable templates** for journal structure
+- **Flexible configuration** via files, environment variables, or CLI flags
+- **Preserves completed tasks** with date annotations
+- **Maintains todo hierarchy** and organization
 
-## Todos
+## Todo Format
 
-- [[2025-05-12]]
-  - [x] A completed todo #2025-05-13
-- [[2025-05-10]]
-  - [x] Completed #2025-05-13
+Todoer requires journals to organize todos by date sections using this specific format:
 
-## Section
+- Todos organized under date headers: `- [[YYYY-MM-DD]]`
+- Standard markdown checkboxes: `[ ]` for incomplete, `[x]` for complete
+- Hierarchical structure with proper indentation
+- Only the `## Todos` section is processed; other content remains untouched
 
-Any content here
+**Processing behavior:**
 
-```
+- **Incomplete todos** are moved to the new journal
+- **Completed todos** remain in the original journal with date tags added
+- A todo is only "complete" when both the item AND all subtasks are marked `[x]`
 
-If I complete some tasks in the new file like this:
-
-```markdown
----
-title: 2025-05-14
----
-
-# Title
-
-Any content here
-
-## Todos
-
-- [[2025-05-12]]
-  - [ ] An unfinished todo
-- [[2025-05-11]]
-  - [ ] Unfinished
-    - [ ] Unfinished subtask
-  - [x] Unfinished 2
-    - [x] Completed subtask #2025-05-13
-    - [x] Uncompleted subtask
-
-## Section
-
-Any content here
-
-```
-
-The next run should produce the following in the new file:
-
-```markdown
----
-title: 2025-05-15
----
-
-# Title
-
-Any content here
-
-## Todos
-
-- [[2025-05-12]]
-  - [ ] An unfinished todo
-- [[2025-05-11]]
-  - [ ] Unfinished
-    - [ ] Unfinished subtask
-
-## Section
-
-Any content here
-
-```
-
-And the old file should contain the following:
-
-```markdown
----
-title: 2025-05-14
----
-
-# Title
-
-Any content here
-
-## Todos
-
-- [[2025-05-11]]
-  - [x] Unfinished 2 #2025-05-14
-    - [x] Completed subtask #2025-05-13
-    - [x] Uncompleted subtask #2025-05-14
-
-## Section
-
-Any content here
-
-```
-
-Only content in the `## Todos` section should be touched. The rest of the file contents should be untouched.
+For detailed examples and format specifications, see the `testdata/` directory in the repository.
 
 ## Usage
 
-To use this utility, run:
+### Create Daily Journals
+
+The `new` command creates today's journal file and carries over incomplete todos from the most recent previous journal:
 
 ```bash
-go build
-./todoer <source_file> <target_file> [template_file]
+# Create today's journal in current directory
+./todoer new
+
+# Create in specific directory
+./todoer new --root-dir "~/Documents/journals"
+
+# Use custom template
+./todoer new --template-file "my_template.md"
 ```
 
-### Basic Usage
+**Journal Structure**: Files are created as `YYYY/MM/YYYY-MM-DD.md` (e.g., `2025/06/2025-06-20.md`)
+
+**Behavior:**
+
+- Finds the most recent journal file before today
+- Moves incomplete todos to the new journal  
+- Updates the previous journal, marking completed todos with date tags
+- Creates a backup of the original file
+- If no previous journal exists, creates from template
+
+### Process Existing Journals
+
+The `process` command works with any journal files:
 
 ```bash
-./todoer journal.md new_journal.md
+# Basic processing
+./todoer process source.md target.md
+
+# With custom template and date
+./todoer process source.md target.md --template-file "template.md" --template-date "2025-06-20"
 ```
 
 This will:
 
 1. Parse the source journal file
-2. Keep only completed tasks in the source file
-3. Move uncompleted tasks to the target file
-4. Add date tags to completed subtasks in the target file
+2. Move incomplete tasks to the target file
+3. Keep completed tasks in the source file with date tags
+4. Create a backup of the original source file
 
-### Template Usage
+## Configuration
 
-```bash
-./todoer journal.md new_journal.md template.md
+Todoer supports configuration through multiple methods, with the following priority order (highest to lowest):
+
+1. **CLI flags** (`--root-dir`, `--template-file`)
+2. **Environment variables** (`TODOER_ROOT_DIR`, `TODOER_TEMPLATE_FILE`)
+3. **Configuration file** (`$XDG_CONFIG_HOME/todoer/config.toml`)
+4. **Built-in defaults**
+
+### Configuration File
+
+Create a configuration file at `$XDG_CONFIG_HOME/todoer/config.toml` (usually `~/.config/todoer/config.toml`):
+
+```toml
+# Root directory where journal files will be stored
+root_dir = "~/Documents/journals"
+
+# Template file to use for new journals (optional)
+template_file = "~/.config/todoer/my_template.md"
 ```
 
-When a template file is provided, the target file will be created using the template structure instead of copying the original file structure.
+### Environment Variables
+
+```bash
+export TODOER_ROOT_DIR="~/Documents/journals"
+export TODOER_TEMPLATE_FILE="~/.config/todoer/my_template.md"
+```
+
+### CLI Usage
+
+```bash
+# Create a new daily journal (uses configuration)
+todoer new
+
+# Create with custom settings
+todoer new --root-dir "./my-journals" --template-file "custom.md"
+
+# Process existing journal files
+todoer process source.md target.md --template-file "template.md"
+```
+
+### Templates
+
+Templates customize the structure of new journal files. For working examples, see `testdata/shared_template.md`.
 
 #### Template Variables
 
-Templates can use the following variables:
+- `{{.Date}}` - Current date in YYYY-MM-DD format  
+- `{{.TODOS}}` - The uncompleted tasks section content
 
-- `{{date}}` - Current date in YYYY-MM-DD format
-- `{{TODOS}}` - The uncompleted tasks section content
+#### Template Fallback
 
-#### Example Template
+1. **Explicit template** (`--template-file` or config)
+2. **XDG Config**: `$XDG_CONFIG_HOME/todoer/template.md`
+3. **Embedded default**: Basic structure with `## Todos` section
 
-```markdown
----
-title: {{date}}
-tags: journal, daily
----
-
-# Daily Journal - {{date}}
-
-## Todos
-
-{{TODOS}}
-
-## Notes
-
-*Add your notes for {{date}} here.*
-
-## Reflection
-
-*What went well today?*
-
-## Tomorrow's Focus
-
-*What are the key priorities for tomorrow?*
-```
-
-#### Template with Automatic TODOS Insertion
-
-If your template doesn't use the `{{TODOS}}` placeholder but has a `## Todos` section, the uncompleted tasks will be automatically inserted into that section:
-
-```markdown
----
-title: {{date}}
----
-
-# Journal Entry
-
-## Todos
-
-## Notes
-
-Today's notes...
-```
-
-The tool will automatically insert the uncompleted tasks between the `## Todos` header and the next section.
+If a template has a `## Todos` section without the `{{.TODOS}}` placeholder, uncompleted tasks are automatically inserted into that section.
 
 ## Implementation Details
 
-The implementation uses a regex-based parser to analyze the journal format. The parser handles nested todo items with proper indentation and maintains the hierarchical structure.
+The tool uses a regex-based parser to analyze the journal format and maintains hierarchical structure. Tasks are considered "completed" only when both the task and all subtasks are marked as completed.
 
-Tasks are considered "completed" only if the task itself and all subtasks are marked as completed.
+For detailed implementation examples and edge cases, see the comprehensive test suite in `testdata/`.

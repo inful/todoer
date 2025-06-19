@@ -1,0 +1,20 @@
+# Todoer Configuration File
+# Place this file at: $XDG_CONFIG_HOME/todoer/config.toml (usually ~/.config/todoer/config.toml)
+#
+# Configuration hierarchy (highest priority first):
+# 1. CLI flags (--root-dir, --template-file)
+# 2. Environment variables (TODOER_ROOT_DIR, TODOER_TEMPLATE_FILE)  
+# 3. This configuration file
+# 4. Built-in defaults
+
+# Root directory where journal files will be stored
+# Default: "." (current directory)
+# Can be overridden with: TODOER_ROOT_DIR environment variable or --root-dir CLI flag
+root_dir = "~/Documents/journals"
+
+# Template file to use for new journals (optional)
+# If not specified, will check:
+# 1. $XDG_CONFIG_HOME/todoer/template.md
+# 2. Built-in embedded template
+# Can be overridden with: TODOER_TEMPLATE_FILE environment variable or --template-file CLI flag
+template_file = "~/.config/todoer/my_template.md"

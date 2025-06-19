@@ -11,6 +11,7 @@ import (
 	"todoer/pkg/core"
 	"todoer/pkg/generator"
 
+	"github.com/BurntSushi/toml"
 	"github.com/alecthomas/kong"
 )
 
@@ -19,18 +20,91 @@ const (
 	FilePermissions = 0644
 )
 
+// Config represents the configuration file structure
+type Config struct {
+	RootDir      string `toml:"root_dir"`
+	TemplateFile string `toml:"template_file"`
+}
+
+// loadConfig loads configuration from file, environment variables, and CLI flags
+// Priority: CLI flags > environment variables > config file > defaults
+func loadConfig() (*Config, error) {
+	config := &Config{}
+
+	// Load from config file first
+	if err := loadConfigFile(config); err != nil {
+		// Config file errors are not fatal, just log them
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Warning: Error loading config file: %v\n", err)
+		}
+	}
+
+	// Override with environment variables
+	if rootDir := os.Getenv("TODOER_ROOT_DIR"); rootDir != "" {
+		config.RootDir = expandPath(rootDir)
+	}
+	if templateFile := os.Getenv("TODOER_TEMPLATE_FILE"); templateFile != "" {
+		config.TemplateFile = expandPath(templateFile)
+	}
+
+	// Set defaults if not specified
+	if config.RootDir == "" {
+		config.RootDir = "."
+	}
+
+	return config, nil
+}
+
+// expandPath expands ~ to home directory in file paths
+func expandPath(path string) string {
+	if path == "" {
+		return path
+	}
+	if strings.HasPrefix(path, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return path // Return original if we can't get home dir
+		}
+		return filepath.Join(homeDir, path[2:])
+	}
+	return path
+}
+
+// loadConfigFile loads configuration from the TOML config file
+func loadConfigFile(config *Config) error {
+	configHome := os.Getenv("XDG_CONFIG_HOME")
+	if configHome == "" {
+		configHome = os.Getenv("HOME") + "/.config"
+	}
+	configPath := filepath.Join(configHome, "todoer", "config.toml")
+
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return err
+	}
+
+	if _, err := toml.DecodeFile(configPath, config); err != nil {
+		return fmt.Errorf("failed to decode config file %s: %w", configPath, err)
+	}
+
+	// Expand paths that might contain ~
+	config.RootDir = expandPath(config.RootDir)
+	config.TemplateFile = expandPath(config.TemplateFile)
+
+	return nil
+}
+
 // ProcessCmd defines arguments for the default 'process' command.
 type ProcessCmd struct {
 	SourceFile   string `arg:"" name:"source_file" help:"Input journal file" type:"existingfile"`
 	TargetFile   string `arg:"" name:"target_file" help:"Output file for uncompleted tasks"`
-	TemplateFile string `arg:"optional" name:"template_file" help:"Template for creating the target file (optional, will check $XDG_CONFIG_HOME/todoer/template.md or use embedded default)"`
+	TemplateFile string `arg:"optional" name:"template_file" help:"Template for creating the target file (optional, overrides config/env)"`
 	TemplateDate string `arg:"optional" name:"template_date" help:"Optional date for template rendering (YYYY-MM-DD)"`
 }
 
 // NewCmd defines arguments for the 'new' command.
 type NewCmd struct {
-	RootDir      string `help:"Root directory for journals" default:"."`
-	TemplateFile string `help:"Template for creating the target file (optional, will check $XDG_CONFIG_HOME/todoer/template.md or use embedded default)"`
+	RootDir      string `help:"Root directory for journals (overrides config/env)"`
+	TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
 }
 
 // CLI defines the command-line arguments structure for kong
@@ -38,13 +112,13 @@ var CLI struct {
 	Process struct {
 		SourceFile   string `arg:"" help:"Input journal file" type:"existingfile"`
 		TargetFile   string `arg:"" help:"Output file for uncompleted tasks"`
-		TemplateFile string `help:"Template for creating the target file (optional, will check $XDG_CONFIG_HOME/todoer/template.md or use embedded default)"`
+		TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
 		TemplateDate string `help:"Optional date for template rendering (YYYY-MM-DD)"`
 	} `cmd:"" help:"Process a journal file"`
 
 	New struct {
-		RootDir      string `help:"Root directory for journals" default:"."`
-		TemplateFile string `help:"Template for creating the target file (optional, will check $XDG_CONFIG_HOME/todoer/template.md or use embedded default)"`
+		RootDir      string `help:"Root directory for journals (overrides config/env)"`
+		TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
 	} `cmd:"new" help:"Create a new daily journal file"`
 }
 
@@ -52,6 +126,13 @@ var CLI struct {
 var defaultTemplate string
 
 func main() {
+	// Load configuration from file, environment, and defaults
+	config, err := loadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
+		os.Exit(1)
+	}
+
 	ctx := kong.Parse(&CLI,
 		kong.Name("todoer"),
 		kong.Description("Process daily journal files, carrying over unfinished tasks in the TODO section."),
@@ -60,13 +141,29 @@ func main() {
 
 	switch ctx.Command() {
 	case "new":
-		err := cmdNew(CLI.New.RootDir, CLI.New.TemplateFile)
+		// CLI flags override config/env values
+		rootDir := CLI.New.RootDir
+		if rootDir == "" {
+			rootDir = config.RootDir
+		}
+		templateFile := CLI.New.TemplateFile
+		if templateFile == "" {
+			templateFile = config.TemplateFile
+		}
+
+		err := cmdNew(rootDir, templateFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	case "process <source-file> <target-file>":
-		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, CLI.Process.TemplateFile, CLI.Process.TemplateDate, false)
+		// CLI flags override config/env values
+		templateFile := CLI.Process.TemplateFile
+		if templateFile == "" {
+			templateFile = config.TemplateFile
+		}
+
+		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, templateFile, CLI.Process.TemplateDate, false)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)

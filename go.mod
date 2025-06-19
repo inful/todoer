@@ -2,4 +2,7 @@ module todoer
 
 go 1.24.3
 
-require github.com/alecthomas/kong v1.11.0 // indirect
+require (
+	github.com/BurntSushi/toml v1.5.0 // indirect
+	github.com/alecthomas/kong v1.11.0 // indirect
+)
