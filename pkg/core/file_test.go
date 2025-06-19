@@ -360,7 +360,7 @@ func TestCreateFromTemplateContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := CreateFromTemplateContent(tt.template, tt.todosContent, tt.currentDate)
+			result, err := CreateFromTemplateContent(tt.template, tt.todosContent, tt.currentDate, "")
 
 			if tt.expectError {
 				if err == nil {
@@ -485,21 +485,35 @@ func TestExecuteTemplate(t *testing.T) {
 		{
 			name:            "valid template should execute correctly",
 			templateContent: "Date: {{.Date}}, Todos: {{.TODOS}}",
-			data:            TemplateData{Date: "2025-06-19", TODOS: "- [ ] Task"},
+			data:            TemplateData{Date: "2025-06-19", TODOS: "- [ ] Task", PreviousDate: "2025-06-18"},
 			expected:        "Date: 2025-06-19, Todos: - [ ] Task",
 			expectError:     false,
 		},
 		{
 			name:            "invalid template syntax should return error",
 			templateContent: "Date: {{.Date}",
-			data:            TemplateData{Date: "2025-06-19", TODOS: ""},
+			data:            TemplateData{Date: "2025-06-19", TODOS: "", PreviousDate: ""},
 			expectError:     true,
 		},
 		{
 			name:            "template with undefined field should return error",
 			templateContent: "Date: {{.UndefinedField}}",
-			data:            TemplateData{Date: "2025-06-19", TODOS: ""},
+			data:            TemplateData{Date: "2025-06-19", TODOS: "", PreviousDate: ""},
 			expectError:     true,
+		},
+		{
+			name:            "template with PreviousDate should execute correctly",
+			templateContent: "Today: {{.Date}}, From: {{.PreviousDate}}, Todos: {{.TODOS}}",
+			data:            TemplateData{Date: "2025-06-19", TODOS: "- [ ] Task", PreviousDate: "2025-06-18"},
+			expected:        "Today: 2025-06-19, From: 2025-06-18, Todos: - [ ] Task",
+			expectError:     false,
+		},
+		{
+			name:            "template with empty PreviousDate should work",
+			templateContent: "Today: {{.Date}}, From: {{.PreviousDate}}, Todos: {{.TODOS}}",
+			data:            TemplateData{Date: "2025-06-19", TODOS: "- [ ] Task", PreviousDate: ""},
+			expected:        "Today: 2025-06-19, From: , Todos: - [ ] Task",
+			expectError:     false,
 		},
 	}
 

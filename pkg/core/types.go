@@ -112,6 +112,7 @@ func (j *TodoJournal) DayCount() int {
 // TemplateData holds the data to be passed to Go templates when generating journal files.
 // It provides the essential variables needed for template rendering.
 type TemplateData struct {
-	Date  string // Current date in YYYY-MM-DD format
-	TODOS string // Formatted todos content to be inserted into the template
+	Date         string // Current date in YYYY-MM-DD format
+	TODOS        string // Formatted todos content to be inserted into the template
+	PreviousDate string // Date of the previous journal that todos came from (YYYY-MM-DD format, empty if no previous journal)
 }

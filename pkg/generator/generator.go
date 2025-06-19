@@ -16,11 +16,18 @@ type Generator struct {
 	templateContent string
 	templateDate    string
 	currentDate     string
+	previousDate    string // Date from the previous journal being processed (empty if none)
 }
 
 // NewGenerator creates a new Generator instance with the specified template content and template date.
 // Returns an error if the template date is invalid.
 func NewGenerator(templateContent, templateDate string) (*Generator, error) {
+	return NewGeneratorWithPrevious(templateContent, templateDate, "")
+}
+
+// NewGeneratorWithPrevious creates a new Generator instance with template content, template date, and previous journal date.
+// Returns an error if the template date is invalid.
+func NewGeneratorWithPrevious(templateContent, templateDate, previousDate string) (*Generator, error) {
 	// Validate the template date format
 	if err := core.ValidateDate(templateDate); err != nil {
 		return nil, fmt.Errorf("invalid template date: %w", err)
@@ -33,18 +40,25 @@ func NewGenerator(templateContent, templateDate string) (*Generator, error) {
 		templateContent: templateContent,
 		templateDate:    templateDate,
 		currentDate:     currentDate,
+		previousDate:    previousDate,
 	}, nil
 }
 
 // NewGeneratorFromFile creates a new Generator by reading the template from a file.
 // Returns an error if the file cannot be read or the template date is invalid.
 func NewGeneratorFromFile(templateFile, templateDate string) (*Generator, error) {
+	return NewGeneratorFromFileWithPrevious(templateFile, templateDate, "")
+}
+
+// NewGeneratorFromFileWithPrevious creates a new Generator by reading the template from a file and including previous journal date.
+// Returns an error if the file cannot be read or the template date is invalid.
+func NewGeneratorFromFileWithPrevious(templateFile, templateDate, previousDate string) (*Generator, error) {
 	templateBytes, err := os.ReadFile(templateFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read template file '%s': %w", templateFile, err)
 	}
 
-	return NewGenerator(string(templateBytes), templateDate)
+	return NewGeneratorWithPrevious(string(templateBytes), templateDate, previousDate)
 }
 
 // ProcessResult holds the results of processing a journal
@@ -102,7 +116,7 @@ func (g *Generator) ProcessFile(filename string) (*ProcessResult, error) {
 
 // createFromTemplateWithDate creates file content from the generator's template using a specific date
 func (g *Generator) createFromTemplateWithDate(todosContent string, dateToUse string) (string, error) {
-	return core.CreateFromTemplateContent(g.templateContent, todosContent, dateToUse)
+	return core.CreateFromTemplateContent(g.templateContent, todosContent, dateToUse, g.previousDate)
 }
 
 // ExtractDateFromFrontmatter extracts the date from the frontmatter title of the given content.
@@ -120,7 +134,7 @@ func ExtractTodosSection(content string) (string, string, string, error) {
 // CreateFromTemplateContent creates file content from template content using Go template syntax.
 // Returns the generated content or an error if template processing fails.
 func CreateFromTemplateContent(templateContent, todosContent, currentDate string) (string, error) {
-	return core.CreateFromTemplateContent(templateContent, todosContent, currentDate)
+	return core.CreateFromTemplateContent(templateContent, todosContent, currentDate, "")
 }
 
 // IsCompleted checks if a todo item is completed.

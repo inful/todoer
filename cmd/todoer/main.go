@@ -171,7 +171,7 @@ func main() {
 	}
 }
 
-func getGenerator(templateFile, templateDate string) (*generator.Generator, string, error) {
+func getGenerator(templateFile, templateDate, sourceFile string) (*generator.Generator, string, error) {
 	var gen *generator.Generator
 	var err error
 	var templateSource string
@@ -180,8 +180,18 @@ func getGenerator(templateFile, templateDate string) (*generator.Generator, stri
 		templateDate = time.Now().Format(core.DateFormat)
 	}
 
+	// Extract previous date from source file if available
+	previousDate := ""
+	if sourceFile != "" {
+		if content, readErr := os.ReadFile(sourceFile); readErr == nil {
+			if extractedDate, extractErr := generator.ExtractDateFromFrontmatter(string(content)); extractErr == nil {
+				previousDate = extractedDate
+			}
+		}
+	}
+
 	if templateFile != "" {
-		gen, err = generator.NewGeneratorFromFile(templateFile, templateDate)
+		gen, err = generator.NewGeneratorFromFileWithPrevious(templateFile, templateDate, previousDate)
 		templateSource = templateFile
 	} else {
 		configHome := os.Getenv("XDG_CONFIG_HOME")
@@ -190,11 +200,11 @@ func getGenerator(templateFile, templateDate string) (*generator.Generator, stri
 		}
 		configTemplate := filepath.Join(configHome, "todoer", "template.md")
 		if _, statErr := os.Stat(configTemplate); statErr == nil {
-			gen, err = generator.NewGeneratorFromFile(configTemplate, templateDate)
+			gen, err = generator.NewGeneratorFromFileWithPrevious(configTemplate, templateDate, previousDate)
 			templateSource = configTemplate
 		}
 		if gen == nil {
-			gen, err = generator.NewGenerator(defaultTemplate, templateDate)
+			gen, err = generator.NewGeneratorWithPrevious(defaultTemplate, templateDate, previousDate)
 			templateSource = "embedded default template"
 		}
 	}
@@ -215,7 +225,7 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 		}
 	}
 
-	gen, templateSource, err := getGenerator(templateFile, templateDate)
+	gen, templateSource, err := getGenerator(templateFile, templateDate, sourceFile)
 	if err != nil {
 		return err
 	}

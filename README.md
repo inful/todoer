@@ -151,6 +151,7 @@ Templates customize the structure of new journal files. For working examples, se
 
 - `{{.Date}}` - Current date in YYYY-MM-DD format  
 - `{{.TODOS}}` - The uncompleted tasks section content
+- `{{.PreviousDate}}` - Date of the previous journal that todos came from (YYYY-MM-DD format, empty if no previous journal)
 
 #### Template Fallback
 
@@ -159,6 +160,25 @@ Templates customize the structure of new journal files. For working examples, se
 3. **Embedded default**: Basic structure with `## Todos` section
 
 If a template has a `## Todos` section without the `{{.TODOS}}` placeholder, uncompleted tasks are automatically inserted into that section.
+
+**Example template using PreviousDate:**
+
+```markdown
+---
+title: {{.Date}}
+{{if .PreviousDate}}previous: {{.PreviousDate}}{{end}}
+---
+
+# Daily Journal - {{.Date}}
+
+{{if .PreviousDate}}## Todos (from {{.PreviousDate}}){{else}}## Todos{{end}}
+
+{{.TODOS}}
+
+## Notes
+
+*Today's notes go here*
+```
 
 ## Implementation Details
 

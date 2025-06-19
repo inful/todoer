@@ -160,8 +160,8 @@ func validateProcessInputs(originalDate, currentDate string) error {
 
 // CreateFromTemplateContent creates file content from template content using Go template syntax.
 // It validates inputs, executes the template with the provided data, and cleans up formatting.
-// The template receives TemplateData with Date and TODOS fields.
-func CreateFromTemplateContent(templateContent, todosContent, currentDate string) (string, error) {
+// The template receives TemplateData with Date, TODOS, and PreviousDate fields.
+func CreateFromTemplateContent(templateContent, todosContent, currentDate, previousDate string) (string, error) {
 	// Validate inputs
 	if err := validateTemplateInputs(templateContent, currentDate); err != nil {
 		return "", err
@@ -169,8 +169,9 @@ func CreateFromTemplateContent(templateContent, todosContent, currentDate string
 
 	// Create template data
 	data := TemplateData{
-		Date:  currentDate,
-		TODOS: todosContent,
+		Date:         currentDate,
+		TODOS:        todosContent,
+		PreviousDate: previousDate,
 	}
 
 	// Parse and execute the Go template
