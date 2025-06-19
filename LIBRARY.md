@@ -80,7 +80,7 @@ title: "YYYY-MM-DD"
 
 # Journal Title
 
-## TODOS
+## Todos
 
 - [[YYYY-MM-DD]]
   - [ ] Uncompleted task

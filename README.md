@@ -11,7 +11,7 @@ title: 2025-05-13
 
 Any content here
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [ ] An unfinished todo
@@ -43,7 +43,7 @@ title: 2025-05-14
 
 Any content here
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [ ] An unfinished todo
@@ -71,7 +71,7 @@ title: 2025-05-13
 
 Any conttent here
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [x] A completed todo #2025-05-13
@@ -95,7 +95,7 @@ title: 2025-05-14
 
 Any content here
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [ ] An unfinished todo
@@ -123,7 +123,7 @@ title: 2025-05-15
 
 Any content here
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [ ] An unfinished todo
@@ -148,7 +148,7 @@ title: 2025-05-14
 
 Any content here
 
-## TODOS
+## Todos
 
 - [[2025-05-11]]
   - [x] Unfinished 2 #2025-05-14
@@ -161,7 +161,7 @@ Any content here
 
 ```
 
-Only content in the `## TODOS` section should be touched. The rest of the file contents should be untouched.
+Only content in the `## Todos` section should be touched. The rest of the file contents should be untouched.
 
 ## Usage
 
@@ -210,7 +210,7 @@ tags: journal, daily
 
 # Daily Journal - {{date}}
 
-## TODOS
+## Todos
 
 {{TODOS}}
 
@@ -229,7 +229,7 @@ tags: journal, daily
 
 #### Template with Automatic TODOS Insertion
 
-If your template doesn't use the `{{TODOS}}` placeholder but has a `## TODOS` section, the uncompleted tasks will be automatically inserted into that section:
+If your template doesn't use the `{{TODOS}}` placeholder but has a `## Todos` section, the uncompleted tasks will be automatically inserted into that section:
 
 ```markdown
 ---
@@ -238,14 +238,14 @@ title: {{date}}
 
 # Journal Entry
 
-## TODOS
+## Todos
 
 ## Notes
 
 Today's notes...
 ```
 
-The tool will automatically insert the uncompleted tasks between the `## TODOS` header and the next section.
+The tool will automatically insert the uncompleted tasks between the `## Todos` header and the next section.
 
 ## Implementation Details
 
