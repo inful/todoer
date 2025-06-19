@@ -6,7 +6,7 @@ title: 2025-06-17
 
 Some content here.
 
-## TODOS
+## Todos
 
 - [[2024-01-14]]
   - [ ] Review project proposal

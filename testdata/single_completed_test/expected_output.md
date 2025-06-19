@@ -6,7 +6,7 @@ title: 2025-06-17
 
 Some content here.
 
-## TODOS
+## Todos
 
 ## Other Section
 

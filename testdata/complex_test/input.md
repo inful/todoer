@@ -6,7 +6,7 @@ title: 2025-05-13
 
 Some content before todos.
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [x] Fully completed with subtasks

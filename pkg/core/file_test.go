@@ -105,33 +105,33 @@ func TestExtractTodosSection(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "content without TODOS section should return error",
+			name:        "content without Todos section should return error",
 			content:     "Some content without todos",
 			expectError: true,
 		},
 		{
-			name:        "TODOS section without blank line should return error",
-			content:     "## TODOS\nImmediate content",
+			name:        "Todos section without blank line should return error",
+			content:     "## Todos\nImmediate content",
 			expectError: true,
 		},
 		{
-			name: "valid TODOS section as last section",
+			name: "valid Todos section as last section",
 			content: `# Title
 
-## TODOS
+## Todos
 
 - [ ] Task 1
 - [x] Task 2`,
-			expectedBefore: "# Title\n\n## TODOS\n\n",
+			expectedBefore: "# Title\n\n## Todos\n\n",
 			expectedTodos:  "- [ ] Task 1\n- [x] Task 2",
 			expectedAfter:  "",
 			expectError:    false,
 		},
 		{
-			name: "valid TODOS section with content after",
+			name: "valid Todos section with content after",
 			content: `# Title
 
-## TODOS
+## Todos
 
 - [ ] Task 1
 - [x] Task 2
@@ -139,28 +139,28 @@ func TestExtractTodosSection(t *testing.T) {
 ## Notes
 
 Some notes here`,
-			expectedBefore: "# Title\n\n## TODOS\n\n",
+			expectedBefore: "# Title\n\n## Todos\n\n",
 			expectedTodos:  "- [ ] Task 1\n- [x] Task 2",
 			expectedAfter:  "\n\n## Notes\n\nSome notes here",
 			expectError:    false,
 		},
 		{
-			name: "empty TODOS section",
+			name: "empty Todos section",
 			content: `# Title
 
-## TODOS
+## Todos
 
 ## Notes
 
 Some notes here`,
-			expectedBefore: "# Title\n\n## TODOS\n\n",
+			expectedBefore: "# Title\n\n## Todos\n\n",
 			expectedTodos:  "## Notes\n\nSome notes here", // This is what actually gets extracted
 			expectedAfter:  "",
 			expectError:    false,
 		},
 		{
-			name:        "TODOS at end of content without blank line",
-			content:     "## TODOS",
+			name:        "Todos at end of content without blank line",
+			content:     "## Todos",
 			expectError: true,
 		},
 	}

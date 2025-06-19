@@ -6,7 +6,7 @@ title: 2025-05-13
 
 Some content here.
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [x] A completed todo #2025-05-13

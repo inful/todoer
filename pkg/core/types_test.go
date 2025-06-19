@@ -584,8 +584,8 @@ author: Test
 // Test constants
 func TestConstants(t *testing.T) {
 	t.Run("Constants are defined correctly", func(t *testing.T) {
-		if TodosHeader != "## TODOS" {
-			t.Errorf("Expected TodosHeader to be '## TODOS', got %q", TodosHeader)
+		if TodosHeader != "## Todos" {
+			t.Errorf("Expected TodosHeader to be '## Todos', got %q", TodosHeader)
 		}
 		if DateFormat != "2006-01-02" {
 			t.Errorf("Expected DateFormat to be '2006-01-02', got %q", DateFormat)

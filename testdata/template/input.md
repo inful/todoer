@@ -5,7 +5,7 @@ tags: journal, daily
 
 # Daily Journal - 2024-01-15
 
-## TODOS
+## Todos
 
 - [[2024-01-14]]
   - [ ] Review project proposal

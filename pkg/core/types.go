@@ -7,8 +7,8 @@ import (
 
 // Constants for parsing and formatting
 const (
-	// TodosHeader is the markdown header that identifies the TODOS section
-	TodosHeader = "## TODOS"
+	// TodosHeader is the markdown header that identifies the Todos section
+	TodosHeader = "## Todos"
 	// DateFormat is the standard date format used throughout the application (YYYY-MM-DD)
 	DateFormat = "2006-01-02"
 	// CompletedMarker is the character used to mark completed todos

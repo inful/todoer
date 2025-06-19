@@ -16,7 +16,7 @@ title: "2025-01-15"
 
 # Daily Journal - January 15, 2025
 
-## TODOS
+## Todos
 
 - [[2025-01-14]]
   - [ ] Task 1
@@ -30,7 +30,7 @@ Some notes here.`
 
 	templateContent := `# New Journal - {{.Date}}
 
-## TODOS
+## Todos
 
 {{.TODOS}}
 
@@ -97,7 +97,7 @@ func TestGeneratorFromFile(t *testing.T) {
 	// Create a temporary template file
 	templateContent := `# Generated from file - {{.Date}}
 
-## TODOS
+## Todos
 
 {{.TODOS}}`
 
@@ -122,7 +122,7 @@ title: "2025-01-01"
 
 # Test
 
-## TODOS
+## Todos
 
 - [[2024-12-31]]
   - [ ] Simple task`

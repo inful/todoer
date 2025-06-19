@@ -84,7 +84,7 @@ title: 2025-05-13
 
 Content here
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [ ] Task 1
@@ -94,7 +94,7 @@ Content here
 
 More content
 `,
-			wantBeforeTodos: `## TODOS
+			wantBeforeTodos: `## Todos
 
 `,
 			wantTodosSection: `- [[2025-05-12]]
@@ -113,13 +113,13 @@ title: 2025-05-13
 
 Content here
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [ ] Task 1
   - [x] Task 2
 `,
-			wantBeforeTodos: `## TODOS
+			wantBeforeTodos: `## Todos
 
 `,
 			wantTodosSection: `- [[2025-05-12]]
@@ -257,7 +257,7 @@ title: {{.Date}}
 
 # Journal {{.Date}}
 
-## TODOS
+## Todos
 
 {{.TODOS}}
 
@@ -274,7 +274,7 @@ title: 2024-01-16
 
 # Journal 2024-01-16
 
-## TODOS
+## Todos
 
 - [[2024-01-15]]
   - [ ] Task 1
@@ -292,7 +292,7 @@ title: {{.Date}}
 
 # Journal
 
-## TODOS
+## Todos
 
 {{.TODOS}}
 
@@ -308,7 +308,7 @@ title: 2024-01-16
 
 # Journal
 
-## TODOS
+## Todos
 
 - [[2024-01-15]]
   - [ ] Task 1

@@ -6,7 +6,7 @@ title: 2025-05-13
 
 Some content here.
 
-## TODOS
+## Todos
 
 Moved to [[2025-06-17]]
 

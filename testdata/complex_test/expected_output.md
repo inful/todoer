@@ -6,7 +6,7 @@ title: 2025-06-17
 
 Some content here.
 
-## TODOS
+## Todos
 
 - [[2025-05-12]]
   - [ ] Partially completed

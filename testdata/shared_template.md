@@ -6,7 +6,7 @@ title: {{.Date}}
 
 Some content here.
 
-## TODOS
+## Todos
 
 {{.TODOS}}
 

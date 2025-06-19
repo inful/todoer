@@ -47,15 +47,15 @@ func ExtractDateFromFrontmatter(content string) (string, error) {
 	return extractedDate, nil
 }
 
-// ExtractTodosSection extracts the TODOS section from the file content.
-// It returns three parts: content before TODOS, the TODOS section content, and content after TODOS.
-// The function expects a specific format with a blank line after the TODOS header.
+// ExtractTodosSection extracts the Todos section from the file content.
+// It returns three parts: content before Todos, the Todos section content, and content after Todos.
+// The function expects a specific format with a blank line after the Todos header.
 func ExtractTodosSection(content string) (string, string, string, error) {
 	if content == "" {
 		return "", "", "", fmt.Errorf("content cannot be empty")
 	}
 
-	// Find the TODOS section header
+	// Find the Todos section header
 	todosHeaderIndex := strings.Index(content, TodosHeader)
 	if todosHeaderIndex == -1 {
 		return "", "", "", fmt.Errorf("could not find '%s' section in file", TodosHeader)
@@ -87,12 +87,12 @@ func ExtractTodosSection(content string) (string, string, string, error) {
 	var afterTodos string
 
 	if nextSectionMatch != nil {
-		// There is another section after TODOS
+		// There is another section after Todos
 		todosEndIndex := beforeTodosEnd + nextSectionMatch[0]
 		todosSection = content[beforeTodosEnd:todosEndIndex]
 		afterTodos = content[todosEndIndex:]
 	} else {
-		// TODOS is the last section
+		// Todos is the last section
 		todosSection = afterHeaderContent
 		afterTodos = ""
 	}
@@ -100,7 +100,7 @@ func ExtractTodosSection(content string) (string, string, string, error) {
 	return beforeTodos, strings.TrimSpace(todosSection), afterTodos, nil
 }
 
-// ProcessTodosSection processes the TODOS section and returns the completed and uncompleted sections.
+// ProcessTodosSection processes the Todos section and returns the completed and uncompleted sections.
 // It parses the todos, splits them into completed/uncompleted, adds date tags, and converts back to strings.
 // If there are no completed tasks, it returns a "Moved to [[date]]" message for the completed section.
 func ProcessTodosSection(todosSection string, originalDate string, currentDate string) (string, string, error) {
@@ -114,7 +114,7 @@ func ProcessTodosSection(todosSection string, originalDate string, currentDate s
 		return fmt.Sprintf(MovedToTemplate, currentDate), "", nil
 	}
 
-	// Parse the TODOS section into a structured format
+	// Parse the Todos section into a structured format
 	journal, err := ParseTodosSection(todosSection)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to parse todos section: %w", err)

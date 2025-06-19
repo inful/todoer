@@ -38,7 +38,7 @@ func (ps *parserState) reset() {
 	ps.currentItemStack = []*TodoItem{}
 }
 
-// ParseTodosSection parses the TODOS section into a structured format
+// ParseTodosSection parses the Todos section into a structured format
 func ParseTodosSection(content string) (*TodoJournal, error) {
 	journal := &TodoJournal{
 		Days: []*DaySection{},
@@ -61,7 +61,7 @@ func ParseTodosSection(content string) (*TodoJournal, error) {
 	return journal, nil
 }
 
-// processLine processes a single line of the TODOS section
+// processLine processes a single line of the Todos section
 func processLine(journal *TodoJournal, state *parserState, line string, lineNum int) error {
 	trimmedLine := strings.TrimSpace(line)
 	if trimmedLine == "" {
