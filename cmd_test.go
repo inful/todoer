@@ -265,7 +265,7 @@ func testErrorHandling(t *testing.T, binaryPath string) {
 	}
 
 	outputStr := string(output)
-	if !strings.Contains(outputStr, "Error") {
+	if !strings.Contains(outputStr, "ERROR") {
 		t.Errorf("Expected error message, got: %s", outputStr)
 	}
 
@@ -740,7 +740,7 @@ func testEdgeCases(t *testing.T, binaryPath string) {
 		}
 
 		outputStr := string(output)
-		if !strings.Contains(outputStr, "Error") {
+		if !strings.Contains(outputStr, "ERROR") {
 			t.Errorf("Expected error message, got: %s", outputStr)
 		}
 	})
