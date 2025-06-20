@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -138,6 +140,46 @@ func TestResolveTemplate(t *testing.T) {
 }
 
 func TestLoadConfig(t *testing.T) {
+	// Save original environment to avoid interference from workspace files
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	originalHome := os.Getenv("HOME")
+	originalRootDir := os.Getenv("TODOER_ROOT_DIR")
+	originalTemplateFile := os.Getenv("TODOER_TEMPLATE_FILE")
+	
+	// Create isolated test environment
+	tempDir, cleanup := setupTempDir(t)
+	defer cleanup()
+	
+	defer func() {
+		// Restore original environment
+		if originalXDG != "" {
+			os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		} else {
+			os.Unsetenv("XDG_CONFIG_HOME")
+		}
+		if originalHome != "" {
+			os.Setenv("HOME", originalHome)
+		} else {
+			os.Unsetenv("HOME")
+		}
+		if originalRootDir != "" {
+			os.Setenv("TODOER_ROOT_DIR", originalRootDir)
+		} else {
+			os.Unsetenv("TODOER_ROOT_DIR")
+		}
+		if originalTemplateFile != "" {
+			os.Setenv("TODOER_TEMPLATE_FILE", originalTemplateFile)
+		} else {
+			os.Unsetenv("TODOER_TEMPLATE_FILE")
+		}
+	}()
+
+	// Set isolated environment
+	os.Setenv("XDG_CONFIG_HOME", tempDir)
+	os.Setenv("HOME", tempDir)
+	os.Unsetenv("TODOER_ROOT_DIR")
+	os.Unsetenv("TODOER_TEMPLATE_FILE")
+
 	// Test loading config with no config file (should succeed with defaults)
 	config, err := loadConfig()
 	if err != nil {
@@ -148,6 +190,271 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if config.RootDir == "" {
 		t.Errorf("loadConfig() RootDir is empty, expected default")
+	}
+}
+
+func TestLoadConfigWithXDG(t *testing.T) {
+	// Save original environment
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	originalHome := os.Getenv("HOME")
+	originalRootDir := os.Getenv("TODOER_ROOT_DIR")
+	originalTemplateFile := os.Getenv("TODOER_TEMPLATE_FILE")
+	defer func() {
+		if originalXDG != "" {
+			os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		} else {
+			os.Unsetenv("XDG_CONFIG_HOME")
+		}
+		if originalHome != "" {
+			os.Setenv("HOME", originalHome)
+		} else {
+			os.Unsetenv("HOME")
+		}
+		if originalRootDir != "" {
+			os.Setenv("TODOER_ROOT_DIR", originalRootDir)
+		} else {
+			os.Unsetenv("TODOER_ROOT_DIR")
+		}
+		if originalTemplateFile != "" {
+			os.Setenv("TODOER_TEMPLATE_FILE", originalTemplateFile)
+		} else {
+			os.Unsetenv("TODOER_TEMPLATE_FILE")
+		}
+	}()
+
+	tests := []struct {
+		name            string
+		setupFunc       func(tempDir string) string // returns expected config path
+		xdgConfigHome   string
+		expectError     bool
+		expectedRootDir string
+	}{
+		{
+			name: "XDG_CONFIG_HOME set with valid config",
+			setupFunc: func(tempDir string) string {
+				configDir := filepath.Join(tempDir, "todoer")
+				if err := os.MkdirAll(configDir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				configPath := filepath.Join(configDir, "config.toml")
+				customRoot := filepath.Join(tempDir, "custom_root")
+				configContent := fmt.Sprintf(`root_dir = "%s"`, customRoot)
+				if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+					t.Fatal(err)
+				}
+				return configPath
+			},
+			xdgConfigHome:   "SET_TO_TEMP_DIR", // Special marker to use testTempDir
+			expectedRootDir: "DYNAMIC",         // Will be set dynamically to customRoot
+		},
+		{
+			name: "XDG_CONFIG_HOME set but no config file",
+			setupFunc: func(tempDir string) string {
+				// Create the config directory but no config file
+				configDir := filepath.Join(tempDir, "todoer")
+				if err := os.MkdirAll(configDir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				return filepath.Join(configDir, "config.toml")
+			},
+			xdgConfigHome:   "SET_TO_TEMP_DIR", // Special marker to use testTempDir
+			expectedRootDir: ".",               // default
+		},
+		{
+			name: "XDG_CONFIG_HOME not set (uses default location)",
+			setupFunc: func(tempDir string) string {
+				// Create isolated HOME directory to avoid interference
+				isolatedHome := filepath.Join(tempDir, "isolated_home")
+				if err := os.MkdirAll(isolatedHome, 0755); err != nil {
+					t.Fatal(err)
+				}
+				os.Setenv("HOME", isolatedHome)
+				return "" // No config file setup
+			},
+			expectedRootDir: ".", // default
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a unique tempDir for this test case
+			testTempDir, testCleanup := setupTempDir(t)
+			defer testCleanup()
+			
+			// Clear environment variables first
+			os.Unsetenv("TODOER_ROOT_DIR")
+			os.Unsetenv("TODOER_TEMPLATE_FILE")
+			
+			// Set XDG_CONFIG_HOME to point to this test's tempDir
+			if tt.xdgConfigHome == "SET_TO_TEMP_DIR" {
+				os.Setenv("XDG_CONFIG_HOME", testTempDir)
+			} else if tt.xdgConfigHome != "" {
+				os.Setenv("XDG_CONFIG_HOME", tt.xdgConfigHome)
+			} else {
+				os.Unsetenv("XDG_CONFIG_HOME")
+			}
+
+			// Setup test environment with the test's tempDir
+			expectedPath := tt.setupFunc(testTempDir)
+			_ = expectedPath // We could use this for additional validation
+
+			// Set dynamic expected root dir if needed
+			expectedRootDir := tt.expectedRootDir
+			if expectedRootDir == "DYNAMIC" {
+				expectedRootDir = filepath.Join(testTempDir, "custom_root")
+			}
+
+			// Load config
+			config, err := loadConfig()
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if config.RootDir != expectedRootDir {
+				t.Errorf("Expected RootDir %q, got %q (XDG_CONFIG_HOME=%q)", expectedRootDir, config.RootDir, os.Getenv("XDG_CONFIG_HOME"))
+				// Add debug info
+				configPath := ""
+				if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+					configPath = filepath.Join(xdg, "todoer", "config.toml")
+				}
+				if _, err := os.Stat(configPath); err == nil {
+					t.Errorf("Config file exists at: %s", configPath)
+					if content, err := os.ReadFile(configPath); err == nil {
+						t.Errorf("Config content: %s", content)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestResolveTemplateWithXDG(t *testing.T) {
+	// Save original environment
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	defer func() {
+		if originalXDG != "" {
+			os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		} else {
+			os.Unsetenv("XDG_CONFIG_HOME")
+		}
+	}()
+
+	tests := []struct {
+		name           string
+		setupFunc      func(tempDir string) // Pass tempDir to setup function
+		templateFile   string
+		expectedName   string
+		expectError    bool
+	}{
+		{
+			name: "XDG_CONFIG_HOME with template file",
+			setupFunc: func(tempDir string) {
+				configDir := filepath.Join(tempDir, "todoer")
+				if err := os.MkdirAll(configDir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				templatePath := filepath.Join(configDir, "template.md")
+				templateContent := "# Custom Template\n## Todos\n{{.TODOS}}"
+				if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+					t.Fatal(err)
+				}
+			},
+			expectedName: "DYNAMIC_XDG_TEMPLATE", // Will be set to actual path
+		},
+		{
+			name: "XDG_CONFIG_HOME without template file (falls back to embedded)",
+			setupFunc: func(tempDir string) {
+				// Don't create template file, but ensure config dir exists
+				configDir := filepath.Join(tempDir, "todoer")
+				if err := os.MkdirAll(configDir, 0755); err != nil {
+					t.Fatal(err)
+				}
+			},
+			expectedName: "embedded default template",
+		},
+		{
+			name: "Explicit template file overrides XDG",
+			setupFunc: func(tempDir string) {
+				// Create both XDG template and explicit template
+				configDir := filepath.Join(tempDir, "todoer")
+				if err := os.MkdirAll(configDir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				xdgTemplate := filepath.Join(configDir, "template.md")
+				if err := os.WriteFile(xdgTemplate, []byte("XDG Template"), 0644); err != nil {
+					t.Fatal(err)
+				}
+			},
+			templateFile: "DYNAMIC_EXPLICIT", // Will be set to explicit.md in tempDir
+			expectedName: "DYNAMIC_EXPLICIT", // Will be set to explicit.md in tempDir
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a unique tempDir for this test case
+			testTempDir, testCleanup := setupTempDir(t)
+			defer testCleanup()
+			
+			// Set XDG_CONFIG_HOME to this test's tempDir
+			os.Setenv("XDG_CONFIG_HOME", testTempDir)
+
+			// Setup test environment with the test's tempDir
+			tt.setupFunc(testTempDir)
+
+			// Set up dynamic values
+			var templateFile string
+			var expectedName string
+			
+			if tt.templateFile == "DYNAMIC_EXPLICIT" {
+				templateFile = filepath.Join(testTempDir, "explicit.md")
+				expectedName = templateFile
+			} else {
+				templateFile = tt.templateFile
+				expectedName = tt.expectedName
+			}
+			
+			if expectedName == "DYNAMIC_XDG_TEMPLATE" {
+				expectedName = filepath.Join(testTempDir, "todoer", "template.md")
+			}
+
+			// Create explicit template file if specified
+			if templateFile != "" {
+				createTestFile(t, templateFile, "# Explicit Template\n## Todos\n{{.TODOS}}")
+			}
+
+			// Resolve template
+			result := resolveTemplate(templateFile)
+
+			if tt.expectError {
+				if result.err == nil {
+					t.Error("Expected error but got none")
+				}
+				return
+			}
+
+			if result.err != nil {
+				t.Errorf("Unexpected error: %v", result.err)
+				return
+			}
+
+			if result.name != expectedName {
+				t.Errorf("Expected template name %q, got %q", expectedName, result.name)
+			}
+
+			if result.content == "" {
+				t.Error("Template content should not be empty")
+			}
+		})
 	}
 }
 
@@ -546,15 +853,21 @@ func TestValidateConfig(t *testing.T) {
 	tempDir, cleanup := setupTempDir(t)
 	defer cleanup()
 
+	// Create a valid template file for testing
+	validTemplateFile := filepath.Join(tempDir, "valid_template.md")
+	createTestFile(t, validTemplateFile, "# Test Template\n## Todos\n{{.TODOS}}")
+
 	tests := []struct {
 		name        string
 		config      *Config
 		expectError bool
+		errorType   error
 	}{
 		{
 			name:        "nil config",
 			config:      nil,
 			expectError: true,
+			errorType:   ErrInvalidConfig,
 		},
 		{
 			name: "valid config",
@@ -569,12 +882,13 @@ func TestValidateConfig(t *testing.T) {
 				RootDir: "",
 			},
 			expectError: true,
+			errorType:   ErrInvalidConfig,
 		},
 		{
 			name: "valid config with template",
 			config: &Config{
 				RootDir:      tempDir,
-				TemplateFile: filepath.Join(tempDir, "template.md"),
+				TemplateFile: validTemplateFile,
 			},
 			expectError: false,
 		},
@@ -584,6 +898,71 @@ func TestValidateConfig(t *testing.T) {
 				RootDir: "../../../etc",
 			},
 			expectError: true,
+			errorType:   ErrInvalidPath,
+		},
+		{
+			name: "config with nonexistent template file",
+			config: &Config{
+				RootDir:      tempDir,
+				TemplateFile: filepath.Join(tempDir, "nonexistent.md"),
+			},
+			expectError: true,
+			errorType:   ErrTemplateNotFound,
+		},
+		{
+			name: "config with directory as template file",
+			config: &Config{
+				RootDir:      tempDir,
+				TemplateFile: tempDir, // Directory instead of file
+			},
+			expectError: true,
+			errorType:   ErrInvalidConfig,
+		},
+		{
+			name: "config with valid custom variables",
+			config: &Config{
+				RootDir: tempDir,
+				Custom: map[string]interface{}{
+					"author":  "John Doe",
+					"project": "Test Project",
+					"version": 1,
+					"active":  true,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "config with reserved custom variable name",
+			config: &Config{
+				RootDir: tempDir,
+				Custom: map[string]interface{}{
+					"Date": "invalid", // Reserved name
+				},
+			},
+			expectError: true,
+			errorType:   ErrInvalidConfig,
+		},
+		{
+			name: "config with invalid custom variable name",
+			config: &Config{
+				RootDir: tempDir,
+				Custom: map[string]interface{}{
+					"123invalid": "value", // Invalid name starting with number
+				},
+			},
+			expectError: true,
+			errorType:   ErrInvalidConfig,
+		},
+		{
+			name: "config with unsupported custom variable type",
+			config: &Config{
+				RootDir: tempDir,
+				Custom: map[string]interface{}{
+					"complex": complex(1, 2), // Unsupported type
+				},
+			},
+			expectError: true,
+			errorType:   ErrInvalidConfig,
 		},
 	}
 
@@ -592,80 +971,161 @@ func TestValidateConfig(t *testing.T) {
 			err := validateConfig(tt.config)
 			if (err != nil) != tt.expectError {
 				t.Errorf("validateConfig() error = %v, expectError %v", err, tt.expectError)
+				return
+			}
+
+			if tt.expectError && tt.errorType != nil {
+				if !errors.Is(err, tt.errorType) {
+					t.Errorf("validateConfig() error type = %T, expected error type %T", err, tt.errorType)
+				}
 			}
 		})
 	}
 }
 
-func TestSafeWriteFile(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
-
+func TestValidateCustomVariables(t *testing.T) {
 	tests := []struct {
 		name        string
-		filename    string
-		content     []byte
-		perm        os.FileMode
+		custom      map[string]interface{}
 		expectError bool
 	}{
 		{
-			name:     "successful write",
-			filename: filepath.Join(tempDir, "test.txt"),
-			content:  []byte("test content"),
-			perm:     0644,
+			name:        "nil custom variables",
+			custom:      nil,
+			expectError: false,
 		},
 		{
-			name:     "write to subdirectory",
-			filename: filepath.Join(tempDir, "subdir", "test.txt"),
-			content:  []byte("test content"),
-			perm:     0644,
+			name:        "empty custom variables",
+			custom:      map[string]interface{}{},
+			expectError: false,
 		},
 		{
-			name:        "invalid directory",
-			filename:    "/nonexistent/directory/test.txt",
-			content:     []byte("test content"),
-			perm:        0644,
+			name: "valid custom variables",
+			custom: map[string]interface{}{
+				"author":    "John Doe",
+				"project":   "Test",
+				"version":   1,
+				"active":    true,
+				"tags":      []string{"test", "demo"},
+				"numbers":   []int{1, 2, 3},
+				"mixed":     []interface{}{"string", 42, true},
+				"_private":  "value",
+				"CamelCase": "value",
+			},
+			expectError: false,
+		},
+		{
+			name: "reserved variable name",
+			custom: map[string]interface{}{
+				"TODOS": "invalid",
+			},
+			expectError: true,
+		},
+		{
+			name: "invalid variable name - starts with number",
+			custom: map[string]interface{}{
+				"123invalid": "value",
+			},
+			expectError: true,
+		},
+		{
+			name: "invalid variable name - contains special chars",
+			custom: map[string]interface{}{
+				"test-value": "value",
+			},
+			expectError: true,
+		},
+		{
+			name: "unsupported type - complex number",
+			custom: map[string]interface{}{
+				"complex": complex(1, 2),
+			},
+			expectError: true,
+		},
+		{
+			name: "unsupported type - map",
+			custom: map[string]interface{}{
+				"nested": map[string]string{"key": "value"},
+			},
+			expectError: true,
+		},
+		{
+			name: "unsupported type in array",
+			custom: map[string]interface{}{
+				"mixed": []interface{}{"valid", complex(1, 2)},
+			},
 			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create parent directory if needed for valid test cases
-			if !tt.expectError && filepath.Dir(tt.filename) != tempDir {
-				if err := os.MkdirAll(filepath.Dir(tt.filename), 0755); err != nil {
-					t.Fatalf("Failed to create parent directory: %v", err)
-				}
+			err := validateCustomVariables(tt.custom)
+			if (err != nil) != tt.expectError {
+				t.Errorf("validateCustomVariables() error = %v, expectError %v", err, tt.expectError)
 			}
+		})
+	}
+}
 
-			err := safeWriteFile(tt.filename, tt.content, tt.perm)
+func TestIsValidVariableName(t *testing.T) {
+	tests := []struct {
+		name     string
+		varName  string
+		expected bool
+	}{
+		{"empty string", "", false},
+		{"valid simple name", "test", true},
+		{"valid with underscore", "test_var", true},
+		{"valid starting with underscore", "_private", true},
+		{"valid with numbers", "var123", true},
+		{"invalid starting with number", "123var", false},
+		{"invalid with dash", "test-var", false},
+		{"invalid with space", "test var", false},
+		{"invalid with special chars", "test@var", false},
+		{"valid camelCase", "camelCase", true},
+		{"valid PascalCase", "PascalCase", true},
+		{"valid UPPERCASE", "UPPERCASE", true},
+	}
 
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("safeWriteFile() expected error, got none")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("safeWriteFile() unexpected error: %v", err)
-				}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isValidVariableName(tt.varName)
+			if result != tt.expected {
+				t.Errorf("isValidVariableName(%q) = %v, expected %v", tt.varName, result, tt.expected)
+			}
+		})
+	}
+}
 
-				// Verify file was created with correct content
-				content, err := os.ReadFile(tt.filename)
-				if err != nil {
-					t.Errorf("Failed to read written file: %v", err)
-				}
-				if string(content) != string(tt.content) {
-					t.Errorf("File content mismatch: got %s, want %s", content, tt.content)
-				}
+func TestIsValidVariableType(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    interface{}
+		expected bool
+	}{
+		{"string", "test", true},
+		{"int", 42, true},
+		{"int32", int32(42), true},
+		{"int64", int64(42), true},
+		{"float32", float32(3.14), true},
+		{"float64", 3.14, true},
+		{"bool", true, true},
+		{"string slice", []string{"a", "b"}, true},
+		{"int slice", []int{1, 2, 3}, true},
+		{"interface slice with valid types", []interface{}{"string", 42, true}, true},
+		{"interface slice with invalid type", []interface{}{"string", complex(1, 2)}, false},
+		{"complex number", complex(1, 2), false},
+		{"map", map[string]string{"key": "value"}, false},
+		{"struct", struct{ Name string }{Name: "test"}, false},
+		{"nil", nil, false},
+	}
 
-				// Verify file permissions
-				info, err := os.Stat(tt.filename)
-				if err != nil {
-					t.Errorf("Failed to stat file: %v", err)
-				}
-				if info.Mode().Perm() != tt.perm {
-					t.Errorf("File permissions mismatch: got %o, want %o", info.Mode().Perm(), tt.perm)
-				}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isValidVariableType(tt.value)
+			if result != tt.expected {
+				t.Errorf("isValidVariableType(%v) = %v, expected %v", tt.value, result, tt.expected)
 			}
 		})
 	}

@@ -1,7 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
 # todoer Test Runner
 # This script runs different categories of tests for the todoer application
+# Compatible with POSIX shells including fish, bash, and zsh
 
 set -e
 
@@ -10,8 +11,8 @@ echo "=========================="
 
 # Function to run tests with timing
 run_test() {
-    local test_name="$1"
-    local test_cmd="$2"
+    test_name="$1"
+    test_cmd="$2"
     echo
     echo "📋 Running $test_name..."
     echo "Command: $test_cmd"
@@ -27,7 +28,12 @@ case "${1:-all}" in
         run_test "Integration Tests" "go test -run TestIntegration -v"
         ;;
     "cli")
-        run_test "CLI Tests (with timeout)" "timeout 60s go test -run TestCLICommands -v"
+        # Try to use timeout if available, otherwise run without timeout
+        if command -v timeout >/dev/null 2>&1; then
+            run_test "CLI Tests (with timeout)" "timeout 60s go test -run TestCLICommands -v"
+        else
+            run_test "CLI Tests" "go test -run TestCLICommands -v"
+        fi
         ;;
     "basic")
         run_test "Basic Functionality Tests" "go test -run 'TestExtractDateFromFrontmatter|TestGeneratorLibraryInterface' -v"

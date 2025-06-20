@@ -16,6 +16,9 @@ var (
 	ErrSameSourceTarget = errors.New("source and target files cannot be the same")
 	ErrInvalidDate      = errors.New("invalid date format")
 	ErrInvalidConfig    = errors.New("invalid configuration")
+	ErrConfigNotFound   = errors.New("configuration file not found")
+	ErrPermissionDenied = errors.New("permission denied")
+	ErrTemplateNotFound = errors.New("template file not found")
 )
 
 // validateFilePath validates a file path for security and correctness
@@ -112,15 +115,126 @@ func validateConfig(config *Config) error {
 
 	// Validate root directory path
 	if err := validateFilePath(config.RootDir); err != nil {
-		return fmt.Errorf("invalid root directory: %w", err)
+		return fmt.Errorf("invalid root directory '%s': %w", config.RootDir, err)
+	}
+
+	// Check if root directory exists and is accessible
+	if info, err := os.Stat(config.RootDir); err != nil {
+		if os.IsNotExist(err) {
+			// Try to create the directory
+			if err := os.MkdirAll(config.RootDir, 0755); err != nil {
+				return fmt.Errorf("%w: cannot create root directory '%s': %v", ErrInvalidConfig, config.RootDir, err)
+			}
+		} else if os.IsPermission(err) {
+			return fmt.Errorf("%w: cannot access root directory '%s': %v", ErrPermissionDenied, config.RootDir, err)
+		} else {
+			return fmt.Errorf("%w: error accessing root directory '%s': %v", ErrInvalidConfig, config.RootDir, err)
+		}
+	} else if !info.IsDir() {
+		return fmt.Errorf("%w: root path '%s' exists but is not a directory", ErrInvalidConfig, config.RootDir)
 	}
 
 	// Validate template file if specified
 	if config.TemplateFile != "" {
 		if err := validateFilePath(config.TemplateFile); err != nil {
-			return fmt.Errorf("invalid template file: %w", err)
+			return fmt.Errorf("invalid template file '%s': %w", config.TemplateFile, err)
+		}
+
+		// Check if template file exists and is readable
+		if info, err := os.Stat(config.TemplateFile); err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("%w: template file '%s' does not exist", ErrTemplateNotFound, config.TemplateFile)
+			} else if os.IsPermission(err) {
+				return fmt.Errorf("%w: cannot read template file '%s': %v", ErrPermissionDenied, config.TemplateFile, err)
+			} else {
+				return fmt.Errorf("%w: error accessing template file '%s': %v", ErrInvalidConfig, config.TemplateFile, err)
+			}
+		} else if info.IsDir() {
+			return fmt.Errorf("%w: template path '%s' is a directory, not a file", ErrInvalidConfig, config.TemplateFile)
+		}
+	}
+
+	// Validate custom variables if present
+	if err := validateCustomVariables(config.Custom); err != nil {
+		return fmt.Errorf("invalid custom variables: %w", err)
+	}
+
+	return nil
+}
+
+// validateCustomVariables validates the custom variables configuration
+func validateCustomVariables(custom map[string]interface{}) error {
+	if custom == nil {
+		return nil // No custom variables is valid
+	}
+
+	reservedNames := map[string]bool{
+		"Date":           true,
+		"DateLong":       true,
+		"TODOS":          true,
+		"TotalTodos":     true,
+		"CompletedTodos": true,
+		"PreviousDate":   true,
+	}
+
+	for name, value := range custom {
+		// Check for reserved names
+		if reservedNames[name] {
+			return fmt.Errorf("%w: custom variable name '%s' is reserved", ErrInvalidConfig, name)
+		}
+
+		// Validate variable name format (must be valid Go template variable)
+		if !isValidVariableName(name) {
+			return fmt.Errorf("%w: custom variable name '%s' is not valid (must start with letter, contain only letters, numbers, and underscores)", ErrInvalidConfig, name)
+		}
+
+		// Validate variable type
+		if !isValidVariableType(value) {
+			return fmt.Errorf("%w: custom variable '%s' has unsupported type %T", ErrInvalidConfig, name, value)
 		}
 	}
 
 	return nil
+}
+
+// isValidVariableName checks if a variable name is valid for Go templates
+func isValidVariableName(name string) bool {
+	if name == "" {
+		return false
+	}
+
+	// Must start with letter or underscore
+	first := name[0]
+	if !((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || first == '_') {
+		return false
+	}
+
+	// Rest must be letters, numbers, or underscores
+	for _, r := range name[1:] {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isValidVariableType checks if a variable type is supported in templates
+func isValidVariableType(value interface{}) bool {
+	switch v := value.(type) {
+	case string, int, int32, int64, float32, float64, bool:
+		return true
+	case []interface{}:
+		// Arrays are supported if all elements are valid types
+		for _, item := range v {
+			if !isValidVariableType(item) {
+				return false
+			}
+		}
+		return true
+	case []string, []int, []int32, []int64, []float32, []float64, []bool:
+		return true
+	default:
+		return false
+	}
 }

@@ -11,7 +11,6 @@ import (
 	"todoer/pkg/core"
 	"todoer/pkg/generator"
 
-	"github.com/BurntSushi/toml"
 	"github.com/alecthomas/kong"
 )
 
@@ -33,9 +32,16 @@ func resolveTemplate(templateFile string) templateSource {
 	}
 
 	// Try config directory template
-	configHome := os.Getenv("XDG_CONFIG_HOME")
-	if configHome == "" {
-		configHome = os.Getenv("HOME") + "/.config"
+	var configHome string
+	if xdgConfigHome := os.Getenv("XDG_CONFIG_HOME"); xdgConfigHome != "" {
+		configHome = xdgConfigHome
+	} else {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			// Fall back to embedded template if can't determine home dir
+			return templateSource{content: defaultTemplate, name: "embedded default template"}
+		}
+		configHome = filepath.Join(homeDir, ".config")
 	}
 	configTemplate := filepath.Join(configHome, ConfigDirName, TemplateFileName)
 
@@ -49,29 +55,6 @@ func resolveTemplate(templateFile string) templateSource {
 
 	// Fall back to embedded template
 	return templateSource{content: defaultTemplate, name: "embedded default template"}
-}
-
-// loadConfigFile loads configuration from the TOML config file
-func loadConfigFile(config *Config) error {
-	configHome := os.Getenv("XDG_CONFIG_HOME")
-	if configHome == "" {
-		configHome = os.Getenv("HOME") + "/.config"
-	}
-	configPath := filepath.Join(configHome, ConfigDirName, ConfigFileName)
-
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return err
-	}
-
-	if _, err := toml.DecodeFile(configPath, config); err != nil {
-		return fmt.Errorf("failed to decode config file %s: %w", configPath, err)
-	}
-
-	// Expand paths that might contain ~
-	config.RootDir = expandPath(config.RootDir)
-	config.TemplateFile = expandPath(config.TemplateFile)
-
-	return nil
 }
 
 // ProcessCmd defines arguments for the default 'process' command.
