@@ -121,6 +121,15 @@ root_dir = "~/Documents/journals"
 
 # Template file to use for new journals (optional)
 template_file = "~/.config/todoer/my_template.md"
+
+# Custom template variables
+[custom_variables]
+ProjectName = "My Project"
+Version = "1.0.0"
+Author = "John Doe"
+Debug = true
+MaxTasks = 10
+Tags = ["work", "personal", "urgent"]
 ```
 
 ### Environment Variables
@@ -183,7 +192,106 @@ Templates customize the structure of new journal files. For working examples, se
 - `{{.OldestTodoDate}}` - Date of the oldest incomplete todo (YYYY-MM-DD format, empty if no todos)
 - `{{.TodoDaysSpan}}` - Number of days spanned by todos (from oldest to current date)
 
-#### Template Fallback
+**Custom Variables:**
+
+- `{{.Custom.VariableName}}` - User-defined variables from configuration file
+- Custom variables are defined in the `[custom_variables]` section of your config file
+- Supported types: string, int, float64, bool, arrays of these types
+- Custom variable names must be valid Go template identifiers (start with letter/underscore, contain only letters/digits/underscores)
+- Cannot use reserved names that conflict with built-in template variables
+
+#### Template Functions
+
+Beyond the built-in template variables, todoer provides powerful template functions for advanced customization:
+
+##### Date Arithmetic Functions
+
+```go
+{{addDays "2025-01-15" 5}}        // Returns: 2025-01-20
+{{subDays "2025-01-15" 3}}        // Returns: 2025-01-12
+{{addWeeks "2025-01-15" 2}}       // Returns: 2025-01-29
+{{addMonths "2025-01-15" 1}}      // Returns: 2025-02-15
+{{daysDiff "2025-01-15" "2025-01-20"}}  // Returns: 5
+```
+
+##### Date Formatting Functions
+
+```go
+{{formatDate .Date "Monday, January 02, 2006"}}  // Returns: Friday, January 15, 2025
+{{weekday .Date}}                 // Returns: Friday
+{{isWeekend .Date}}              // Returns: false (true for Sat/Sun)
+```
+
+##### String Manipulation Functions
+
+```go
+{{upper "hello world"}}          // Returns: HELLO WORLD
+{{lower "HELLO WORLD"}}          // Returns: hello world
+{{title "hello world"}}          // Returns: Hello World
+{{trim "  spaced  "}}            // Returns: spaced
+{{replace "old" "new" "old text"}}  // Returns: new text
+{{contains "hello world" "world"}}  // Returns: true
+{{hasPrefix "hello" "he"}}       // Returns: true
+{{hasSuffix "world" "ld"}}       // Returns: true
+{{split " " "hello world"}}      // Returns: ["hello", "world"]
+{{join ", " .TodoDates}}         // Returns: 2025-01-15, 2025-01-16
+{{repeat "abc" 3}}               // Returns: abcabcabc
+{{len "hello"}}                  // Returns: 5
+```
+
+##### Utility Functions
+
+```go
+{{default "fallback" .EmptyValue}}  // Returns fallback if EmptyValue is empty
+{{empty .SomeValue}}             // Returns true if SomeValue is empty/nil
+{{notEmpty .SomeValue}}          // Returns true if SomeValue is not empty
+{{seq 1 5}}                      // Returns: [1, 2, 3, 4, 5] (for range loops)
+{{dict "key1" "value1" "key2" "value2"}}  // Creates a map
+```
+
+#### Advanced Template Example
+
+```markdown
+---
+title: {{.Date}}
+---
+
+# {{formatDate .Date "Monday, January 02, 2006"}} Journal
+
+{{$isWeekend := isWeekend .Date}}
+{{$tomorrow := addDays .Date 1}}
+
+**Today:** {{.DayName}} {{if $isWeekend}}🏖️ (Weekend){{else}}💼 (Workday){{end}}  
+**Tomorrow:** {{formatDate $tomorrow "Monday, Jan 02"}} ({{weekday $tomorrow}})
+
+## This Week Schedule
+{{$monday := subDays .Date 6}}  {{/* Approximate start of week */}}
+{{range seq 0 6}}
+{{$day := addDays $monday .}}
+- **{{formatDate $day "Mon 01/02"}}**: {{if isWeekend $day}}Weekend{{else}}Work{{end}}
+{{end}}
+
+## Todo Overview
+{{if .TotalTodos}}
+We have {{.TotalTodos}} {{if eq .TotalTodos 1}}todo{{else}}todos{{end}} 
+{{if .TodoDaysSpan}}spanning {{.TodoDaysSpan}} days{{end}}.
+{{else}}
+🎉 No pending todos!
+{{end}}
+
+{{if and .PreviousDate .TotalTodos}}
+**Carryover:** {{daysDiff .PreviousDate .Date}} days since {{.PreviousDate}}
+{{end}}
+
+## Tasks for {{title (lower .DayName)}}
+
+{{.TODOS}}
+
+---
+*Generated on {{formatDate .Date "Jan 02, 2006"}} with todoer*
+```
+
+### Template Fallback
 
 1. **Explicit template** (`--template-file` or config)
 2. **XDG Config**: `$XDG_CONFIG_HOME/todoer/template.md`
@@ -251,6 +359,73 @@ Today is {{.DateLong}}, which is a {{.DayName}}.
 
 Today's reflections...
 ```
+
+**Example template using custom variables:**
+
+```markdown
+---
+date: {{.Date}}
+project: {{.Custom.ProjectName}}
+version: {{.Custom.Version}}
+---
+
+# {{.Custom.ProjectName}} Daily Journal
+
+**Date:** {{.DateLong}} ({{.DayName}})  
+**Version:** {{.Custom.Version}}  
+**Author:** {{.Custom.Author}}  
+{{if .Custom.Debug}}**Debug Mode:** Enabled{{end}}
+
+### Task Categories
+{{range .Custom.Tags}}- {{.}}
+{{end}}
+
+### Statistics
+- **Total active todos**: {{.TotalTodos}}
+- **Completed todos**: {{.CompletedTodos}}
+
+## Today's Tasks (Max: {{.Custom.MaxTasks}})
+
+{{.TODOS}}
+
+## Daily Notes
+
+Reflections for {{.MonthName}} {{.Day}}, {{.Year}}
+```
+
+## Development Phases
+
+The todoer project has been enhanced through multiple development phases:
+
+### ✅ Phase 1: Enhanced Date Variables
+- Added comprehensive date formatting variables (`DateShort`, `DateLong`, `DayName`, `WeekNumber`, etc.)
+- Implemented previous date variants for referencing source journals
+- Full backward compatibility maintained
+
+### ✅ Phase 2: Todo Statistics
+- Added todo counting and analysis (`TotalTodos`, `CompletedTodos`, etc.)
+- Implemented date span tracking (`TodoDaysSpan`, `OldestTodoDate`)
+- Enhanced template data with completion metrics
+
+### ✅ Phase 3: Custom Variables via Config
+- Added support for user-defined template variables through TOML configuration
+- Custom variables available in templates via `.Custom.VariableName`
+- Validation and error handling for custom variable configurations
+
+### ✅ Phase 4: Template Functions
+- **Date arithmetic**: `addDays`, `subDays`, `addWeeks`, `addMonths`, `daysDiff`
+- **Date formatting**: `formatDate`, `weekday`, `isWeekend`
+- **String manipulation**: `upper`, `lower`, `title`, `trim`, `replace`, `contains`, etc.
+- **Utilities**: `default`, `empty`, `notEmpty`, `seq`, `dict`
+- Robust error handling and graceful fallbacks
+
+### Future Enhancements
+- Additional template functions (mathematical operations, conditionals)
+- Plugin system for custom processing logic
+- Advanced configuration validation and schema
+- Integration with external calendar/task systems
+
+All phases include comprehensive test coverage and maintain full backward compatibility.
 
 ## Implementation Details
 

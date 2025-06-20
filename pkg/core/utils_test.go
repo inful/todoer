@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -681,6 +682,236 @@ func TestCalculateDaysSpan(t *testing.T) {
 			result := calculateDaysSpan(tt.startDate, tt.endDate)
 			if result != tt.expected {
 				t.Errorf("calculateDaysSpan(%s, %s) = %d, want %d", tt.startDate, tt.endDate, result, tt.expected)
+			}
+		})
+	}
+}
+
+// Test custom variables functionality
+func TestMergeCustomVariables(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       *TemplateData
+		customVars map[string]interface{}
+		expected   map[string]interface{}
+	}{
+		{
+			name: "nil data should not panic",
+			data: nil,
+			customVars: map[string]interface{}{
+				"TestVar": "test_value",
+			},
+			expected: nil,
+		},
+		{
+			name: "nil custom vars should not modify data",
+			data: &TemplateData{Date: "2025-06-20"},
+			customVars: nil,
+			expected: nil,
+		},
+		{
+			name: "valid custom variables should be merged",
+			data: &TemplateData{Date: "2025-06-20"},
+			customVars: map[string]interface{}{
+				"ProjectName": "MyProject",
+				"Version":     "1.0.0",
+				"Debug":       true,
+			},
+			expected: map[string]interface{}{
+				"ProjectName": "MyProject",
+				"Version":     "1.0.0",
+				"Debug":       true,
+			},
+		},
+		{
+			name: "multiple calls should merge correctly",
+			data: &TemplateData{Date: "2025-06-20"},
+			customVars: map[string]interface{}{
+				"First":  "value1",
+				"Second": "value2",
+			},
+			expected: map[string]interface{}{
+				"First":  "value1",
+				"Second": "value2",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			MergeCustomVariables(tt.data, tt.customVars)
+			
+			if tt.expected == nil {
+				if tt.data != nil && tt.data.Custom != nil {
+					t.Errorf("Expected Custom to be nil, but got %v", tt.data.Custom)
+				}
+				return
+			}
+			
+			if tt.data == nil {
+				t.Errorf("Data is nil but expected custom variables")
+				return
+			}
+			
+			if tt.data.Custom == nil {
+				t.Errorf("Custom map is nil but expected values")
+				return
+			}
+			
+			for key, expectedValue := range tt.expected {
+				actualValue, exists := tt.data.Custom[key]
+				if !exists {
+					t.Errorf("Expected custom variable '%s' not found", key)
+					continue
+				}
+				if actualValue != expectedValue {
+					t.Errorf("Custom variable '%s' = %v, want %v", key, actualValue, expectedValue)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateCustomVariables(t *testing.T) {
+	tests := []struct {
+		name        string
+		customVars  map[string]interface{}
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "nil custom vars should be valid",
+			customVars:  nil,
+			expectError: false,
+		},
+		{
+			name:        "empty custom vars should be valid",
+			customVars:  map[string]interface{}{},
+			expectError: false,
+		},
+		{
+			name: "valid custom variables should pass",
+			customVars: map[string]interface{}{
+				"ProjectName": "MyProject",
+				"Version":     "1.0.0",
+				"Debug":       true,
+				"Count":       42,
+				"Rate":        3.14,
+				"Tags":        []string{"tag1", "tag2"},
+			},
+			expectError: false,
+		},
+		{
+			name: "reserved name should fail",
+			customVars: map[string]interface{}{
+				"Date": "2025-06-20",
+			},
+			expectError: true,
+			errorMsg:    "reserved",
+		},
+		{
+			name: "invalid variable name should fail",
+			customVars: map[string]interface{}{
+				"123Invalid": "value",
+			},
+			expectError: true,
+			errorMsg:    "not a valid",
+		},
+		{
+			name: "unsupported type should fail",
+			customVars: map[string]interface{}{
+				"InvalidType": complex(1, 2),
+			},
+			expectError: true,
+			errorMsg:    "unsupported type",
+		},
+		{
+			name: "valid variable names should pass",
+			customVars: map[string]interface{}{
+				"validName":       "value",
+				"Valid_Name":      "value",
+				"_validName":      "value",
+				"validName123":    "value",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateCustomVariables(tt.customVars)
+			
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+					return
+				}
+				if tt.errorMsg != "" && !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error to contain '%s', but got: %v", tt.errorMsg, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestIsValidVariableName(t *testing.T) {
+	tests := []struct {
+		name     string
+		varName  string
+		expected bool
+	}{
+		{"empty string", "", false},
+		{"valid simple name", "validName", true},
+		{"valid with underscore", "valid_name", true},
+		{"valid starting with underscore", "_validName", true},
+		{"valid with numbers", "validName123", true},
+		{"invalid starting with number", "123invalid", false},
+		{"invalid with special chars", "invalid-name", false},
+		{"invalid with spaces", "invalid name", false},
+		{"valid all caps", "VALID_NAME", true},
+		{"valid mixed case", "ValidName", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isValidVariableName(tt.varName)
+			if result != tt.expected {
+				t.Errorf("isValidVariableName(%q) = %v, want %v", tt.varName, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsSupportedVariableType(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    interface{}
+		expected bool
+	}{
+		{"string", "test", true},
+		{"int", 42, true},
+		{"int64", int64(42), true},
+		{"float64", 3.14, true},
+		{"bool", true, true},
+		{"[]string", []string{"a", "b"}, true},
+		{"[]int", []int{1, 2}, true},
+		{"[]interface{} with strings", []interface{}{"a", "b"}, true},
+		{"[]interface{} with mixed valid types", []interface{}{"a", 1, true}, true},
+		{"[]interface{} with invalid type", []interface{}{"a", complex(1, 2)}, false},
+		{"complex number", complex(1, 2), false},
+		{"map", map[string]string{"key": "value"}, false},
+		{"struct", struct{ Name string }{Name: "test"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isSupportedVariableType(tt.value)
+			if result != tt.expected {
+				t.Errorf("isSupportedVariableType(%T) = %v, want %v", tt.value, result, tt.expected)
 			}
 		})
 	}

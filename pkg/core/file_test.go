@@ -574,6 +574,117 @@ Oldest: {{.OldestTodoDate}}`,
 	}
 }
 
+// Test CreateFromTemplateContentWithCustom function
+func TestCreateFromTemplateContentWithCustom(t *testing.T) {
+	tests := []struct {
+		name         string
+		template     string
+		todos        string
+		currentDate  string
+		previousDate string
+		journal      *TodoJournal
+		customVars   map[string]interface{}
+		expected     []string // strings that should be in the result
+		expectError  bool
+	}{
+		{
+			name: "template with custom variables should render correctly",
+			template: `---
+date: {{.Date}}
+---
+
+# {{.Custom.ProjectName}} - {{.DateLong}}
+
+## Summary
+Version: {{.Custom.Version}}
+Debug: {{.Custom.Debug}}
+
+## Todos
+
+{{.TODOS}}`,
+			todos:       "- [ ] Test task",
+			currentDate: "2025-06-20",
+			journal:     &TodoJournal{},
+			customVars: map[string]interface{}{
+				"ProjectName": "MyProject",
+				"Version":     "1.0.0",
+				"Debug":       true,
+			},
+			expected: []string{
+				"date: 2025-06-20",
+				"# MyProject - June 20, 2025",
+				"Version: 1.0.0",
+				"Debug: true",
+				"- [ ] Test task",
+			},
+			expectError: false,
+		},
+		{
+			name: "template with invalid custom variables should fail",
+			template: `Project: {{.Custom.ProjectName}}`,
+			todos:    "",
+			currentDate: "2025-06-20",
+			journal: &TodoJournal{},
+			customVars: map[string]interface{}{
+				"Date": "invalid", // reserved name
+			},
+			expectError: true,
+		},
+		{
+			name: "template with no custom variables should work",
+			template: `Date: {{.Date}}
+Todos: {{.TODOS}}`,
+			todos:       "- [ ] Task",
+			currentDate: "2025-06-20",
+			journal:     &TodoJournal{},
+			customVars:  nil,
+			expected: []string{
+				"Date: 2025-06-20",
+				"- [ ] Task",
+			},
+			expectError: false,
+		},
+		{
+			name: "template with array custom variables should work",
+			template: `Tags: {{range .Custom.Tags}}{{.}} {{end}}`,
+			todos:    "",
+			currentDate: "2025-06-20",
+			journal: &TodoJournal{},
+			customVars: map[string]interface{}{
+				"Tags": []string{"work", "personal", "urgent"},
+			},
+			expected: []string{
+				"Tags: work personal urgent",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := CreateFromTemplateContentWithCustom(tt.template, tt.todos, tt.currentDate, tt.previousDate, tt.journal, tt.customVars)
+			
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+			
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+			
+			for _, expected := range tt.expected {
+				if !strings.Contains(result, expected) {
+					t.Errorf("Result does not contain expected string '%s'. Result:\n%s", expected, result)
+				}
+			}
+		})
+	}
+}
+
 // Test helper functions
 func TestValidateProcessInputs(t *testing.T) {
 	tests := []struct {

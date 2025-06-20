@@ -2,6 +2,7 @@
 package core
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -311,4 +312,108 @@ func calculateDaysSpan(startDate, endDate string) int {
 	// Calculate difference in days
 	diff := end.Sub(start)
 	return int(diff.Hours() / 24)
+}
+
+// MergeCustomVariables merges custom variables from config into TemplateData.
+// Custom variables can override built-in variables if they have the same name.
+func MergeCustomVariables(data *TemplateData, customVars map[string]interface{}) {
+	if data == nil || customVars == nil {
+		return
+	}
+
+	// Initialize the Custom map if it's nil
+	if data.Custom == nil {
+		data.Custom = make(map[string]interface{})
+	}
+
+	// Copy all custom variables
+	for key, value := range customVars {
+		data.Custom[key] = value
+	}
+}
+
+// ValidateCustomVariables checks if custom variables have valid names and types.
+// Returns an error if any variable name or type is invalid.
+func ValidateCustomVariables(customVars map[string]interface{}) error {
+	if customVars == nil {
+		return nil
+	}
+
+	// Reserved variable names that cannot be overridden
+	reservedNames := map[string]bool{
+		"Date": true, "TODOS": true, "PreviousDate": true,
+		"DateShort": true, "DateLong": true, "Year": true, "Month": true, "MonthName": true,
+		"Day": true, "DayName": true, "WeekNumber": true,
+		"PreviousDateShort": true, "PreviousDateLong": true, "PreviousYear": true,
+		"PreviousMonth": true, "PreviousMonthName": true, "PreviousDay": true,
+		"PreviousDayName": true, "PreviousWeekNumber": true,
+		"TotalTodos": true, "CompletedTodos": true, "TodoDates": true,
+		"OldestTodoDate": true, "TodoDaysSpan": true, "Custom": true,
+	}
+
+	for name, value := range customVars {
+		// Check for reserved names
+		if reservedNames[name] {
+			return fmt.Errorf("custom variable name '%s' is reserved and cannot be used", name)
+		}
+
+		// Check for valid variable name (Go template variable rules)
+		if !isValidVariableName(name) {
+			return fmt.Errorf("custom variable name '%s' is not a valid Go template variable name", name)
+		}
+
+		// Check for supported types
+		if !isSupportedVariableType(value) {
+			return fmt.Errorf("custom variable '%s' has unsupported type: %T", name, value)
+		}
+	}
+
+	return nil
+}
+
+// isValidVariableName checks if a name is valid for a Go template variable.
+// Variable names must start with a letter and contain only letters, digits, and underscores.
+func isValidVariableName(name string) bool {
+	if len(name) == 0 {
+		return false
+	}
+
+	// Must start with letter or underscore
+	first := name[0]
+	if !((first >= 'A' && first <= 'Z') || (first >= 'a' && first <= 'z') || first == '_') {
+		return false
+	}
+
+	// Rest must be letters, digits, or underscores
+	for i := 1; i < len(name); i++ {
+		char := name[i]
+		if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || 
+			(char >= '0' && char <= '9') || char == '_') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isSupportedVariableType checks if the variable type is supported in templates.
+// Supported types: string, int, float64, bool, []string, []int
+func isSupportedVariableType(value interface{}) bool {
+	switch value.(type) {
+	case string, int, int64, float64, bool:
+		return true
+	case []interface{}:
+		// Check if all elements are of supported types
+		slice := value.([]interface{})
+		for _, elem := range slice {
+			if !isSupportedVariableType(elem) {
+				return false
+			}
+		}
+		return true
+	case []string, []int:
+		return true
+	default:
+		return false
+	}
 }

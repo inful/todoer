@@ -16,7 +16,8 @@ type Generator struct {
 	templateContent string
 	templateDate    string
 	currentDate     string
-	previousDate    string // Date from the previous journal being processed (empty if none)
+	previousDate    string                 // Date from the previous journal being processed (empty if none)
+	customVars      map[string]interface{} // Custom template variables
 }
 
 // NewGenerator creates a new Generator instance with the specified template content and template date.
@@ -44,6 +45,37 @@ func NewGeneratorWithPrevious(templateContent, templateDate, previousDate string
 	}, nil
 }
 
+// NewGeneratorWithCustom creates a new Generator instance with custom variables support.
+// Returns an error if the template date is invalid or custom variables are invalid.
+func NewGeneratorWithCustom(templateContent, templateDate string, customVars map[string]interface{}) (*Generator, error) {
+	return NewGeneratorWithPreviousAndCustom(templateContent, templateDate, "", customVars)
+}
+
+// NewGeneratorWithPreviousAndCustom creates a new Generator instance with previous date and custom variables.
+// Returns an error if the template date is invalid or custom variables are invalid.
+func NewGeneratorWithPreviousAndCustom(templateContent, templateDate, previousDate string, customVars map[string]interface{}) (*Generator, error) {
+	// Validate the template date format
+	if err := core.ValidateDate(templateDate); err != nil {
+		return nil, fmt.Errorf("invalid template date: %w", err)
+	}
+
+	// Validate custom variables
+	if err := core.ValidateCustomVariables(customVars); err != nil {
+		return nil, fmt.Errorf("invalid custom variables: %w", err)
+	}
+
+	// Use current date for completion tagging
+	currentDate := time.Now().Format(core.DateFormat)
+
+	return &Generator{
+		templateContent: templateContent,
+		templateDate:    templateDate,
+		currentDate:     currentDate,
+		previousDate:    previousDate,
+		customVars:      customVars,
+	}, nil
+}
+
 // NewGeneratorFromFile creates a new Generator by reading the template from a file.
 // Returns an error if the file cannot be read or the template date is invalid.
 func NewGeneratorFromFile(templateFile, templateDate string) (*Generator, error) {
@@ -59,6 +91,23 @@ func NewGeneratorFromFileWithPrevious(templateFile, templateDate, previousDate s
 	}
 
 	return NewGeneratorWithPrevious(string(templateBytes), templateDate, previousDate)
+}
+
+// NewGeneratorFromFileWithCustom creates a new Generator by reading template from file with custom variables.
+// Returns an error if the file cannot be read, template date is invalid, or custom variables are invalid.
+func NewGeneratorFromFileWithCustom(templateFile, templateDate string, customVars map[string]interface{}) (*Generator, error) {
+	return NewGeneratorFromFileWithPreviousAndCustom(templateFile, templateDate, "", customVars)
+}
+
+// NewGeneratorFromFileWithPreviousAndCustom creates a new Generator by reading template from file with previous date and custom variables.
+// Returns an error if the file cannot be read, template date is invalid, or custom variables are invalid.
+func NewGeneratorFromFileWithPreviousAndCustom(templateFile, templateDate, previousDate string, customVars map[string]interface{}) (*Generator, error) {
+	templateBytes, err := os.ReadFile(templateFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read template file '%s': %w", templateFile, err)
+	}
+
+	return NewGeneratorWithPreviousAndCustom(string(templateBytes), templateDate, previousDate, customVars)
 }
 
 // ProcessResult holds the results of processing a journal
@@ -91,8 +140,8 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	// Create the completed file content
 	completedFileContent := beforeTodos + completedTodos + afterTodos
 
-	// Create the uncompleted file content using the template with statistics
-	uncompletedFileContent, err := g.createFromTemplateWithStats(uncompletedTodos, g.templateDate, journal)
+	// Create the uncompleted file content using the template with statistics and custom variables
+	uncompletedFileContent, err := g.createFromTemplateWithCustom(uncompletedTodos, g.templateDate, journal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create content from template: %w", err)
 	}
@@ -122,6 +171,11 @@ func (g *Generator) createFromTemplateWithDate(todosContent string, dateToUse st
 // createFromTemplateWithStats creates file content from the generator's template with todo statistics
 func (g *Generator) createFromTemplateWithStats(todosContent string, dateToUse string, journal *core.TodoJournal) (string, error) {
 	return core.CreateFromTemplateContentWithStats(g.templateContent, todosContent, dateToUse, g.previousDate, journal)
+}
+
+// createFromTemplateWithCustom creates file content from the generator's template with custom variables
+func (g *Generator) createFromTemplateWithCustom(todosContent string, dateToUse string, journal *core.TodoJournal) (string, error) {
+	return core.CreateFromTemplateContentWithCustom(g.templateContent, todosContent, dateToUse, g.previousDate, journal, g.customVars)
 }
 
 // ExtractDateFromFrontmatter extracts the date from the frontmatter title of the given content.

@@ -22,8 +22,9 @@ const (
 
 // Config represents the configuration file structure
 type Config struct {
-	RootDir      string `toml:"root_dir"`
-	TemplateFile string `toml:"template_file"`
+	RootDir      string                 `toml:"root_dir"`
+	TemplateFile string                 `toml:"template_file"`
+	Custom       map[string]interface{} `toml:"custom_variables"`
 }
 
 // loadConfig loads configuration from file, environment variables, and CLI flags
@@ -151,7 +152,7 @@ func main() {
 			templateFile = config.TemplateFile
 		}
 
-		err := cmdNew(rootDir, templateFile)
+		err := cmdNew(rootDir, templateFile, config)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -163,7 +164,7 @@ func main() {
 			templateFile = config.TemplateFile
 		}
 
-		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, templateFile, CLI.Process.TemplateDate, false)
+		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, templateFile, CLI.Process.TemplateDate, false, config)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -171,7 +172,7 @@ func main() {
 	}
 }
 
-func getGenerator(templateFile, templateDate, sourceFile string) (*generator.Generator, string, error) {
+func getGenerator(templateFile, templateDate, sourceFile string, config *Config) (*generator.Generator, string, error) {
 	var gen *generator.Generator
 	var err error
 	var templateSource string
@@ -191,7 +192,7 @@ func getGenerator(templateFile, templateDate, sourceFile string) (*generator.Gen
 	}
 
 	if templateFile != "" {
-		gen, err = generator.NewGeneratorFromFileWithPrevious(templateFile, templateDate, previousDate)
+		gen, err = generator.NewGeneratorFromFileWithPreviousAndCustom(templateFile, templateDate, previousDate, config.Custom)
 		templateSource = templateFile
 	} else {
 		configHome := os.Getenv("XDG_CONFIG_HOME")
@@ -200,11 +201,11 @@ func getGenerator(templateFile, templateDate, sourceFile string) (*generator.Gen
 		}
 		configTemplate := filepath.Join(configHome, "todoer", "template.md")
 		if _, statErr := os.Stat(configTemplate); statErr == nil {
-			gen, err = generator.NewGeneratorFromFileWithPrevious(configTemplate, templateDate, previousDate)
+			gen, err = generator.NewGeneratorFromFileWithPreviousAndCustom(configTemplate, templateDate, previousDate, config.Custom)
 			templateSource = configTemplate
 		}
 		if gen == nil {
-			gen, err = generator.NewGeneratorWithPrevious(defaultTemplate, templateDate, previousDate)
+			gen, err = generator.NewGeneratorWithPreviousAndCustom(defaultTemplate, templateDate, previousDate, config.Custom)
 			templateSource = "embedded default template"
 		}
 	}
@@ -214,7 +215,7 @@ func getGenerator(templateFile, templateDate, sourceFile string) (*generator.Gen
 	return gen, templateSource, nil
 }
 
-func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup bool) error {
+func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup bool, config *Config) error {
 	if sourceFile == targetFile {
 		return fmt.Errorf("source and target files cannot be the same")
 	}
@@ -225,7 +226,7 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 		}
 	}
 
-	gen, templateSource, err := getGenerator(templateFile, templateDate, sourceFile)
+	gen, templateSource, err := getGenerator(templateFile, templateDate, sourceFile, config)
 	if err != nil {
 		return err
 	}
@@ -330,7 +331,7 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 	return closestFile, nil
 }
 
-func cmdNew(rootDir, templateFile string) error {
+func cmdNew(rootDir, templateFile string, config *Config) error {
 	today := time.Now().Format(core.DateFormat)
 	month := time.Now().Format("01")
 	year := time.Now().Format("2006")
@@ -369,5 +370,5 @@ func cmdNew(rootDir, templateFile string) error {
 	}
 
 	fmt.Printf("Using '%s' as source to create new journal for today.\n", closest)
-	return processJournal(closest, journalPath, templateFile, today, skipBackup)
+	return processJournal(closest, journalPath, templateFile, today, skipBackup, config)
 }

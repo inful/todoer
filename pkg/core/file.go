@@ -227,7 +227,7 @@ func validateTemplateInputs(templateContent, currentDate string) error {
 
 // executeTemplate parses and executes a Go template with the provided data
 func executeTemplate(templateContent string, data TemplateData) (string, error) {
-	tmpl, err := template.New("journal").Parse(templateContent)
+	tmpl, err := template.New("journal").Funcs(createTemplateFunctions()).Parse(templateContent)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -351,4 +351,243 @@ func ProcessTodosSectionWithStats(todosSection string, originalDate string, curr
 
 	// Return original journal for statistics calculation
 	return completedSection, uncompletedSection, journal, nil
+}
+
+// CreateFromTemplateContentWithCustom creates template output with comprehensive data including custom variables.
+// This is the most advanced template rendering function that supports date formatting, todo statistics, and custom variables.
+func CreateFromTemplateContentWithCustom(templateContent, todosContent, currentDate, previousDate string, journal *TodoJournal, customVars map[string]interface{}) (string, error) {
+	// Validate inputs
+	if err := validateTemplateInputs(templateContent, currentDate); err != nil {
+		return "", err
+	}
+
+	// Validate custom variables
+	if err := ValidateCustomVariables(customVars); err != nil {
+		return "", fmt.Errorf("invalid custom variables: %w", err)
+	}
+
+	// Format current date variables
+	currentDateVars := FormatDateVariables(currentDate)
+
+	// Format previous date variables
+	previousDateVars := FormatDateVariables(previousDate)
+
+	// Calculate todo statistics
+	todoStats := CalculateTodoStatistics(journal, currentDate)
+
+	// Create template data with all variants and statistics
+	data := TemplateData{
+		Date:         currentDate,
+		TODOS:        todosContent,
+		PreviousDate: previousDate,
+
+		// Current date variants
+		DateShort:  currentDateVars.Short,
+		DateLong:   currentDateVars.Long,
+		Year:       currentDateVars.Year,
+		Month:      currentDateVars.Month,
+		MonthName:  currentDateVars.MonthName,
+		Day:        currentDateVars.Day,
+		DayName:    currentDateVars.DayName,
+		WeekNumber: currentDateVars.WeekNumber,
+
+		// Previous date variants
+		PreviousDateShort:  previousDateVars.Short,
+		PreviousDateLong:   previousDateVars.Long,
+		PreviousYear:       previousDateVars.Year,
+		PreviousMonth:      previousDateVars.Month,
+		PreviousMonthName:  previousDateVars.MonthName,
+		PreviousDay:        previousDateVars.Day,
+		PreviousDayName:    previousDateVars.DayName,
+		PreviousWeekNumber: previousDateVars.WeekNumber,
+
+		// Todo statistics
+		TotalTodos:     todoStats.TotalTodos,
+		CompletedTodos: todoStats.CompletedTodos,
+		TodoDates:      todoStats.TodoDates,
+		OldestTodoDate: todoStats.OldestTodoDate,
+		TodoDaysSpan:   todoStats.TodoDaysSpan,
+	}
+
+	// Merge custom variables
+	MergeCustomVariables(&data, customVars)
+
+	// Parse and execute the Go template
+	output, err := executeTemplate(templateContent, data)
+	if err != nil {
+		return "", err
+	}
+
+	// Clean up extra blank lines when TODOS is empty
+	if strings.TrimSpace(todosContent) == "" {
+		output = cleanExcessiveBlankLines(output)
+	}
+
+	return output, nil
+}
+
+// createTemplateFunctions returns a map of custom template functions for enhanced template functionality.
+// These functions provide date arithmetic, string manipulation, and utility operations for templates.
+func createTemplateFunctions() template.FuncMap {
+	return template.FuncMap{
+		// Date arithmetic functions
+		"addDays": func(dateStr string, days int) string {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return dateStr // Return original on error
+			}
+			return date.AddDate(0, 0, days).Format(DateFormat)
+		},
+		"subDays": func(dateStr string, days int) string {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return dateStr // Return original on error
+			}
+			return date.AddDate(0, 0, -days).Format(DateFormat)
+		},
+		"addWeeks": func(dateStr string, weeks int) string {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return dateStr // Return original on error
+			}
+			return date.AddDate(0, 0, weeks*7).Format(DateFormat)
+		},
+		"addMonths": func(dateStr string, months int) string {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return dateStr // Return original on error
+			}
+			return date.AddDate(0, months, 0).Format(DateFormat)
+		},
+		"formatDate": func(dateStr, format string) string {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return dateStr // Return original on error
+			}
+			return date.Format(format)
+		},
+		"weekday": func(dateStr string) string {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return "" // Return empty on error
+			}
+			return date.Weekday().String()
+		},
+		"isWeekend": func(dateStr string) bool {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return false // Return false on error
+			}
+			weekday := date.Weekday()
+			return weekday == time.Saturday || weekday == time.Sunday
+		},
+		"daysDiff": func(dateStr1, dateStr2 string) int {
+			date1, err1 := time.Parse(DateFormat, dateStr1)
+			date2, err2 := time.Parse(DateFormat, dateStr2)
+			if err1 != nil || err2 != nil {
+				return 0 // Return 0 on error
+			}
+			return int(date2.Sub(date1).Hours() / 24)
+		},
+
+		// String manipulation functions
+		"upper": strings.ToUpper,
+		"lower": strings.ToLower,
+		"title": func(s string) string {
+			// Simple title case implementation - capitalize first letter of each word
+			if s == "" {
+				return s
+			}
+			words := strings.Fields(s)
+			for i, word := range words {
+				if len(word) > 0 {
+					words[i] = strings.ToUpper(word[:1]) + strings.ToLower(word[1:])
+				}
+			}
+			return strings.Join(words, " ")
+		},
+		"trim":  strings.TrimSpace,
+		"replace": func(old, new, str string) string {
+			return strings.ReplaceAll(str, old, new)
+		},
+		"contains": strings.Contains,
+		"hasPrefix": strings.HasPrefix,
+		"hasSuffix": strings.HasSuffix,
+		"split": func(sep, str string) []string {
+			return strings.Split(str, sep)
+		},
+		"join": func(sep string, strs []string) string {
+			return strings.Join(strs, sep)
+		},
+		"repeat": strings.Repeat,
+		"len": func(s string) int {
+			return len(s)
+		},
+
+		// Utility functions
+		"default": func(defaultVal interface{}, val interface{}) interface{} {
+			if val == nil || val == "" {
+				return defaultVal
+			}
+			return val
+		},
+		"empty": func(val interface{}) bool {
+			if val == nil {
+				return true
+			}
+			switch v := val.(type) {
+			case string:
+				return v == ""
+			case []string:
+				return len(v) == 0
+			case map[string]interface{}:
+				return len(v) == 0
+			case int:
+				return v == 0
+			default:
+				return false
+			}
+		},
+		"notEmpty": func(val interface{}) bool {
+			if val == nil {
+				return false
+			}
+			switch v := val.(type) {
+			case string:
+				return v != ""
+			case []string:
+				return len(v) > 0
+			case map[string]interface{}:
+				return len(v) > 0
+			case int:
+				return v != 0
+			default:
+				return true
+			}
+		},
+		"seq": func(start, end int) []int {
+			if start > end {
+				return []int{}
+			}
+			result := make([]int, end-start+1)
+			for i := 0; i < len(result); i++ {
+				result[i] = start + i
+			}
+			return result
+		},
+		"dict": func(values ...interface{}) map[string]interface{} {
+			if len(values)%2 != 0 {
+				return nil
+			}
+			dict := make(map[string]interface{})
+			for i := 0; i < len(values); i += 2 {
+				key, ok := values[i].(string)
+				if !ok {
+					return nil
+				}
+				dict[key] = values[i+1]
+			}
+			return dict
+		},
+	}
 }
