@@ -11,9 +11,6 @@ import (
 	"todoer/pkg/core"
 )
 
-// ErrNoTodosSection indicates that no todos section was found in the content
-var ErrNoTodosSection = fmt.Errorf("no todos section found")
-
 // isNoTodosSectionError checks if an error indicates a missing todos section
 func isNoTodosSectionError(err error) bool {
 	return strings.Contains(err.Error(), "could not find")
