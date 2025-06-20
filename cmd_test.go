@@ -304,15 +304,20 @@ func testErrorHandling(t *testing.T, binaryPath string) {
 func testConfigFile(t *testing.T, binaryPath string) {
 	tempDir := t.TempDir()
 
-	// Create a config file
+	// Create a config file in the correct location
+	configDir := filepath.Join(tempDir, "todoer")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config directory: %v", err)
+	}
+
 	configContent := `root_dir = "` + tempDir + `"
-template_file = "custom_template.md"
+template_file = "` + filepath.Join(tempDir, "custom_template.md") + `"
 
 [custom_variables]
 author = "Test Author"
 project = "Test Project"`
 
-	configFile := filepath.Join(tempDir, "todoer.toml")
+	configFile := filepath.Join(configDir, "config.toml")
 	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
