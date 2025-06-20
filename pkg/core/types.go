@@ -142,7 +142,7 @@ type TemplateData struct {
 	TodoDates      []string // List of unique dates that todos came from (YYYY-MM-DD format)
 	OldestTodoDate string   // Date of the oldest incomplete todo (YYYY-MM-DD format, empty if no todos)
 	TodoDaysSpan   int      // Number of days spanned by todos (from oldest to current date)
-	
+
 	// Custom variables (user-defined via config)
 	Custom map[string]interface{} // Custom template variables from configuration
 }

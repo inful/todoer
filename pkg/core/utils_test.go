@@ -704,10 +704,10 @@ func TestMergeCustomVariables(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "nil custom vars should not modify data",
-			data: &TemplateData{Date: "2025-06-20"},
+			name:       "nil custom vars should not modify data",
+			data:       &TemplateData{Date: "2025-06-20"},
 			customVars: nil,
-			expected: nil,
+			expected:   nil,
 		},
 		{
 			name: "valid custom variables should be merged",
@@ -740,24 +740,24 @@ func TestMergeCustomVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			MergeCustomVariables(tt.data, tt.customVars)
-			
+
 			if tt.expected == nil {
 				if tt.data != nil && tt.data.Custom != nil {
 					t.Errorf("Expected Custom to be nil, but got %v", tt.data.Custom)
 				}
 				return
 			}
-			
+
 			if tt.data == nil {
 				t.Errorf("Data is nil but expected custom variables")
 				return
 			}
-			
+
 			if tt.data.Custom == nil {
 				t.Errorf("Custom map is nil but expected values")
 				return
 			}
-			
+
 			for key, expectedValue := range tt.expected {
 				actualValue, exists := tt.data.Custom[key]
 				if !exists {
@@ -828,10 +828,10 @@ func TestValidateCustomVariables(t *testing.T) {
 		{
 			name: "valid variable names should pass",
 			customVars: map[string]interface{}{
-				"validName":       "value",
-				"Valid_Name":      "value",
-				"_validName":      "value",
-				"validName123":    "value",
+				"validName":    "value",
+				"Valid_Name":   "value",
+				"_validName":   "value",
+				"validName123": "value",
 			},
 			expectError: false,
 		},
@@ -840,7 +840,7 @@ func TestValidateCustomVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateCustomVariables(tt.customVars)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")

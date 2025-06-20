@@ -3,6 +3,7 @@ package core
 
 import (
 	"fmt"
+	"math/rand"
 	"regexp"
 	"strings"
 	"text/template"
@@ -506,11 +507,11 @@ func createTemplateFunctions() template.FuncMap {
 			}
 			return strings.Join(words, " ")
 		},
-		"trim":  strings.TrimSpace,
+		"trim": strings.TrimSpace,
 		"replace": func(old, new, str string) string {
 			return strings.ReplaceAll(str, old, new)
 		},
-		"contains": strings.Contains,
+		"contains":  strings.Contains,
 		"hasPrefix": strings.HasPrefix,
 		"hasSuffix": strings.HasSuffix,
 		"split": func(sep, str string) []string {
@@ -588,6 +589,69 @@ func createTemplateFunctions() template.FuncMap {
 				dict[key] = values[i+1]
 			}
 			return dict
+		},
+		"shuffle": func(text string) string {
+			// Split the text into lines, filter out empty lines
+			lines := strings.Split(strings.TrimSpace(text), "\n")
+			var nonEmptyLines []string
+			for _, line := range lines {
+				if trimmed := strings.TrimSpace(line); trimmed != "" {
+					nonEmptyLines = append(nonEmptyLines, line)
+				}
+			}
+
+			// If we have no lines or only one line, return as-is
+			if len(nonEmptyLines) <= 1 {
+				return text
+			}
+
+			// Create a copy for shuffling
+			shuffled := make([]string, len(nonEmptyLines))
+			copy(shuffled, nonEmptyLines)
+
+			// Shuffle using Fisher-Yates algorithm
+			rand.Seed(time.Now().UnixNano())
+			for i := len(shuffled) - 1; i > 0; i-- {
+				j := rand.Intn(i + 1)
+				shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+			}
+
+			return strings.Join(shuffled, "\n")
+		},
+		"shuffleLines": func(lines []string) []string {
+			// Create a copy for shuffling
+			if len(lines) <= 1 {
+				return lines
+			}
+
+			shuffled := make([]string, len(lines))
+			copy(shuffled, lines)
+
+			// Shuffle using Fisher-Yates algorithm
+			rand.Seed(time.Now().UnixNano())
+			for i := len(shuffled) - 1; i > 0; i-- {
+				j := rand.Intn(i + 1)
+				shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+			}
+
+			return shuffled
+		},
+
+		// Simple arithmetic functions for templates
+		"add": func(a, b int) int {
+			return a + b
+		},
+		"sub": func(a, b int) int {
+			return a - b
+		},
+		"mul": func(a, b int) int {
+			return a * b
+		},
+		"div": func(a, b int) int {
+			if b == 0 {
+				return 0 // Prevent division by zero
+			}
+			return a / b
 		},
 	}
 }

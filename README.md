@@ -249,6 +249,22 @@ Beyond the built-in template variables, todoer provides powerful template functi
 {{dict "key1" "value1" "key2" "value2"}}  // Creates a map
 ```
 
+#### Randomization Functions
+
+```go
+{{shuffle "line1\nline2\nline3"}}     // Returns lines in random order
+{{shuffleLines (split "\n" "a\nb\nc")}}  // Shuffles an array of strings
+```
+
+#### Arithmetic Functions  
+
+```go
+{{add 5 3}}                      // Returns: 8
+{{sub 10 4}}                     // Returns: 6
+{{mul 6 7}}                      // Returns: 42  
+{{div 15 3}}                     // Returns: 5 (returns 0 for division by zero)
+```
+
 #### Advanced Template Example
 
 ```markdown
@@ -416,6 +432,8 @@ The todoer project has been enhanced through multiple development phases:
 - **Date arithmetic**: `addDays`, `subDays`, `addWeeks`, `addMonths`, `daysDiff`
 - **Date formatting**: `formatDate`, `weekday`, `isWeekend`
 - **String manipulation**: `upper`, `lower`, `title`, `trim`, `replace`, `contains`, etc.
+- **Randomization**: `shuffle`, `shuffleLines` for randomizing content
+- **Arithmetic**: `add`, `sub`, `mul`, `div` for basic calculations
 - **Utilities**: `default`, `empty`, `notEmpty`, `seq`, `dict`
 - Robust error handling and graceful fallbacks
 
@@ -432,3 +450,34 @@ All phases include comprehensive test coverage and maintain full backward compat
 The tool uses a regex-based parser to analyze the journal format and maintains hierarchical structure. Tasks are considered "completed" only when both the task and all subtasks are marked as completed.
 
 For detailed implementation examples and edge cases, see the comprehensive test suite in `testdata/`.
+
+#### Shuffle Template Example
+
+```markdown
+---
+title: {{.Date}}
+---
+
+# Daily Randomized Journal - {{formatDate .Date "Monday, January 02, 2006"}}
+
+## Random Daily Ideas 🎲
+
+{{shuffle "Take a 10-minute walk outside\nCall someone you haven't talked to in a while\nTry a new recipe or cooking technique\nRead for 30 minutes\nOrganize one small area of your space\nWrite down three things you're grateful for"}}
+
+## Priority Tasks (Randomized Order) 📋
+
+{{$tasks := split "\n" "Review and respond to important emails\nWork on main project for 2 hours\nPlan tomorrow's schedule\nTake care of administrative tasks\nBrainstorm solutions for current challenges"}}
+{{range $index, $task := shuffleLines $tasks}}
+{{add $index 1}}. {{$task}}
+{{end}}
+
+## Random Focus for Today
+{{$focuses := split "\n" "Be present in conversations\nPractice patience\nSeek to understand before being understood\nShow kindness to yourself\nLook for opportunities to help others"}}
+**Today's Focus:** {{index (shuffleLines $focuses) 0}}
+
+## Regular Todos
+{{.TODOS}}
+
+---
+*Each day brings a unique perspective with randomized content!*
+```

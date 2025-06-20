@@ -1,15 +1,15 @@
 package core
 
 import (
+	"strings"
 	"testing"
 	"text/template"
-	"strings"
 )
 
 func TestTemplateFunctions(t *testing.T) {
 	// Create a template with all available functions
 	funcMap := createTemplateFunctions()
-	
+
 	// Test date arithmetic functions
 	t.Run("Date Arithmetic Functions", func(t *testing.T) {
 		tests := []struct {
@@ -23,7 +23,7 @@ func TestTemplateFunctions(t *testing.T) {
 				expected: "2025-01-20",
 			},
 			{
-				name:     "addDays negative", 
+				name:     "addDays negative",
 				template: `{{addDays "2025-01-15" -3}}`,
 				expected: "2025-01-12",
 			},
@@ -276,6 +276,197 @@ func TestTemplateFunctions(t *testing.T) {
 				name:     "daysDiff with invalid dates",
 				template: `{{daysDiff "invalid" "also-invalid"}}`,
 				expected: "0",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				tmpl, err := template.New("test").Funcs(funcMap).Parse(tt.template)
+				if err != nil {
+					t.Fatalf("Failed to parse template: %v", err)
+				}
+
+				var result strings.Builder
+				err = tmpl.Execute(&result, nil)
+				if err != nil {
+					t.Fatalf("Failed to execute template: %v", err)
+				}
+
+				if result.String() != tt.expected {
+					t.Errorf("Expected %q, got %q", tt.expected, result.String())
+				}
+			})
+		}
+	})
+
+	// Test shuffle functions
+	t.Run("Shuffle Functions", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			template string
+			data     interface{}
+			validate func(string) bool
+		}{
+			{
+				name:     "shuffle basic text",
+				template: `{{shuffle "first line\nsecond line\nthird line"}}`,
+				validate: func(result string) bool {
+					lines := strings.Split(strings.TrimSpace(result), "\n")
+					// Should have same number of lines
+					if len(lines) != 3 {
+						return false
+					}
+					// Should contain all original lines
+					expectedLines := map[string]bool{
+						"first line":  false,
+						"second line": false,
+						"third line":  false,
+					}
+					for _, line := range lines {
+						if _, exists := expectedLines[line]; exists {
+							expectedLines[line] = true
+						}
+					}
+					// All lines should be present
+					for _, found := range expectedLines {
+						if !found {
+							return false
+						}
+					}
+					return true
+				},
+			},
+			{
+				name:     "shuffle single line",
+				template: `{{shuffle "only line"}}`,
+				validate: func(result string) bool {
+					return strings.TrimSpace(result) == "only line"
+				},
+			},
+			{
+				name:     "shuffle empty string",
+				template: `{{shuffle ""}}`,
+				validate: func(result string) bool {
+					return strings.TrimSpace(result) == ""
+				},
+			},
+			{
+				name:     "shuffle with empty lines",
+				template: `{{shuffle "line one\n\nline two\n\nline three"}}`,
+				validate: func(result string) bool {
+					lines := strings.Split(strings.TrimSpace(result), "\n")
+					// Should filter out empty lines, so only 3 lines
+					if len(lines) != 3 {
+						return false
+					}
+					// Should contain all non-empty lines
+					expectedLines := map[string]bool{
+						"line one":   false,
+						"line two":   false,
+						"line three": false,
+					}
+					for _, line := range lines {
+						if _, exists := expectedLines[line]; exists {
+							expectedLines[line] = true
+						}
+					}
+					// All lines should be present
+					for _, found := range expectedLines {
+						if !found {
+							return false
+						}
+					}
+					return true
+				},
+			},
+			{
+				name:     "shuffleLines array",
+				template: `{{$lines := split "\n" "first\nsecond\nthird"}}{{join "\n" (shuffleLines $lines)}}`,
+				validate: func(result string) bool {
+					lines := strings.Split(strings.TrimSpace(result), "\n")
+					// Should have same number of lines
+					if len(lines) != 3 {
+						return false
+					}
+					// Should contain all original lines
+					expectedLines := map[string]bool{
+						"first":  false,
+						"second": false,
+						"third":  false,
+					}
+					for _, line := range lines {
+						if _, exists := expectedLines[line]; exists {
+							expectedLines[line] = true
+						}
+					}
+					// All lines should be present
+					for _, found := range expectedLines {
+						if !found {
+							return false
+						}
+					}
+					return true
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				tmpl, err := template.New("test").Funcs(funcMap).Parse(tt.template)
+				if err != nil {
+					t.Fatalf("Failed to parse template: %v", err)
+				}
+
+				var result strings.Builder
+				err = tmpl.Execute(&result, tt.data)
+				if err != nil {
+					t.Fatalf("Failed to execute template: %v", err)
+				}
+
+				if !tt.validate(result.String()) {
+					t.Errorf("Validation failed for %q. Got: %q", tt.name, result.String())
+				}
+			})
+		}
+	})
+
+	// Test arithmetic functions
+	t.Run("Arithmetic Functions", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			template string
+			expected string
+		}{
+			{
+				name:     "add function",
+				template: `{{add 5 3}}`,
+				expected: "8",
+			},
+			{
+				name:     "sub function",
+				template: `{{sub 10 4}}`,
+				expected: "6",
+			},
+			{
+				name:     "mul function",
+				template: `{{mul 6 7}}`,
+				expected: "42",
+			},
+			{
+				name:     "div function",
+				template: `{{div 15 3}}`,
+				expected: "5",
+			},
+			{
+				name:     "div by zero",
+				template: `{{div 10 0}}`,
+				expected: "0",
+			},
+			{
+				name: "arithmetic in range",
+				template: `{{range seq 1 3}}Item {{add . 10}}: {{.}}
+{{end}}`,
+				expected: "Item 11: 1\nItem 12: 2\nItem 13: 3\n",
 			},
 		}
 

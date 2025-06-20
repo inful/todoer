@@ -387,7 +387,7 @@ func isValidVariableName(name string) bool {
 	// Rest must be letters, digits, or underscores
 	for i := 1; i < len(name); i++ {
 		char := name[i]
-		if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || 
+		if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') ||
 			(char >= '0' && char <= '9') || char == '_') {
 			return false
 		}
