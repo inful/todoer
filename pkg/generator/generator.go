@@ -11,6 +11,14 @@ import (
 	"todoer/pkg/core"
 )
 
+// ErrNoTodosSection indicates that no todos section was found in the content
+var ErrNoTodosSection = fmt.Errorf("no todos section found")
+
+// isNoTodosSectionError checks if an error indicates a missing todos section
+func isNoTodosSectionError(err error) bool {
+	return strings.Contains(err.Error(), "could not find")
+}
+
 // Generator represents a TODO journal generator that can process journal files
 // and generate both modified original content and new uncompleted task files.
 //
@@ -206,7 +214,7 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	beforeTodos, todosSection, afterTodos, err := core.ExtractTodosSection(originalContent)
 	if err != nil {
 		// If no todos section exists, treat it as having an empty todos section
-		if strings.Contains(err.Error(), "could not find") {
+		if isNoTodosSectionError(err) {
 			beforeTodos = originalContent
 			todosSection = ""
 			afterTodos = ""

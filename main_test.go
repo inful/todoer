@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -332,6 +333,106 @@ Notes here.`,
 			}
 		})
 	}
+}
+
+// TestNewGeneratorWithOptionsAPI tests the new options-based generator API
+func TestNewGeneratorWithOptionsAPI(t *testing.T) {
+	templateContent := `---
+title: {{.Date}}
+---
+
+# Journal {{.Date}}
+
+## Todos
+{{.TODOS}}
+
+## Notes
+Today's notes.`
+
+	t.Run("Basic Options API", func(t *testing.T) {
+		gen, err := generator.NewGeneratorWithOptions(templateContent, "2024-01-15")
+		if err != nil {
+			t.Fatalf("NewGeneratorWithOptions failed: %v", err)
+		}
+
+		// Test processing
+		sourceContent := `---
+title: 2024-01-14
+---
+
+# Daily Journal
+
+## Todos
+
+- [ ] Test task
+
+## Notes`
+
+		result, err := gen.Process(sourceContent)
+		if err != nil {
+			t.Fatalf("Process failed: %v", err)
+		}
+
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+	})
+
+	t.Run("Options with Previous Date and Custom Variables", func(t *testing.T) {
+		customVars := map[string]interface{}{
+			"author":  "Test Author",
+			"project": "Test Project",
+		}
+
+		gen, err := generator.NewGeneratorWithOptions(
+			templateContent,
+			"2024-01-15",
+			generator.WithPreviousDate("2024-01-14"),
+			generator.WithCustomVariables(customVars),
+		)
+		if err != nil {
+			t.Fatalf("NewGeneratorWithOptions with options failed: %v", err)
+		}
+
+		// Test WithOptions method for reconfiguration
+		newGen, err := gen.WithOptions(
+			generator.WithPreviousDate("2024-01-13"),
+		)
+		if err != nil {
+			t.Fatalf("WithOptions failed: %v", err)
+		}
+
+		if newGen == nil {
+			t.Fatal("Expected non-nil reconfigured generator")
+		}
+	})
+
+	t.Run("File-based Options API", func(t *testing.T) {
+		// Create a temporary template file
+		tmpFile, err := os.CreateTemp("", "template-*.md")
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+		defer os.Remove(tmpFile.Name())
+
+		if _, err := tmpFile.WriteString(templateContent); err != nil {
+			t.Fatalf("Failed to write template: %v", err)
+		}
+		tmpFile.Close()
+
+		gen, err := generator.NewGeneratorFromFileWithOptions(
+			tmpFile.Name(),
+			"2024-01-15",
+			generator.WithPreviousDate("2024-01-14"),
+		)
+		if err != nil {
+			t.Fatalf("NewGeneratorFromFileWithOptions failed: %v", err)
+		}
+
+		if gen == nil {
+			t.Fatal("Expected non-nil generator from file")
+		}
+	})
 }
 
 // normalizeWhitespace removes extra whitespace for comparison

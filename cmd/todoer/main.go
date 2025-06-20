@@ -17,7 +17,10 @@ import (
 
 // Constants for the application
 const (
-	FilePermissions = 0644
+	FilePermissions    = 0644
+	ConfigDirName     = "todoer"
+	ConfigFileName    = "config.toml"
+	TemplateFileName  = "template.md"
 )
 
 // Config represents the configuration file structure
@@ -77,7 +80,7 @@ func loadConfigFile(config *Config) error {
 	if configHome == "" {
 		configHome = os.Getenv("HOME") + "/.config"
 	}
-	configPath := filepath.Join(configHome, "todoer", "config.toml")
+	configPath := filepath.Join(configHome, ConfigDirName, ConfigFileName)
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return err
@@ -192,20 +195,26 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 	}
 
 	if templateFile != "" {
-		gen, err = generator.NewGeneratorFromFileWithPreviousAndCustom(templateFile, templateDate, previousDate, config.Custom)
+		gen, err = generator.NewGeneratorFromFileWithOptions(templateFile, templateDate,
+			generator.WithPreviousDate(previousDate),
+			generator.WithCustomVariables(config.Custom))
 		templateSource = templateFile
 	} else {
 		configHome := os.Getenv("XDG_CONFIG_HOME")
 		if configHome == "" {
 			configHome = os.Getenv("HOME") + "/.config"
 		}
-		configTemplate := filepath.Join(configHome, "todoer", "template.md")
+		configTemplate := filepath.Join(configHome, ConfigDirName, TemplateFileName)
 		if _, statErr := os.Stat(configTemplate); statErr == nil {
-			gen, err = generator.NewGeneratorFromFileWithPreviousAndCustom(configTemplate, templateDate, previousDate, config.Custom)
+			gen, err = generator.NewGeneratorFromFileWithOptions(configTemplate, templateDate,
+				generator.WithPreviousDate(previousDate),
+				generator.WithCustomVariables(config.Custom))
 			templateSource = configTemplate
 		}
 		if gen == nil {
-			gen, err = generator.NewGeneratorWithPreviousAndCustom(defaultTemplate, templateDate, previousDate, config.Custom)
+			gen, err = generator.NewGeneratorWithOptions(defaultTemplate, templateDate,
+				generator.WithPreviousDate(previousDate),
+				generator.WithCustomVariables(config.Custom))
 			templateSource = "embedded default template"
 		}
 	}
