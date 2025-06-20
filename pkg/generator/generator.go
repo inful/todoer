@@ -205,7 +205,14 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	// Extract TODOS section
 	beforeTodos, todosSection, afterTodos, err := core.ExtractTodosSection(originalContent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract TODOS section: %w", err)
+		// If no todos section exists, treat it as having an empty todos section
+		if strings.Contains(err.Error(), "could not find") {
+			beforeTodos = originalContent
+			todosSection = ""
+			afterTodos = ""
+		} else {
+			return nil, fmt.Errorf("failed to extract TODOS section: %w", err)
+		}
 	}
 
 	// Process the TODOS section with statistics
