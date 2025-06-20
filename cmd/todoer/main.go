@@ -96,7 +96,7 @@ func loadConfigFile(config *Config) error {
 
 // ProcessCmd defines arguments for the default 'process' command.
 type ProcessCmd struct {
-	SourceFile   string `arg:"" name:"source_file" help:"Input journal file" type:"existingfile"`
+	SourceFile   string `arg:"" name:"source_file" help:"Input journal file"`
 	TargetFile   string `arg:"" name:"target_file" help:"Output file for uncompleted tasks"`
 	TemplateFile string `arg:"optional" name:"template_file" help:"Template for creating the target file (optional, overrides config/env)"`
 	TemplateDate string `arg:"optional" name:"template_date" help:"Optional date for template rendering (YYYY-MM-DD)"`
@@ -111,7 +111,7 @@ type NewCmd struct {
 // CLI defines the command-line arguments structure for kong
 var CLI struct {
 	Process struct {
-		SourceFile   string `arg:"" help:"Input journal file" type:"existingfile"`
+		SourceFile   string `arg:"" help:"Input journal file"`
 		TargetFile   string `arg:"" help:"Output file for uncompleted tasks"`
 		TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
 		TemplateDate string `help:"Optional date for template rendering (YYYY-MM-DD)"`
