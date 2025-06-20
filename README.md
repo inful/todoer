@@ -414,21 +414,25 @@ Reflections for {{.MonthName}} {{.Day}}, {{.Year}}
 The todoer project has been enhanced through multiple development phases:
 
 ### ✅ Phase 1: Enhanced Date Variables
+
 - Added comprehensive date formatting variables (`DateShort`, `DateLong`, `DayName`, `WeekNumber`, etc.)
 - Implemented previous date variants for referencing source journals
 - Full backward compatibility maintained
 
 ### ✅ Phase 2: Todo Statistics
+
 - Added todo counting and analysis (`TotalTodos`, `CompletedTodos`, etc.)
 - Implemented date span tracking (`TodoDaysSpan`, `OldestTodoDate`)
 - Enhanced template data with completion metrics
 
 ### ✅ Phase 3: Custom Variables via Config
+
 - Added support for user-defined template variables through TOML configuration
 - Custom variables available in templates via `.Custom.VariableName`
 - Validation and error handling for custom variable configurations
 
 ### ✅ Phase 4: Template Functions
+
 - **Date arithmetic**: `addDays`, `subDays`, `addWeeks`, `addMonths`, `daysDiff`
 - **Date formatting**: `formatDate`, `weekday`, `isWeekend`
 - **String manipulation**: `upper`, `lower`, `title`, `trim`, `replace`, `contains`, etc.
@@ -438,6 +442,7 @@ The todoer project has been enhanced through multiple development phases:
 - Robust error handling and graceful fallbacks
 
 ### Future Enhancements
+
 - Additional template functions (mathematical operations, conditionals)
 - Plugin system for custom processing logic
 - Advanced configuration validation and schema

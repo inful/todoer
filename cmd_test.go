@@ -455,7 +455,7 @@ title: 2025-06-19
 	targetFile := filepath.Join(tempDir, "target.md")
 
 	// Run with advanced template
-	cmd := exec.Command(binaryPath, "process", sourceFile, targetFile, "--template-file", templateFile)
+	cmd := exec.Command(binaryPath, "process", sourceFile, targetFile, "--template-file", templateFile, "--template-date", "2025-06-19")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Process with advanced template failed: %v\nOutput: %s", err, output)

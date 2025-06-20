@@ -8,7 +8,7 @@ import (
 
 func TestTemplateFunctions(t *testing.T) {
 	// Create a template with all available functions
-	funcMap := createTemplateFunctions()
+	funcMap := CreateTemplateFunctions()
 
 	// Test date arithmetic functions
 	t.Run("Date Arithmetic Functions", func(t *testing.T) {
@@ -534,7 +534,7 @@ Today is {{$today}}. {{if isWeekend .Date}}Enjoy your weekend!{{else}}Have a pro
 		TodoDaysSpan: 5,
 	}
 
-	funcMap := createTemplateFunctions()
+	funcMap := CreateTemplateFunctions()
 	tmpl, err := template.New("test").Funcs(funcMap).Parse(templateContent)
 	if err != nil {
 		t.Fatalf("Failed to parse template: %v", err)

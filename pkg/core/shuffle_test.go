@@ -7,7 +7,7 @@ import (
 )
 
 func TestShuffleFunctionality(t *testing.T) {
-	funcMap := createTemplateFunctions()
+	funcMap := CreateTemplateFunctions()
 
 	t.Run("Shuffle Determinism Test", func(t *testing.T) {
 		// Test that shuffle actually shuffles (not deterministic)

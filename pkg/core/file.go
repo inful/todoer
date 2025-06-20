@@ -228,7 +228,7 @@ func validateTemplateInputs(templateContent, currentDate string) error {
 
 // executeTemplate parses and executes a Go template with the provided data
 func executeTemplate(templateContent string, data TemplateData) (string, error) {
-	tmpl, err := template.New("journal").Funcs(createTemplateFunctions()).Parse(templateContent)
+	tmpl, err := template.New("journal").Funcs(CreateTemplateFunctions()).Parse(templateContent)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -427,9 +427,9 @@ func CreateFromTemplateContentWithCustom(templateContent, todosContent, currentD
 	return output, nil
 }
 
-// createTemplateFunctions returns a map of custom template functions for enhanced template functionality.
+// CreateTemplateFunctions returns a map of custom template functions for enhanced template functionality.
 // These functions provide date arithmetic, string manipulation, and utility operations for templates.
-func createTemplateFunctions() template.FuncMap {
+func CreateTemplateFunctions() template.FuncMap {
 	return template.FuncMap{
 		// Date arithmetic functions
 		"addDays": func(dateStr string, days int) string {
