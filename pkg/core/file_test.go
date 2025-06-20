@@ -620,11 +620,11 @@ Debug: {{.Custom.Debug}}
 			expectError: false,
 		},
 		{
-			name: "template with invalid custom variables should fail",
-			template: `Project: {{.Custom.ProjectName}}`,
-			todos:    "",
+			name:        "template with invalid custom variables should fail",
+			template:    `Project: {{.Custom.ProjectName}}`,
+			todos:       "",
 			currentDate: "2025-06-20",
-			journal: &TodoJournal{},
+			journal:     &TodoJournal{},
 			customVars: map[string]interface{}{
 				"Date": "invalid", // reserved name
 			},
@@ -645,11 +645,11 @@ Todos: {{.TODOS}}`,
 			expectError: false,
 		},
 		{
-			name: "template with array custom variables should work",
-			template: `Tags: {{range .Custom.Tags}}{{.}} {{end}}`,
-			todos:    "",
+			name:        "template with array custom variables should work",
+			template:    `Tags: {{range .Custom.Tags}}{{.}} {{end}}`,
+			todos:       "",
 			currentDate: "2025-06-20",
-			journal: &TodoJournal{},
+			journal:     &TodoJournal{},
 			customVars: map[string]interface{}{
 				"Tags": []string{"work", "personal", "urgent"},
 			},
@@ -663,19 +663,19 @@ Todos: {{.TODOS}}`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := CreateFromTemplateContentWithCustom(tt.template, tt.todos, tt.currentDate, tt.previousDate, tt.journal, tt.customVars)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 				return
 			}
-			
+
 			for _, expected := range tt.expected {
 				if !strings.Contains(result, expected) {
 					t.Errorf("Result does not contain expected string '%s'. Result:\n%s", expected, result)
