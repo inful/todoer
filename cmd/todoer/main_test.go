@@ -145,11 +145,11 @@ func TestLoadConfig(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	originalRootDir := os.Getenv("TODOER_ROOT_DIR")
 	originalTemplateFile := os.Getenv("TODOER_TEMPLATE_FILE")
-	
+
 	// Create isolated test environment
 	tempDir, cleanup := setupTempDir(t)
 	defer cleanup()
-	
+
 	defer func() {
 		// Restore original environment
 		if originalXDG != "" {
@@ -280,11 +280,11 @@ func TestLoadConfigWithXDG(t *testing.T) {
 			// Create a unique tempDir for this test case
 			testTempDir, testCleanup := setupTempDir(t)
 			defer testCleanup()
-			
+
 			// Clear environment variables first
 			os.Unsetenv("TODOER_ROOT_DIR")
 			os.Unsetenv("TODOER_TEMPLATE_FILE")
-			
+
 			// Set XDG_CONFIG_HOME to point to this test's tempDir
 			if tt.xdgConfigHome == "SET_TO_TEMP_DIR" {
 				os.Setenv("XDG_CONFIG_HOME", testTempDir)
@@ -349,11 +349,11 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name           string
-		setupFunc      func(tempDir string) // Pass tempDir to setup function
-		templateFile   string
-		expectedName   string
-		expectError    bool
+		name         string
+		setupFunc    func(tempDir string) // Pass tempDir to setup function
+		templateFile string
+		expectedName string
+		expectError  bool
 	}{
 		{
 			name: "XDG_CONFIG_HOME with template file",
@@ -404,7 +404,7 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 			// Create a unique tempDir for this test case
 			testTempDir, testCleanup := setupTempDir(t)
 			defer testCleanup()
-			
+
 			// Set XDG_CONFIG_HOME to this test's tempDir
 			os.Setenv("XDG_CONFIG_HOME", testTempDir)
 
@@ -414,7 +414,7 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 			// Set up dynamic values
 			var templateFile string
 			var expectedName string
-			
+
 			if tt.templateFile == "DYNAMIC_EXPLICIT" {
 				templateFile = filepath.Join(testTempDir, "explicit.md")
 				expectedName = templateFile
@@ -422,7 +422,7 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 				templateFile = tt.templateFile
 				expectedName = tt.expectedName
 			}
-			
+
 			if expectedName == "DYNAMIC_XDG_TEMPLATE" {
 				expectedName = filepath.Join(testTempDir, "todoer", "template.md")
 			}

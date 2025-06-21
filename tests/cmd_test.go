@@ -14,7 +14,7 @@ import (
 func TestCLICommands(t *testing.T) {
 	// Build the binary for testing
 	binaryPath := filepath.Join(t.TempDir(), "todoer")
-	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/todoer")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "../cmd/todoer")
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to build todoer binary: %v", err)
 	}

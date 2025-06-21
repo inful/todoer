@@ -32,19 +32,13 @@ func resolveTemplate(templateFile string) templateSource {
 	}
 
 	// Try config directory template
-	var configHome string
-	if xdgConfigHome := os.Getenv("XDG_CONFIG_HOME"); xdgConfigHome != "" {
-		configHome = xdgConfigHome
-	} else {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			// Fall back to embedded template if can't determine home dir
-			return templateSource{content: defaultTemplate, name: "embedded default template"}
-		}
-		configHome = filepath.Join(homeDir, ".config")
+	configHome, err := getConfigDir()
+	if err != nil {
+		// Fall back to embedded template if can't determine config dir
+		return templateSource{content: defaultTemplate, name: "embedded default template"}
 	}
-	configTemplate := filepath.Join(configHome, ConfigDirName, TemplateFileName)
 
+	configTemplate := filepath.Join(configHome, ConfigDirName, TemplateFileName)
 	if _, err := os.Stat(configTemplate); err == nil {
 		content, err := os.ReadFile(configTemplate)
 		if err != nil {
@@ -55,20 +49,6 @@ func resolveTemplate(templateFile string) templateSource {
 
 	// Fall back to embedded template
 	return templateSource{content: defaultTemplate, name: "embedded default template"}
-}
-
-// ProcessCmd defines arguments for the default 'process' command.
-type ProcessCmd struct {
-	SourceFile   string `arg:"" name:"source_file" help:"Input journal file"`
-	TargetFile   string `arg:"" name:"target_file" help:"Output file for uncompleted tasks"`
-	TemplateFile string `arg:"optional" name:"template_file" help:"Template for creating the target file (optional, overrides config/env)"`
-	TemplateDate string `arg:"optional" name:"template_date" help:"Optional date for template rendering (YYYY-MM-DD)"`
-}
-
-// NewCmd defines arguments for the 'new' command.
-type NewCmd struct {
-	RootDir      string `help:"Root directory for journals (overrides config/env)"`
-	TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
 }
 
 // CLI defines the command-line arguments structure for kong
@@ -95,8 +75,7 @@ func main() {
 	// Load configuration from file, environment, and defaults
 	config, err := loadConfig()
 	if err != nil {
-		logError("Failed to load configuration: %v", err)
-		os.Exit(1)
+		fatalError("Failed to load configuration: %v", err)
 	}
 
 	ctx := kong.Parse(&CLI,
@@ -114,33 +93,20 @@ func main() {
 	switch ctx.Command() {
 	case "new":
 		logDebug("Executing new command")
-		// CLI flags override config/env values
-		rootDir := CLI.New.RootDir
-		if rootDir == "" {
-			rootDir = config.RootDir
-		}
-		templateFile := CLI.New.TemplateFile
-		if templateFile == "" {
-			templateFile = config.TemplateFile
-		}
+		rootDir := getConfigValue(CLI.New.RootDir, config.RootDir)
+		templateFile := getConfigValue(CLI.New.TemplateFile, config.TemplateFile)
 
 		err := cmdNew(rootDir, templateFile, config)
 		if err != nil {
-			logError("Failed to create new journal: %v", err)
-			os.Exit(1)
+			fatalError("Failed to create new journal: %v", err)
 		}
 	case "process <source-file> <target-file>":
 		logDebug("Executing process command")
-		// CLI flags override config/env values
-		templateFile := CLI.Process.TemplateFile
-		if templateFile == "" {
-			templateFile = config.TemplateFile
-		}
+		templateFile := getConfigValue(CLI.Process.TemplateFile, config.TemplateFile)
 
 		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, templateFile, CLI.Process.TemplateDate, false, config)
 		if err != nil {
-			logError("Processing failed: %v", err)
-			os.Exit(1)
+			fatalError("Processing failed: %v", err)
 		}
 	}
 }
@@ -300,9 +266,7 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 
 func cmdNew(rootDir, templateFile string, config *Config) error {
 	today := time.Now().Format(core.DateFormat)
-	month := time.Now().Format("01")
-	year := time.Now().Format("2006")
-	journalPath := filepath.Join(rootDir, year, month, today+".md")
+	journalPath := buildJournalPath(rootDir, today)
 
 	if _, err := os.Stat(journalPath); err == nil {
 		fmt.Printf("Journal for today already exists: %s\n", journalPath)
@@ -338,6 +302,18 @@ func cmdNew(rootDir, templateFile string, config *Config) error {
 
 	fmt.Printf("Using '%s' as source to create new journal for today.\n", closest)
 	return processJournal(closest, journalPath, templateFile, today, skipBackup, config)
+}
+
+// buildJournalPath constructs the path for a journal file based on date and root directory
+func buildJournalPath(rootDir, date string) string {
+	t, err := time.Parse(core.DateFormat, date)
+	if err != nil {
+		// Fallback to current time if date parsing fails
+		t = time.Now()
+	}
+	year := t.Format("2006")
+	month := t.Format("01")
+	return filepath.Join(rootDir, year, month, date+".md")
 }
 
 // safeWriteFile writes data to a file safely with atomic operations
@@ -381,4 +357,18 @@ func safeWriteFile(filename string, data []byte, perm os.FileMode) error {
 	}
 
 	return nil
+}
+
+// getConfigValue returns the CLI value if provided, otherwise falls back to config value
+func getConfigValue(cliValue, configValue string) string {
+	if cliValue != "" {
+		return cliValue
+	}
+	return configValue
+}
+
+// fatalError logs an error and exits with code 1
+func fatalError(format string, args ...interface{}) {
+	logError(format, args...)
+	os.Exit(1)
 }

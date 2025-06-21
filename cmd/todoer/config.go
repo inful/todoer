@@ -22,16 +22,11 @@ func loadConfig() (*Config, error) {
 	config := &Config{}
 
 	// Determine config file path
-	var configDir string
-	if xdgConfigHome := os.Getenv("XDG_CONFIG_HOME"); xdgConfigHome != "" {
-		configDir = filepath.Join(xdgConfigHome, ConfigDirName)
-	} else {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("could not determine home directory: %w", err)
-		}
-		configDir = filepath.Join(homeDir, ".config", ConfigDirName)
+	configHome, err := getConfigDir()
+	if err != nil {
+		return nil, fmt.Errorf("could not determine config directory: %w", err)
 	}
+	configDir := filepath.Join(configHome, ConfigDirName)
 	configPath := filepath.Join(configDir, ConfigFileName)
 
 	// Load from config file if it exists
@@ -100,4 +95,17 @@ func expandPath(path string) string {
 	}
 
 	return path
+}
+
+// getConfigDir returns the appropriate config directory based on XDG or default
+func getConfigDir() (string, error) {
+	if xdgConfigHome := os.Getenv("XDG_CONFIG_HOME"); xdgConfigHome != "" {
+		return xdgConfigHome, nil
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, ".config"), nil
 }

@@ -15,7 +15,7 @@ func TestIntegration(t *testing.T) {
 	currentDate := "2025-06-17"
 
 	// Get all test directories
-	entries, err := os.ReadDir("testdata")
+	entries, err := os.ReadDir("../testdata")
 	if err != nil {
 		t.Fatalf("Failed to read testdata directory: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestIntegration(t *testing.T) {
 		}
 
 		t.Run(entry.Name(), func(t *testing.T) {
-			testDir := filepath.Join("testdata", entry.Name())
+			testDir := filepath.Join("../testdata", entry.Name())
 
 			// Read the input file
 			inputPath := filepath.Join(testDir, "input.md")
@@ -36,7 +36,7 @@ func TestIntegration(t *testing.T) {
 			}
 
 			// Use the shared template file
-			templatePath := filepath.Join("testdata", "shared_template.md")
+			templatePath := filepath.Join("../testdata", "shared_template.md")
 
 			// Create generator
 			gen, err := generator.NewGeneratorFromFile(templatePath, currentDate)

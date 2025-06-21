@@ -25,31 +25,31 @@ case "${1:-all}" in
         run_test "Core Package Tests" "go test ./pkg/core -v"
         ;;
     "integration")
-        run_test "Integration Tests" "go test -run TestIntegration -v"
+        run_test "Integration Tests" "go test ./tests -run TestIntegration -v"
         ;;
     "cli")
         # Try to use timeout if available, otherwise run without timeout
         if command -v timeout >/dev/null 2>&1; then
-            run_test "CLI Tests (with timeout)" "timeout 60s go test -run TestCLICommands -v"
+            run_test "CLI Tests (with timeout)" "timeout 60s go test ./tests -run TestCLICommands -v"
         else
-            run_test "CLI Tests" "go test -run TestCLICommands -v"
+            run_test "CLI Tests" "go test ./tests -run TestCLICommands -v"
         fi
         ;;
     "basic")
-        run_test "Basic Functionality Tests" "go test -run 'TestExtractDateFromFrontmatter|TestGeneratorLibraryInterface' -v"
+        run_test "Basic Functionality Tests" "go test ./tests -run 'TestExtractDateFromFrontmatter|TestGeneratorLibraryInterface' -v"
         ;;
     "quick")
         echo "🚀 Running Quick Test Suite..."
         run_test "Core Tests" "go test ./pkg/core -short"
-        run_test "Basic Integration" "go test -run TestIntegration"
-        run_test "Generator Tests" "go test -run TestGeneratorLibraryInterface"
+        run_test "Basic Integration" "go test ./tests -run TestIntegration"
+        run_test "Generator Tests" "go test ./tests -run TestGeneratorLibraryInterface"
         ;;
     "all")
         echo "🎯 Running Full Test Suite..."
         run_test "Core Package Tests" "go test ./pkg/core -v"
-        run_test "Integration Tests" "go test -run TestIntegration -v"
-        run_test "Generator Tests" "go test -run TestGeneratorLibraryInterface -v"
-        run_test "Basic CLI Tests" "go test -run TestBasicCLIFunctionality -v"
+        run_test "Integration Tests" "go test ./tests -run TestIntegration -v"
+        run_test "Generator Tests" "go test ./tests -run TestGeneratorLibraryInterface -v"
+        run_test "Basic CLI Tests" "go test ./tests -run TestBasicCLIFunctionality -v"
         echo
         echo "ℹ️  Note: Full CLI tests (TestCLICommands) can be run with: $0 cli"
         ;;

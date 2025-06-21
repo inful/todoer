@@ -14,13 +14,17 @@ func TestBasicCLIFunctionality(t *testing.T) {
 	tempDir := t.TempDir()
 	binaryPath := filepath.Join(tempDir, "todoer")
 
-	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/todoer")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "../cmd/todoer")
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to build todoer binary: %v", err)
 	}
 
+	// Create a temporary config directory to avoid loading user config
+	testConfigDir := filepath.Join(tempDir, "config")
+	
 	t.Run("Help", func(t *testing.T) {
 		cmd := exec.Command(binaryPath, "--help")
+		cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+testConfigDir)
 		output, err := cmd.Output()
 		if err != nil {
 			t.Fatalf("Help command failed: %v", err)
@@ -64,6 +68,7 @@ Some notes here.`
 
 		// Run the process command
 		cmd := exec.Command(binaryPath, "process", sourceFile, targetFile)
+		cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+testConfigDir)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("Process command failed: %v\nOutput: %s", err, output)
@@ -92,6 +97,7 @@ Some notes here.`
 	t.Run("InvalidArguments", func(t *testing.T) {
 		// Test with non-existent source file
 		cmd := exec.Command(binaryPath, "process", "non-existent-file.md", "output.md")
+		cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+testConfigDir)
 		output, err := cmd.CombinedOutput()
 		if err == nil {
 			t.Error("Expected error for non-existent source file")
