@@ -1,12 +1,12 @@
 package main
 
 import (
-	"os"
 	"strings"
 	"testing"
 
 	"todoer/pkg/core"
 	"todoer/pkg/generator"
+	"github.com/spf13/afero"
 )
 
 // TestExtractDateFromFrontmatter tests the date extraction functionality
@@ -408,23 +408,19 @@ title: 2024-01-14
 	})
 
 	t.Run("File-based Options API", func(t *testing.T) {
-		// Create a temporary template file
-		tmpFile, err := os.CreateTemp("", "template-*.md")
-		if err != nil {
-			t.Fatalf("Failed to create temp file: %v", err)
-		}
-		defer os.Remove(tmpFile.Name())
-
-		if _, err := tmpFile.WriteString(templateContent); err != nil {
+		// Use afero in-memory filesystem
+		fs := afero.NewMemMapFs()
+		templateFile := "/template-inmem.md"
+		if err := afero.WriteFile(fs, templateFile, []byte(templateContent), 0644); err != nil {
 			t.Fatalf("Failed to write template: %v", err)
 		}
-		tmpFile.Close()
 
-		gen, err := generator.NewGeneratorFromFileWithOptions(
-			tmpFile.Name(),
-			"2024-01-15",
-			generator.WithPreviousDate("2024-01-14"),
-		)
+		templateContentFromFile, err := afero.ReadFile(fs, templateFile)
+		if err != nil {
+			t.Fatalf("Failed to read template: %v", err)
+		}
+
+		gen, err := generator.NewGenerator(string(templateContentFromFile), "2024-01-15")
 		if err != nil {
 			t.Fatalf("NewGeneratorFromFileWithOptions failed: %v", err)
 		}

@@ -5,4 +5,6 @@ go 1.24.3
 require (
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/alecthomas/kong v1.11.0 // indirect
+	github.com/spf13/afero v1.14.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 )

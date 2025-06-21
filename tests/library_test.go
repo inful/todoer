@@ -2,9 +2,10 @@ package main
 
 import (
 	"io"
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/spf13/afero"
 	"todoer/pkg/generator"
 )
 
@@ -94,23 +95,30 @@ End of journal.`
 }
 
 func TestGeneratorFromFile(t *testing.T) {
-	// Create a temporary template file
+	// Use in-memory filesystem
+	fs := afero.NewMemMapFs()
+
+	// Create a template file in-memory
 	templateContent := `# Generated from file - {{.Date}}
 
 ## Todos
 
 {{.TODOS}}`
-
-	tempTemplateFile := "/tmp/test_lib_template.md"
-	err := writeStringToFile(tempTemplateFile, templateContent)
+	tempTemplateFile := "/test_lib_template.md"
+	err := writeStringToFile(fs, tempTemplateFile, templateContent)
 	if err != nil {
 		t.Fatalf("Failed to create temp template file: %v", err)
 	}
 
 	templateDate := "2025-03-15"
 
-	// Create generator from file
-	gen, err := generator.NewGeneratorFromFile(tempTemplateFile, templateDate)
+	// Read template content from in-memory fs and create generator
+	templateContentFromFile, err := afero.ReadFile(fs, tempTemplateFile)
+	if err != nil {
+		t.Fatalf("Failed to read template file: %v", err)
+	}
+
+	gen, err := generator.NewGenerator(string(templateContentFromFile), templateDate)
 	if err != nil {
 		t.Fatalf("Failed to create generator from file: %v", err)
 	}
@@ -144,7 +152,7 @@ title: "2025-01-01"
 	}
 }
 
-// Helper function to write string to file
-func writeStringToFile(filename, content string) error {
-	return os.WriteFile(filename, []byte(content), 0644)
+// Helper function to write string to file using afero
+func writeStringToFile(fs afero.Fs, filename, content string) error {
+	return afero.WriteFile(fs, filename, []byte(content), 0644)
 }
