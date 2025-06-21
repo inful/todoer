@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -66,6 +67,14 @@ var CLI struct {
 		RootDir      string `help:"Root directory for journals (overrides config/env)"`
 		TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
 	} `cmd:"new" help:"Create a new daily journal file"`
+
+	Preview struct {
+		TemplateFile string `help:"Template file to preview (optional, overrides config/env)"`
+		Date         string `help:"Date for template rendering (YYYY-MM-DD, optional, defaults to today)"`
+		TodosFile    string `help:"File containing a sample TODOS section to use for preview (optional)"`
+		TodosString  string `help:"String containing a sample TODOS section to use for preview (optional, overrides --todos-file)"`
+		CustomVars   string `help:"Custom variables as JSON string (optional)"`
+	} `cmd:"preview" help:"Preview rendering of a template file with a sample TODOS section"`
 }
 
 //go:embed default_template.md
@@ -108,6 +117,14 @@ func main() {
 		if err != nil {
 			fatalError("Processing failed: %v", err)
 		}
+	case "preview":
+		logDebug("Executing preview command")
+		err := cmdPreview(CLI.Preview.TemplateFile, CLI.Preview.Date, CLI.Preview.TodosFile, CLI.Preview.TodosString, CLI.Preview.CustomVars, config)
+		if err != nil {
+			fatalError("Preview failed: %v", err)
+		}
+		// Removed: case "completion <shell>":
+		// Shell completion is not supported at runtime. See documentation for integration instructions.
 	}
 }
 
@@ -371,4 +388,72 @@ func getConfigValue(cliValue, configValue string) string {
 func fatalError(format string, args ...interface{}) {
 	logError(format, args...)
 	os.Exit(1)
+}
+
+// cmdPreview renders a template with a sample TODOS section and prints the result to stdout.
+func cmdPreview(templateFile, date, todosFile, todosString, customVars string, config *Config) error {
+	// Determine date to use
+	if date == "" {
+		date = time.Now().Format(core.DateFormat)
+	}
+
+	// Load sample TODOS section
+	var todosContent string
+	if todosString != "" {
+		todosContent = todosString
+	} else if todosFile != "" {
+		content, err := os.ReadFile(todosFile)
+		if err != nil {
+			return fmt.Errorf("failed to read todos file: %w", err)
+		}
+		todosContent = string(content)
+	} else {
+		// Built-in default sample TODOS section
+		todosContent = core.TodosHeader + "\n\n  - [ ] Example task\n  - [x] Completed task\n    Continuation line for completed\n  - [ ] Another open task\n    - [ ] Subtask\n      - [ ] Sub-subtask\n  - [ ] Task with #2025-06-22 tag\n"
+	}
+
+	// Parse custom variables if provided
+	custom := config.Custom
+	if customVars != "" {
+		parsed, err := parseCustomVarsJSON(customVars)
+		if err != nil {
+			return fmt.Errorf("failed to parse custom vars: %w", err)
+		}
+		custom = parsed
+	}
+
+	// Resolve template content
+	tmplSource := resolveTemplate(templateFile)
+	if tmplSource.err != nil {
+		return fmt.Errorf("error resolving template: %w", tmplSource.err)
+	}
+
+	// Create a dummy journal for statistics
+	journal, err := core.ParseTodosSection(todosContent)
+	if err != nil {
+		return fmt.Errorf("failed to parse todos section: %w", err)
+	}
+
+	// Render template
+	output, err := core.CreateFromTemplateContentWithCustom(tmplSource.content, todosContent, date, "", journal, custom)
+	if err != nil {
+		return fmt.Errorf("failed to render template: %w", err)
+	}
+
+	// Print to stdout
+	fmt.Println(output)
+	return nil
+}
+
+// parseCustomVarsJSON parses a JSON string into a map[string]interface{} for custom variables.
+func parseCustomVarsJSON(jsonStr string) (map[string]interface{}, error) {
+	if jsonStr == "" {
+		return nil, nil
+	}
+	var m map[string]interface{}
+	err := json.Unmarshal([]byte(jsonStr), &m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
