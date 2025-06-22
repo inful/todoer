@@ -46,7 +46,7 @@ Todoer requires journals to organize todos by date sections using this specific 
 - Todos organized under date headers: `- [[YYYY-MM-DD]]`
 - Standard markdown checkboxes: `[ ]` for incomplete, `[x]` for complete
 - Hierarchical structure with proper indentation
-- Only the `## Todos` section is processed; other content remains untouched
+- Only the TODOS section (default: `## Todos`, configurable) is processed; other content remains untouched
 
 **Processing behavior:**
 
@@ -130,6 +130,9 @@ Author = "John Doe"
 Debug = true
 MaxTasks = 10
 Tags = ["work", "personal", "urgent"]
+
+# (Optional) Custom TODOS section header (default: "## Todos")
+todos_header = "## Tasks"
 ```
 
 ### Environment Variables
@@ -188,6 +191,8 @@ Templates customize the structure of new journal files. For working examples, se
 
 - `{{.TotalTodos}}` - Number of incomplete todos being carried over
 - `{{.CompletedTodos}}` - Number of completed todos found in source journal
+- `{{.UncompletedTodos}}` - Number of uncompleted todos found in source journal
+- `{{.UncompletedTopLevelTodos}}` - Number of uncompleted top-level todos
 - `{{.TodoDates}}` - List of unique dates that todos came from (array of strings)
 - `{{.OldestTodoDate}}` - Date of the oldest incomplete todo (YYYY-MM-DD format, empty if no todos)
 - `{{.TodoDaysSpan}}` - Number of days spanned by todos (from oldest to current date)
@@ -220,6 +225,13 @@ Beyond the built-in template variables, todoer provides powerful template functi
 {{formatDate .Date "Monday, January 02, 2006"}}  // Returns: Friday, January 15, 2025
 {{weekday .Date}}                 // Returns: Friday
 {{isWeekend .Date}}              // Returns: false (true for Sat/Sun)
+{{isMonday .Date}}                // Returns: true if .Date is a Monday
+{{isTuesday .Date}}               // Returns: true if .Date is a Tuesday
+{{isWednesday .Date}}             // Returns: true if .Date is a Wednesday
+{{isThursday .Date}}              // Returns: true if .Date is a Thursday
+{{isFriday .Date}}                // Returns: true if .Date is a Friday
+{{isSaturday .Date}}              // Returns: true if .Date is a Saturday
+{{isSunday .Date}}                // Returns: true if .Date is a Sunday
 ```
 
 ##### String Manipulation Functions
@@ -307,6 +319,28 @@ We have {{.TotalTodos}} {{if eq .TotalTodos 1}}todo{{else}}todos{{end}}
 *Generated on {{formatDate .Date "Jan 02, 2006"}} with todoer*
 ```
 
+### Example: Using a Custom TODOS Section Header
+
+You can configure the section header for todos (e.g., `## Tasks` instead of `## Todos`).
+
+**In your config.toml:**
+
+```toml
+todos_header = "## Tasks"
+```
+
+**In your template:**
+
+```markdown
+# My Journal - {{.Date}}
+
+## Tasks
+
+{{.TODOS}}
+```
+
+This will process the `## Tasks` section instead of the default `## Todos`.
+
 ### Template Fallback
 
 1. **Explicit template** (`--template-file` or config)
@@ -320,96 +354,33 @@ If a template has a `## Todos` section without the `{{.TODOS}}` placeholder, unc
 ```markdown
 ---
 title: {{.Date}}
-created: {{.DateLong}}
-week: {{.WeekNumber}}
-{{if .PreviousDate}}from: {{.PreviousDateLong}}{{end}}
 ---
 
-# {{.DayName}} Journal - Week {{.WeekNumber}}
+# Daily Journal - {{formatDate .Date "Monday, January 02, 2006"}}
 
-## {{.DateLong}}
+## Random Daily Ideas 🎲
 
-{{if .PreviousDate}}
-### Todos (from {{.PreviousDayName}}, {{.PreviousDateShort}})
-{{else}}
-### Todos  
+{{shuffle "Take a 10-minute walk outside\nCall someone you haven't talked to in a while\nTry a new recipe or cooking technique\nRead for 30 minutes\nOrganize one small area of your space\nWrite down three things you're grateful for"}}
+
+## Priority Tasks (Randomized Order) 📋
+
+{{$tasks := split "\n" "Review and respond to important emails\nWork on main project for 2 hours\nPlan tomorrow's schedule\nTake care of administrative tasks\nBrainstorm solutions for current challenges"}}
+{{range $index, $task := shuffleLines $tasks}}
+{{add $index 1}}. {{$task}}
 {{end}}
 
+## Random Focus for Today
+{{$focuses := split "\n" "Be present in conversations\nPractice patience\nSeek to understand before being understood\nShow kindness to yourself\nLook for opportunities to help others"}}
+**Today's Focus:** {{index (shuffleLines $focuses) 0}}
+
+## Regular Todos
 {{.TODOS}}
 
-### Focus for {{.DayName}}
-*Key priorities for today*
-
-### Notes
-*{{.MonthName}} {{.Day}}, {{.Year}} reflections*
+---
+*Each day brings a unique perspective with randomized content!*
 ```
 
-**Example template using todo statistics:**
-
-```markdown
----
-date: {{.Date}}
----
-
-# Daily Journal - {{.DateLong}} ({{.DayName}})
-
-## Summary
-
-Today is {{.DateLong}}, which is a {{.DayName}}.
-
-{{if .PreviousDate}}Previous entry: {{.PreviousDateLong}} ({{.PreviousDayName}}){{end}}
-
-## Todo Statistics
-
-- **Total active todos**: {{.TotalTodos}}
-- **Completed todos**: {{.CompletedTodos}}
-{{if .OldestTodoDate}}- **Oldest todo date**: {{.OldestTodoDate}}{{end}}
-{{if .TodoDaysSpan}}- **Days spanned by todos**: {{.TodoDaysSpan}}{{end}}
-{{if .TodoDates}}- **Todo dates**: {{range $i, $date := .TodoDates}}{{if $i}}, {{end}}{{$date}}{{end}}{{end}}
-
-## Today's Tasks
-
-{{.TODOS}}
-
-## Notes
-
-Today's reflections...
-```
-
-**Example template using custom variables:**
-
-```markdown
----
-date: {{.Date}}
-project: {{.Custom.ProjectName}}
-version: {{.Custom.Version}}
----
-
-# {{.Custom.ProjectName}} Daily Journal
-
-**Date:** {{.DateLong}} ({{.DayName}})  
-**Version:** {{.Custom.Version}}  
-**Author:** {{.Custom.Author}}  
-{{if .Custom.Debug}}**Debug Mode:** Enabled{{end}}
-
-### Task Categories
-{{range .Custom.Tags}}- {{.}}
-{{end}}
-
-### Statistics
-- **Total active todos**: {{.TotalTodos}}
-- **Completed todos**: {{.CompletedTodos}}
-
-## Today's Tasks (Max: {{.Custom.MaxTasks}})
-
-{{.TODOS}}
-
-## Daily Notes
-
-Reflections for {{.MonthName}} {{.Day}}, {{.Year}}
-```
-
-## Development Phases
+### Development Phases
 
 The todoer project has been enhanced through multiple development phases:
 
@@ -455,34 +426,3 @@ All phases include comprehensive test coverage and maintain full backward compat
 The tool uses a regex-based parser to analyze the journal format and maintains hierarchical structure. Tasks are considered "completed" only when both the task and all subtasks are marked as completed.
 
 For detailed implementation examples and edge cases, see the comprehensive test suite in `testdata/`.
-
-#### Shuffle Template Example
-
-```markdown
----
-title: {{.Date}}
----
-
-# Daily Randomized Journal - {{formatDate .Date "Monday, January 02, 2006"}}
-
-## Random Daily Ideas 🎲
-
-{{shuffle "Take a 10-minute walk outside\nCall someone you haven't talked to in a while\nTry a new recipe or cooking technique\nRead for 30 minutes\nOrganize one small area of your space\nWrite down three things you're grateful for"}}
-
-## Priority Tasks (Randomized Order) 📋
-
-{{$tasks := split "\n" "Review and respond to important emails\nWork on main project for 2 hours\nPlan tomorrow's schedule\nTake care of administrative tasks\nBrainstorm solutions for current challenges"}}
-{{range $index, $task := shuffleLines $tasks}}
-{{add $index 1}}. {{$task}}
-{{end}}
-
-## Random Focus for Today
-{{$focuses := split "\n" "Be present in conversations\nPractice patience\nSeek to understand before being understood\nShow kindness to yourself\nLook for opportunities to help others"}}
-**Today's Focus:** {{index (shuffleLines $focuses) 0}}
-
-## Regular Todos
-{{.TODOS}}
-
----
-*Each day brings a unique perspective with randomized content!*
-```
