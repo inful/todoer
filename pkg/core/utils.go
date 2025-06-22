@@ -138,6 +138,17 @@ func CountCompletedItems(items []*TodoItem) int {
 	return count
 }
 
+// CountUncompletedTopLevelItems counts uncompleted top-level todos in a slice.
+func CountUncompletedTopLevelItems(items []*TodoItem) int {
+	count := 0
+	for _, item := range items {
+		if item != nil && !item.Completed {
+			count++
+		}
+	}
+	return count
+}
+
 // GetMaxIndentLevel finds the maximum indentation level in a slice of todo items.
 // This can be useful for formatting or layout calculations.
 func GetMaxIndentLevel(items []*TodoItem, currentLevel int) int {
@@ -202,9 +213,11 @@ func FormatDateVariables(dateStr string) DateVariables {
 type TodoStatistics struct {
 	TotalTodos     int      // Total number of incomplete todos
 	CompletedTodos int      // Number of completed todos
+	UncompletedTodos int    // Number of uncompleted todos
 	TodoDates      []string // Unique dates that todos came from
 	OldestTodoDate string   // Date of the oldest incomplete todo
 	TodoDaysSpan   int      // Number of days spanned by todos
+	UncompletedTopLevelTodos int // Number of uncompleted top-level todos
 }
 
 // CalculateTodoStatistics analyzes a journal and calculates statistics for template usage.
@@ -222,6 +235,17 @@ func CalculateTodoStatistics(journal *TodoJournal, currentDate string) TodoStati
 	// Calculate basic counts
 	stats.TotalTodos = CountTotalItems(getAllTodosFromJournal(incomplete))
 	stats.CompletedTodos = CountTotalItems(getAllTodosFromJournal(completed))
+	stats.UncompletedTodos = stats.TotalTodos
+	// Count uncompleted top-level todos
+	if incomplete != nil && len(incomplete.Days) > 0 {
+		count := 0
+		for _, day := range incomplete.Days {
+			if day != nil {
+				count += CountUncompletedTopLevelItems(day.Items)
+			}
+		}
+		stats.UncompletedTopLevelTodos = count
+	}
 
 	// Extract unique dates from both completed and incomplete todos
 	dateSet := make(map[string]bool)

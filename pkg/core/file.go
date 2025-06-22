@@ -294,6 +294,7 @@ func CreateFromTemplateContentWithStats(templateContent, todosContent, currentDa
 		// Todo statistics
 		TotalTodos:     todoStats.TotalTodos,
 		CompletedTodos: todoStats.CompletedTodos,
+		UncompletedTodos: todoStats.UncompletedTodos,
 		TodoDates:      todoStats.TodoDates,
 		OldestTodoDate: todoStats.OldestTodoDate,
 		TodoDaysSpan:   todoStats.TodoDaysSpan,
@@ -405,6 +406,8 @@ func CreateFromTemplateContentWithCustom(templateContent, todosContent, currentD
 		// Todo statistics
 		TotalTodos:     todoStats.TotalTodos,
 		CompletedTodos: todoStats.CompletedTodos,
+		UncompletedTodos: todoStats.UncompletedTodos,
+		UncompletedTopLevelTodos: todoStats.UncompletedTopLevelTodos,
 		TodoDates:      todoStats.TodoDates,
 		OldestTodoDate: todoStats.OldestTodoDate,
 		TodoDaysSpan:   todoStats.TodoDaysSpan,

@@ -410,8 +410,20 @@ func cmdPreview(templateFile, date, todosFile, todosString, customVars string, c
 		}
 		todosContent = string(content)
 	} else {
-		// Built-in default sample TODOS section
-		todosContent = core.TodosHeader + "\n\n  - [ ] Example task\n  - [x] Completed task\n    Continuation line for completed\n  - [ ] Another open task\n    - [ ] Subtask\n      - [ ] Sub-subtask\n  - [ ] Task with #2025-06-22 tag\n"
+		// Built-in default sample TODOS section with multiple days and mixed completion
+		todosContent = `- [[2025-06-20]]
+  - [ ] Task from Friday
+  - [x] Completed Friday task
+- [[2025-06-21]]
+  - [ ] Task from Saturday
+  - [x] Completed Saturday task
+    Continuation for completed
+  - [ ] Another open Saturday task
+    - [ ] Subtask
+      - [ ] Sub-subtask
+- [[2025-06-22]]
+  - [ ] Task from Sunday with #2025-06-22 tag
+  - [x] Completed Sunday task`
 	}
 
 	// Parse custom variables if provided

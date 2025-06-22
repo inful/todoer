@@ -14,6 +14,8 @@ Today is {{.DateLong}}, which is a {{.DayName}}.
 
 - **Total active todos**: {{.TotalTodos}}
 - **Completed todos**: {{.CompletedTodos}}
+- **Uncompleted todos**: {{.UncompletedTodos}}
+- **Uncompleted top-level todos**: {{.UncompletedTopLevelTodos}}
 {{if .OldestTodoDate}}- **Oldest todo date**: {{.OldestTodoDate}}{{end}}
 {{if .TodoDaysSpan}}- **Days spanned by todos**: {{.TodoDaysSpan}}{{end}}
 {{if .TodoDates}}- **Todo dates**: {{range $i, $date := .TodoDates}}{{if $i}}, {{end}}{{$date}}{{end}}{{end}}
