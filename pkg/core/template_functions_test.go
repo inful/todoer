@@ -489,6 +489,70 @@ func TestTemplateFunctions(t *testing.T) {
 			})
 		}
 	})
+
+	// Test day checking functions
+	t.Run("Day Checking Functions", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			template string
+			expected string
+		}{
+			{
+				name:     "isMonday",
+				template: `{{isMonday "2025-06-16"}}`, // 2025-06-16 is a Monday
+				expected: "true",
+			},
+			{
+				name:     "isTuesday",
+				template: `{{isTuesday "2025-06-17"}}`, // 2025-06-17 is a Tuesday
+				expected: "true",
+			},
+			{
+				name:     "isWednesday",
+				template: `{{isWednesday "2025-06-18"}}`, // 2025-06-18 is a Wednesday
+				expected: "true",
+			},
+			{
+				name:     "isThursday",
+				template: `{{isThursday "2025-06-19"}}`, // 2025-06-19 is a Thursday
+				expected: "true",
+			},
+			{
+				name:     "isFriday",
+				template: `{{isFriday "2025-06-20"}}`, // 2025-06-20 is a Friday
+				expected: "true",
+			},
+			{
+				name:     "isSaturday",
+				template: `{{isSaturday "2025-06-21"}}`, // 2025-06-21 is a Saturday
+				expected: "true",
+			},
+			{
+				name:     "isSunday",
+				template: `{{isSunday "2025-06-22"}}`, // 2025-06-22 is a Sunday
+				expected: "true",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				tmpl, err := template.New("test").Funcs(funcMap).Parse(tt.template)
+				if err != nil {
+					t.Fatalf("Failed to parse template: %v", err)
+				}
+
+				var result strings.Builder
+				err = tmpl.Execute(&result, nil)
+				if err != nil {
+					t.Fatalf("Failed to execute template: %v", err)
+				}
+
+				if result.String() != tt.expected {
+					t.Errorf("Expected %q, got %q", tt.expected, result.String())
+				}
+			})
+		}
+	})
 }
 
 func TestTemplateIntegration(t *testing.T) {

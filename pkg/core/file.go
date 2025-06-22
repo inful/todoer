@@ -653,5 +653,56 @@ func CreateTemplateFunctions() template.FuncMap {
 			}
 			return a / b
 		},
+
+		// Day of week functions
+		"isMonday": func(dateStr string) bool {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return false
+			}
+			return date.Weekday() == time.Monday
+		},
+		"isTuesday": func(dateStr string) bool {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return false
+			}
+			return date.Weekday() == time.Tuesday
+		},
+		"isWednesday": func(dateStr string) bool {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return false
+			}
+			return date.Weekday() == time.Wednesday
+		},
+		"isThursday": func(dateStr string) bool {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return false
+			}
+			return date.Weekday() == time.Thursday
+		},
+		"isFriday": func(dateStr string) bool {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return false
+			}
+			return date.Weekday() == time.Friday
+		},
+		"isSaturday": func(dateStr string) bool {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return false
+			}
+			return date.Weekday() == time.Saturday
+		},
+		"isSunday": func(dateStr string) bool {
+			date, err := time.Parse(DateFormat, dateStr)
+			if err != nil {
+				return false
+			}
+			return date.Weekday() == time.Sunday
+		},
 	}
 }

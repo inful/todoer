@@ -20,7 +20,7 @@ Today is {{.DateLong}}, which is a {{.DayName}}.
 
 ## Today's Tasks
 
-<!-- Todos -->
+{{ .TODOS }}
 
 ## Notes
 
