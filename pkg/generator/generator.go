@@ -22,11 +22,12 @@ func isNoTodosSectionError(err error) bool {
 // Generator instances are safe for concurrent use by multiple goroutines as they
 // only read from their internal state and do not modify it after construction.
 type Generator struct {
-	templateContent string
-	templateDate    string
-	currentDate     string
-	previousDate    string                 // Date from the previous journal being processed (empty if none)
-	customVars      map[string]interface{} // Custom template variables
+	templateContent    string
+	templateDate       string
+	currentDate        string
+	previousDate       string                 // Date from the previous journal being processed (empty if none)
+	customVars         map[string]interface{} // Custom template variables
+	frontmatterDateKey string                 // Configurable frontmatter date key
 }
 
 // NewGenerator creates a new Generator instance with the specified template content and template date.
@@ -165,11 +166,12 @@ func NewGeneratorWithOptions(templateContent, templateDate string, opts ...Gener
 	currentDate := time.Now().Format(core.DateFormat)
 
 	g := &Generator{
-		templateContent: templateContent,
-		templateDate:    templateDate,
-		currentDate:     currentDate,
-		previousDate:    config.previousDate,
-		customVars:      config.customVars,
+		templateContent:    templateContent,
+		templateDate:       templateDate,
+		currentDate:        currentDate,
+		previousDate:       config.previousDate,
+		customVars:         config.customVars,
+		frontmatterDateKey: config.frontmatterDateKey,
 	}
 
 	// Validate template syntax
@@ -201,8 +203,8 @@ type ProcessResult struct {
 // Process processes the original journal content and returns a ProcessResult containing readers for both the modified original and the new file.
 // Returns an error if parsing or processing fails.
 func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
-	// Extract the date from frontmatter
-	date, err := core.ExtractDateFromFrontmatter(originalContent)
+	// Extract the date from frontmatter using the configured key
+	date, err := core.ExtractDateFromFrontmatter(originalContent, g.frontmatterDateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract date from frontmatter: %w", err)
 	}
@@ -261,8 +263,8 @@ func (g *Generator) createFromTemplateWithCustom(todosContent string, dateToUse 
 // ExtractDateFromFrontmatter extracts the date from the frontmatter title of the given content.
 // Returns the extracted date or an error if extraction fails.
 // This function is provided for CLI compatibility and convenience.
-func ExtractDateFromFrontmatter(content string) (string, error) {
-	return core.ExtractDateFromFrontmatter(content)
+func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) {
+	return core.ExtractDateFromFrontmatter(content, dateKey)
 }
 
 // CreateFromTemplateContent creates file content from template content using Go template syntax.
@@ -287,8 +289,9 @@ type GeneratorOption func(*generatorConfig)
 
 // generatorConfig holds configuration for Generator creation
 type generatorConfig struct {
-	previousDate string
-	customVars   map[string]interface{}
+	previousDate       string
+	customVars         map[string]interface{}
+	frontmatterDateKey string
 }
 
 // WithPreviousDate sets the previous journal date for the generator
@@ -302,6 +305,13 @@ func WithPreviousDate(date string) GeneratorOption {
 func WithCustomVariables(vars map[string]interface{}) GeneratorOption {
 	return func(config *generatorConfig) {
 		config.customVars = vars
+	}
+}
+
+// WithFrontmatterDateKey sets the frontmatter date key for the generator
+func WithFrontmatterDateKey(key string) GeneratorOption {
+	return func(config *generatorConfig) {
+		config.frontmatterDateKey = key
 	}
 }
 
@@ -328,11 +338,12 @@ func (g *Generator) WithOptions(opts ...GeneratorOption) (*Generator, error) {
 
 	// Create new generator with updated configuration
 	newGen := &Generator{
-		templateContent: g.templateContent,
-		templateDate:    g.templateDate,
-		currentDate:     g.currentDate,
-		previousDate:    config.previousDate,
-		customVars:      config.customVars,
+		templateContent:    g.templateContent,
+		templateDate:       g.templateDate,
+		currentDate:        g.currentDate,
+		previousDate:       config.previousDate,
+		customVars:         config.customVars,
+		frontmatterDateKey: config.frontmatterDateKey,
 	}
 
 	// Validate template syntax (should pass since original was valid, but safety first)

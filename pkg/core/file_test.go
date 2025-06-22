@@ -62,7 +62,7 @@ Content here`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := ExtractDateFromFrontmatter(tt.content)
+			r, err := ExtractDateFromFrontmatter(tt.content, "title")
 
 			if tt.expectError {
 				if err == nil {
@@ -77,13 +77,13 @@ Content here`,
 			}
 
 			if tt.expectToday {
-				if result != today {
-					t.Errorf("Expected today's date %s, got %s", today, result)
+				if r != today {
+					t.Errorf("Expected today's date %s, got %s", today, r)
 				}
 			} else {
 				// For the valid frontmatter test case
-				if result != "2025-06-19" {
-					t.Errorf("Expected 2025-06-19, got %s", result)
+				if r != "2025-06-19" {
+					t.Errorf("Expected 2025-06-19, got %s", r)
 				}
 			}
 		})

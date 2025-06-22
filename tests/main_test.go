@@ -6,6 +6,7 @@ import (
 
 	"todoer/pkg/core"
 	"todoer/pkg/generator"
+
 	"github.com/spf13/afero"
 )
 
@@ -16,6 +17,7 @@ func TestExtractDateFromFrontmatter(t *testing.T) {
 		content string
 		want    string
 		wantErr bool
+		key     string
 	}{
 		{
 			name: "Valid Frontmatter",
@@ -49,11 +51,22 @@ Content here
 			want:    "", // Will be today's date
 			wantErr: false,
 		},
+		{
+			name:    "Date key configurable (date)",
+			content: `---\ndate: 2025-06-21\n---\n`,
+			want:    "2025-06-21",
+			wantErr: false,
+			key:     "date",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := core.ExtractDateFromFrontmatter(tt.content)
+			key := "title"
+			if tt.key != "" {
+				key = tt.key
+			}
+			got, err := core.ExtractDateFromFrontmatter(tt.content, key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("core.ExtractDateFromFrontmatter() error = %v, wantErr %v", err, tt.wantErr)
 				return

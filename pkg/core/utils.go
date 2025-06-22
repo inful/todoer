@@ -3,6 +3,7 @@ package core
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -416,4 +417,12 @@ func isSupportedVariableType(value interface{}) bool {
 	default:
 		return false
 	}
+}
+
+// BuildFrontmatterDateRegex returns a compiled regex for extracting a date from frontmatter using the given key.
+func BuildFrontmatterDateRegex(key string) *regexp.Regexp {
+	// Escape the key for regex
+	key = regexp.QuoteMeta(key)
+	pattern := `(?s)---.*?` + key + `:\s*(\d{4}-\d{2}-\d{2}).*?---`
+	return regexp.MustCompile(pattern)
 }

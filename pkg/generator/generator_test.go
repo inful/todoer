@@ -454,7 +454,7 @@ title: 2024-01-15
 ---
 
 # Test`
-		date, err := ExtractDateFromFrontmatter(content)
+		date, err := ExtractDateFromFrontmatter(content, "title")
 		if err != nil {
 			t.Errorf("ExtractDateFromFrontmatter() error = %v", err)
 		}

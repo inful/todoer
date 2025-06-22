@@ -11,9 +11,10 @@ import (
 
 // Config represents the configuration file structure
 type Config struct {
-	RootDir      string                 `toml:"root_dir"`
-	TemplateFile string                 `toml:"template_file"`
-	Custom       map[string]interface{} `toml:"custom_variables"`
+	RootDir            string                 `toml:"root_dir"`
+	TemplateFile       string                 `toml:"template_file"`
+	Custom             map[string]interface{} `toml:"custom_variables"`
+	FrontmatterDateKey string                 `toml:"frontmatter_date_key"`
 }
 
 // loadConfig loads configuration from file, environment variables, and CLI flags
@@ -48,6 +49,9 @@ func loadConfig() (*Config, error) {
 	// Set defaults if not specified
 	if config.RootDir == "" {
 		config.RootDir = "."
+	}
+	if config.FrontmatterDateKey == "" {
+		config.FrontmatterDateKey = "title"
 	}
 
 	// Validate the final configuration

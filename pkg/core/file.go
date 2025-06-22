@@ -23,16 +23,16 @@ var (
 	excessiveBlankLinesRegex = regexp.MustCompile(`\n{3,}`)
 )
 
-// ExtractDateFromFrontmatter extracts the date from the frontmatter title.
-// It looks for a date pattern in the frontmatter using FrontmatterDateRegex.
+// ExtractDateFromFrontmatter extracts the date from the frontmatter using a configurable key.
 // If no date is found, it returns today's date as a fallback.
-func ExtractDateFromFrontmatter(content string) (string, error) {
+func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) {
 	if content == "" {
 		return time.Now().Format(DateFormat), nil
 	}
 
-	// Look for the title in frontmatter
-	matches := FrontmatterDateRegex.FindStringSubmatch(content)
+	// Use dynamic regex for the configured key
+	regex := BuildFrontmatterDateRegex(dateKey)
+	matches := regex.FindStringSubmatch(content)
 
 	if len(matches) < 2 {
 		// If no date found in frontmatter, use today's date

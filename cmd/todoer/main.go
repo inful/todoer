@@ -137,7 +137,7 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 	previousDate := ""
 	if sourceFile != "" {
 		if content, readErr := os.ReadFile(sourceFile); readErr == nil {
-			if extractedDate, extractErr := generator.ExtractDateFromFrontmatter(string(content)); extractErr == nil {
+			if extractedDate, extractErr := generator.ExtractDateFromFrontmatter(string(content), config.FrontmatterDateKey); extractErr == nil {
 				previousDate = extractedDate
 			}
 		}
@@ -152,7 +152,9 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 	// Create generator with resolved template
 	gen, err := generator.NewGeneratorWithOptions(tmplSource.content, templateDate,
 		generator.WithPreviousDate(previousDate),
-		generator.WithCustomVariables(config.Custom))
+		generator.WithCustomVariables(config.Custom),
+		generator.WithFrontmatterDateKey(config.FrontmatterDateKey),
+	)
 
 	if err != nil {
 		return nil, "", fmt.Errorf("error creating generator from template: %w", err)
