@@ -98,7 +98,7 @@ title: 2025-05-13
 
 Content here
 
-## Todos
+` + core.TodosHeader + `
 
 - [[2025-05-12]]
   - [ ] Task 1
@@ -108,7 +108,7 @@ Content here
 
 More content
 `,
-			wantBeforeTodos: `## Todos
+			wantBeforeTodos: core.TodosHeader + `
 
 `,
 			wantTodosSection: `- [[2025-05-12]]
@@ -127,13 +127,13 @@ title: 2025-05-13
 
 Content here
 
-## Todos
+` + core.TodosHeader + `
 
 - [[2025-05-12]]
   - [ ] Task 1
   - [x] Task 2
 `,
-			wantBeforeTodos: `## Todos
+			wantBeforeTodos: core.TodosHeader + `
 
 `,
 			wantTodosSection: `- [[2025-05-12]]
@@ -154,23 +154,23 @@ Content here
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotBeforeTodos, gotTodosSection, gotAfterTodos, err := core.ExtractTodosSection(tt.content)
+			gotBeforeTodos, gotTodosSection, gotAfterTodos, err := core.ExtractTodosSectionWithHeader(tt.content, core.TodosHeader)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("core.ExtractTodosSection() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("core.ExtractTodosSectionWithHeader() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr {
 				// Compare the content regardless of exact whitespace
 				if !strings.Contains(gotBeforeTodos, tt.wantBeforeTodos) {
-					t.Errorf("core.ExtractTodosSection() gotBeforeTodos should contain %q, got %q", tt.wantBeforeTodos, gotBeforeTodos)
+					t.Errorf("core.ExtractTodosSectionWithHeader() gotBeforeTodos should contain %q, got %q", tt.wantBeforeTodos, gotBeforeTodos)
 				}
 
 				if strings.TrimSpace(gotTodosSection) != strings.TrimSpace(tt.wantTodosSection) {
-					t.Errorf("core.ExtractTodosSection() gotTodosSection = %q, want %q", gotTodosSection, tt.wantTodosSection)
+					t.Errorf("core.ExtractTodosSectionWithHeader() gotTodosSection = %q, want %q", gotTodosSection, tt.wantTodosSection)
 				}
 
 				if tt.wantAfterTodos != "" && !strings.Contains(gotAfterTodos, tt.wantAfterTodos) {
-					t.Errorf("core.ExtractTodosSection() gotAfterTodos should contain %q, got %q", tt.wantAfterTodos, gotAfterTodos)
+					t.Errorf("core.ExtractTodosSectionWithHeader() gotAfterTodos should contain %q, got %q", tt.wantAfterTodos, gotAfterTodos)
 				}
 			}
 		})

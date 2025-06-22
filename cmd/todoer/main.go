@@ -154,6 +154,7 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 		generator.WithPreviousDate(previousDate),
 		generator.WithCustomVariables(config.Custom),
 		generator.WithFrontmatterDateKey(config.FrontmatterDateKey),
+		generator.WithTodosHeader(config.TodosHeader),
 	)
 
 	if err != nil {

@@ -5,8 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/afero"
 	"todoer/pkg/generator"
+
+	"github.com/spf13/afero"
 )
 
 func TestGeneratorLibraryInterface(t *testing.T) {
@@ -42,7 +43,7 @@ End of journal.`
 	templateDate := "2025-12-25"
 
 	// Create generator
-	gen, err := generator.NewGenerator(templateContent, templateDate)
+	gen, err := generator.NewGeneratorWithOptions(templateContent, templateDate, generator.WithTodosHeader("## Todos"))
 	if err != nil {
 		t.Fatalf("Failed to create generator: %v", err)
 	}
@@ -149,6 +150,63 @@ title: "2025-01-01"
 	// Verify template date is used
 	if !strings.Contains(newFile, "# Generated from file - 2025-03-15") {
 		t.Errorf("Expected template date in output. Got: %s", newFile)
+	}
+}
+
+func TestGeneratorWithCustomTodosHeader(t *testing.T) {
+	customHeader := "## Tasks"
+	originalContent := `---
+title: "2025-01-15"
+---
+
+# Daily Journal - January 15, 2025
+
+## Tasks
+
+- [[2025-01-14]]
+  - [ ] Custom header task
+  - [x] Completed custom header task
+
+## Notes
+
+Some notes here.`
+
+	templateContent := `# New Journal - {{.Date}}
+
+## Tasks
+
+{{.TODOS}}
+
+## Notes
+
+End of journal.`
+
+	templateDate := "2025-12-25"
+
+	gen, err := generator.NewGeneratorWithOptions(templateContent, templateDate, generator.WithTodosHeader(customHeader))
+	if err != nil {
+		t.Fatalf("Failed to create generator with custom header: %v", err)
+	}
+
+	result, err := gen.Process(originalContent)
+	if err != nil {
+		t.Fatalf("Failed to process content with custom header: %v", err)
+	}
+
+	newFileBytes, err := io.ReadAll(result.NewFile)
+	if err != nil {
+		t.Fatalf("Failed to read new file: %v", err)
+	}
+	newFile := string(newFileBytes)
+
+	if !strings.Contains(newFile, customHeader) {
+		t.Errorf("New file should contain the custom todos header '%s'. Got: %s", customHeader, newFile)
+	}
+	if !strings.Contains(newFile, "Custom header task") {
+		t.Errorf("New file should contain the uncompleted custom header task. Got: %s", newFile)
+	}
+	if strings.Contains(newFile, "Completed custom header task") {
+		t.Error("New file should not contain completed custom header task")
 	}
 }
 

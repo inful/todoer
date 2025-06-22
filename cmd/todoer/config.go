@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"todoer/pkg/core"
+
 	"github.com/BurntSushi/toml"
 )
 
@@ -15,6 +17,7 @@ type Config struct {
 	TemplateFile       string                 `toml:"template_file"`
 	Custom             map[string]interface{} `toml:"custom_variables"`
 	FrontmatterDateKey string                 `toml:"frontmatter_date_key"`
+	TodosHeader        string                 `toml:"todos_header"`
 }
 
 // loadConfig loads configuration from file, environment variables, and CLI flags
@@ -52,6 +55,9 @@ func loadConfig() (*Config, error) {
 	}
 	if config.FrontmatterDateKey == "" {
 		config.FrontmatterDateKey = "title"
+	}
+	if config.TodosHeader == "" {
+		config.TodosHeader = "## Todos"
 	}
 
 	// Validate the final configuration
@@ -112,4 +118,12 @@ func getConfigDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(homeDir, ".config"), nil
+}
+
+// GetTodosHeader returns the configured TODOS section header.
+func GetTodosHeader(config *Config) string {
+	if config != nil && config.TodosHeader != "" {
+		return config.TodosHeader
+	}
+	return core.TodosHeader
 }

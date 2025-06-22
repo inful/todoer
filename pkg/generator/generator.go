@@ -28,6 +28,7 @@ type Generator struct {
 	previousDate       string                 // Date from the previous journal being processed (empty if none)
 	customVars         map[string]interface{} // Custom template variables
 	frontmatterDateKey string                 // Configurable frontmatter date key
+	todosHeader        string                 // Configurable TODOS section header
 }
 
 // NewGenerator creates a new Generator instance with the specified template content and template date.
@@ -143,7 +144,9 @@ func NewGeneratorFromFileWithPreviousAndCustom(templateFile, templateDate, previ
 // Returns an error if the template date is invalid, custom variables are invalid, or template syntax is invalid.
 func NewGeneratorWithOptions(templateContent, templateDate string, opts ...GeneratorOption) (*Generator, error) {
 	// Set up default configuration
-	config := &generatorConfig{}
+	config := &generatorConfig{
+		todosHeader: core.TodosHeader, // Default to core.TodosHeader
+	}
 
 	// Apply options
 	for _, opt := range opts {
@@ -172,6 +175,7 @@ func NewGeneratorWithOptions(templateContent, templateDate string, opts ...Gener
 		previousDate:       config.previousDate,
 		customVars:         config.customVars,
 		frontmatterDateKey: config.frontmatterDateKey,
+		todosHeader:        config.todosHeader, // Always set
 	}
 
 	// Validate template syntax
@@ -210,7 +214,7 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	}
 
 	// Extract TODOS section
-	beforeTodos, todosSection, afterTodos, err := core.ExtractTodosSection(originalContent)
+	beforeTodos, todosSection, afterTodos, err := core.ExtractTodosSectionWithHeader(originalContent, g.todosHeader)
 	if err != nil {
 		// If no todos section exists, treat it as having an empty todos section
 		if isNoTodosSectionError(err) {
@@ -292,6 +296,7 @@ type generatorConfig struct {
 	previousDate       string
 	customVars         map[string]interface{}
 	frontmatterDateKey string
+	todosHeader        string
 }
 
 // WithPreviousDate sets the previous journal date for the generator
@@ -312,6 +317,13 @@ func WithCustomVariables(vars map[string]interface{}) GeneratorOption {
 func WithFrontmatterDateKey(key string) GeneratorOption {
 	return func(config *generatorConfig) {
 		config.frontmatterDateKey = key
+	}
+}
+
+// WithTodosHeader sets the TODOS section header for the generator
+func WithTodosHeader(header string) GeneratorOption {
+	return func(config *generatorConfig) {
+		config.todosHeader = header
 	}
 }
 
@@ -344,6 +356,7 @@ func (g *Generator) WithOptions(opts ...GeneratorOption) (*Generator, error) {
 		previousDate:       config.previousDate,
 		customVars:         config.customVars,
 		frontmatterDateKey: config.frontmatterDateKey,
+		todosHeader:        config.todosHeader, // Always set
 	}
 
 	// Validate template syntax (should pass since original was valid, but safety first)

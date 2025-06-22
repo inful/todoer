@@ -137,13 +137,13 @@ type TemplateData struct {
 	PreviousWeekNumber int    // 25 (week of year)
 
 	// Todo statistics
-	TotalTodos         int      // Total number of incomplete todos being carried over
-	CompletedTodos     int      // Number of completed todos found in source journal
-	UncompletedTodos   int      // Number of uncompleted todos found in source journal
-	UncompletedTopLevelTodos int // Number of uncompleted top-level todos
-	TodoDates          []string // List of unique dates that todos came from (YYYY-MM-DD format)
-	OldestTodoDate     string   // Date of the oldest incomplete todo (YYYY-MM-DD format, empty if no todos)
-	TodoDaysSpan       int      // Number of days spanned by todos (from oldest to current date)
+	TotalTodos               int      // Total number of incomplete todos being carried over
+	CompletedTodos           int      // Number of completed todos found in source journal
+	UncompletedTodos         int      // Number of uncompleted todos found in source journal
+	UncompletedTopLevelTodos int      // Number of uncompleted top-level todos
+	TodoDates                []string // List of unique dates that todos came from (YYYY-MM-DD format)
+	OldestTodoDate           string   // Date of the oldest incomplete todo (YYYY-MM-DD format, empty if no todos)
+	TodoDaysSpan             int      // Number of days spanned by todos (from oldest to current date)
 
 	// Custom variables (user-defined via config)
 	Custom map[string]interface{} // Custom template variables from configuration

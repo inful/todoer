@@ -211,13 +211,13 @@ func FormatDateVariables(dateStr string) DateVariables {
 
 // TodoStatistics holds calculated statistics about todos for template usage
 type TodoStatistics struct {
-	TotalTodos     int      // Total number of incomplete todos
-	CompletedTodos int      // Number of completed todos
-	UncompletedTodos int    // Number of uncompleted todos
-	TodoDates      []string // Unique dates that todos came from
-	OldestTodoDate string   // Date of the oldest incomplete todo
-	TodoDaysSpan   int      // Number of days spanned by todos
-	UncompletedTopLevelTodos int // Number of uncompleted top-level todos
+	TotalTodos               int      // Total number of incomplete todos
+	CompletedTodos           int      // Number of completed todos
+	UncompletedTodos         int      // Number of uncompleted todos
+	TodoDates                []string // Unique dates that todos came from
+	OldestTodoDate           string   // Date of the oldest incomplete todo
+	TodoDaysSpan             int      // Number of days spanned by todos
+	UncompletedTopLevelTodos int      // Number of uncompleted top-level todos
 }
 
 // CalculateTodoStatistics analyzes a journal and calculates statistics for template usage.

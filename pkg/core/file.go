@@ -101,6 +101,59 @@ func ExtractTodosSection(content string) (string, string, string, error) {
 	return beforeTodos, strings.TrimSpace(todosSection), afterTodos, nil
 }
 
+// ExtractTodosSectionWithHeader extracts the Todos section from the file content using a configurable header.
+// It returns three parts: content before Todos, the Todos section content, and content after Todos.
+// The function expects a specific format with a blank line after the Todos header.
+func ExtractTodosSectionWithHeader(content string, todosHeader string) (string, string, string, error) {
+	if content == "" {
+		return "", "", "", fmt.Errorf("content cannot be empty")
+	}
+
+	// Find the Todos section header
+	todosHeaderIndex := strings.Index(content, todosHeader)
+	if todosHeaderIndex == -1 {
+		return "", "", "", fmt.Errorf("could not find '%s' section in file", todosHeader)
+	}
+
+	// Calculate the end of the header
+	headerEndIndex := todosHeaderIndex + len(todosHeader)
+	if headerEndIndex >= len(content) {
+		return "", "", "", fmt.Errorf("incomplete %s section: no content after header", todosHeader)
+	}
+
+	contentAfterHeader := content[headerEndIndex:]
+
+	// Find the first blank line after the header
+	blankLineIndex := strings.Index(contentAfterHeader, BlankLineSeparator)
+	if blankLineIndex == -1 {
+		return "", "", "", fmt.Errorf("invalid %s section format: expected blank line after header", todosHeader)
+	}
+
+	// Calculate section boundaries
+	beforeTodosEnd := headerEndIndex + blankLineIndex + len(BlankLineSeparator)
+	beforeTodos := content[:beforeTodosEnd]
+
+	// Find the next section header (if any)
+	afterHeaderContent := content[beforeTodosEnd:]
+	nextSectionMatch := NextSectionRegex.FindStringIndex(afterHeaderContent)
+
+	var todosSection string
+	var afterTodos string
+
+	if nextSectionMatch != nil {
+		// There is another section after Todos
+		todosEndIndex := beforeTodosEnd + nextSectionMatch[0]
+		todosSection = content[beforeTodosEnd:todosEndIndex]
+		afterTodos = content[todosEndIndex:]
+	} else {
+		// Todos is the last section
+		todosSection = afterHeaderContent
+		afterTodos = ""
+	}
+
+	return beforeTodos, strings.TrimSpace(todosSection), afterTodos, nil
+}
+
 // ProcessTodosSection processes the Todos section and returns the completed and uncompleted sections.
 // It parses the todos, splits them into completed/uncompleted, adds date tags, and converts back to strings.
 // If there are no completed tasks, it returns a "Moved to [[date]]" message for the completed section.
@@ -292,12 +345,12 @@ func CreateFromTemplateContentWithStats(templateContent, todosContent, currentDa
 		PreviousWeekNumber: previousDateVars.WeekNumber,
 
 		// Todo statistics
-		TotalTodos:     todoStats.TotalTodos,
-		CompletedTodos: todoStats.CompletedTodos,
+		TotalTodos:       todoStats.TotalTodos,
+		CompletedTodos:   todoStats.CompletedTodos,
 		UncompletedTodos: todoStats.UncompletedTodos,
-		TodoDates:      todoStats.TodoDates,
-		OldestTodoDate: todoStats.OldestTodoDate,
-		TodoDaysSpan:   todoStats.TodoDaysSpan,
+		TodoDates:        todoStats.TodoDates,
+		OldestTodoDate:   todoStats.OldestTodoDate,
+		TodoDaysSpan:     todoStats.TodoDaysSpan,
 	}
 
 	// Parse and execute the Go template
@@ -404,13 +457,13 @@ func CreateFromTemplateContentWithCustom(templateContent, todosContent, currentD
 		PreviousWeekNumber: previousDateVars.WeekNumber,
 
 		// Todo statistics
-		TotalTodos:     todoStats.TotalTodos,
-		CompletedTodos: todoStats.CompletedTodos,
-		UncompletedTodos: todoStats.UncompletedTodos,
+		TotalTodos:               todoStats.TotalTodos,
+		CompletedTodos:           todoStats.CompletedTodos,
+		UncompletedTodos:         todoStats.UncompletedTodos,
 		UncompletedTopLevelTodos: todoStats.UncompletedTopLevelTodos,
-		TodoDates:      todoStats.TodoDates,
-		OldestTodoDate: todoStats.OldestTodoDate,
-		TodoDaysSpan:   todoStats.TodoDaysSpan,
+		TodoDates:                todoStats.TodoDates,
+		OldestTodoDate:           todoStats.OldestTodoDate,
+		TodoDaysSpan:             todoStats.TodoDaysSpan,
 	}
 
 	// Merge custom variables
