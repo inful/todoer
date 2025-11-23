@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"todoer/pkg/core"
-
 	"github.com/BurntSushi/toml"
 )
 
@@ -35,7 +33,7 @@ func loadConfig() (*Config, error) {
 
 	// Load from config file if it exists
 	if _, err := os.Stat(configPath); err == nil {
-		logDebug("Loading config from %s", configPath)
+		// config loaded from file; logging omitted to keep config package decoupled
 		if err := loadConfigFromFile(configPath, config); err != nil {
 			return nil, err
 		}
@@ -118,12 +116,4 @@ func getConfigDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(homeDir, ".config"), nil
-}
-
-// GetTodosHeader returns the configured TODOS section header.
-func GetTodosHeader(config *Config) string {
-	if config != nil && config.TodosHeader != "" {
-		return config.TodosHeader
-	}
-	return core.TodosHeader
 }

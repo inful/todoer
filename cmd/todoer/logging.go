@@ -1,35 +1,52 @@
 package main
 
 import (
-	"io"
+	"fmt"
 	"log"
 	"os"
 )
 
-// Logger for debug and verbose output
-var debugLogger *log.Logger
+// OutputMode controls verbosity of logging.
+type OutputMode int
 
-func init() {
-	// Initialize debug logger - disabled by default
-	debugLogger = log.New(io.Discard, "DEBUG: ", log.LstdFlags|log.Lshortfile)
+const (
+	ModeNormal OutputMode = iota
+	ModeQuiet
+	ModeDebug
+)
+
+// Logger encapsulates log behavior based on OutputMode.
+type Logger struct {
+	mode OutputMode
 }
 
-// enableDebugLogging enables debug logging to stderr
-func enableDebugLogging() {
-	debugLogger.SetOutput(os.Stderr)
+// NewLogger creates a new Logger with the given mode.
+func NewLogger(mode OutputMode) *Logger {
+	return &Logger{mode: mode}
 }
 
-// logDebug logs a debug message if debug logging is enabled
-func logDebug(format string, args ...interface{}) {
-	debugLogger.Printf(format, args...)
+// WithMode returns a new Logger with updated mode.
+func (l *Logger) WithMode(mode OutputMode) *Logger {
+	return &Logger{mode: mode}
 }
 
-// logInfo logs an info message to stderr
-func logInfo(format string, args ...interface{}) {
-	log.Printf("INFO: "+format, args...)
+// Info logs informational messages unless in quiet mode.
+func (l *Logger) Info(format string, args ...interface{}) {
+	if l.mode == ModeQuiet {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "INFO: "+format+"\n", args...)
 }
 
-// logError logs an error message to stderr
-func logError(format string, args ...interface{}) {
+// Debug logs debug messages only in debug mode.
+func (l *Logger) Debug(format string, args ...interface{}) {
+	if l.mode != ModeDebug {
+		return
+	}
+	log.Printf("DEBUG: "+format, args...)
+}
+
+// Error always logs errors.
+func (l *Logger) Error(format string, args ...interface{}) {
 	log.Printf("ERROR: "+format, args...)
 }

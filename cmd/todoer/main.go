@@ -61,11 +61,13 @@ var CLI struct {
 		TargetFile   string `arg:"" help:"Output file for uncompleted tasks"`
 		TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
 		TemplateDate string `help:"Optional date for template rendering (YYYY-MM-DD)"`
+		PrintPath    bool   `help:"Print the target file path to stdout (for composability)"`
 	} `cmd:"" help:"Process a journal file"`
 
 	New struct {
 		RootDir      string `help:"Root directory for journals (overrides config/env)"`
 		TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
+		PrintPath    bool   `help:"Print the created file path to stdout (for composability)"`
 	} `cmd:"new" help:"Create a new daily journal file"`
 
 	Preview struct {
@@ -81,6 +83,14 @@ var CLI struct {
 var defaultTemplate string
 
 func main() {
+	// Determine output mode and construct logger
+	mode := ModeNormal
+	if CLI.Debug {
+		mode = ModeDebug
+	}
+	// Logger will be further adjusted per-command for quiet mode
+	baseLogger := NewLogger(mode)
+
 	// Load configuration from file, environment, and defaults
 	config, err := loadConfig()
 	if err != nil {
@@ -93,32 +103,39 @@ func main() {
 		kong.UsageOnError(),
 	)
 
-	// Enable debug logging if requested
 	if CLI.Debug {
-		enableDebugLogging()
-		logDebug("Debug logging enabled")
+		baseLogger.Debug("Debug logging enabled")
 	}
 
 	switch ctx.Command() {
 	case "new":
-		logDebug("Executing new command")
+		logger := baseLogger
+		if CLI.New.PrintPath {
+			logger = logger.WithMode(ModeQuiet)
+		}
+		logger.Debug("Executing new command")
 		rootDir := getConfigValue(CLI.New.RootDir, config.RootDir)
 		templateFile := getConfigValue(CLI.New.TemplateFile, config.TemplateFile)
 
-		err := cmdNew(rootDir, templateFile, config)
+		err := cmdNew(rootDir, templateFile, CLI.New.PrintPath, config, logger)
 		if err != nil {
 			fatalError("Failed to create new journal: %v", err)
 		}
 	case "process <source-file> <target-file>":
-		logDebug("Executing process command")
+		logger := baseLogger
+		if CLI.Process.PrintPath {
+			logger = logger.WithMode(ModeQuiet)
+		}
+		logger.Debug("Executing process command")
 		templateFile := getConfigValue(CLI.Process.TemplateFile, config.TemplateFile)
 
-		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, templateFile, CLI.Process.TemplateDate, false, config)
+		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, templateFile, CLI.Process.TemplateDate, false, CLI.Process.PrintPath, config, logger)
 		if err != nil {
 			fatalError("Processing failed: %v", err)
 		}
 	case "preview":
-		logDebug("Executing preview command")
+		logger := baseLogger
+		logger.Debug("Executing preview command")
 		err := cmdPreview(CLI.Preview.TemplateFile, CLI.Preview.Date, CLI.Preview.TodosFile, CLI.Preview.TodosString, CLI.Preview.CustomVars, config)
 		if err != nil {
 			fatalError("Preview failed: %v", err)
@@ -164,8 +181,10 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 	return gen, tmplSource.name, nil
 }
 
-func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup bool, config *Config) error {
-	logDebug("Processing journal: source=%s, target=%s, template=%s, date=%s", sourceFile, targetFile, templateFile, templateDate)
+func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup, printPath bool, config *Config, logger *Logger) error {
+	logger.Debug("Processing journal: source=%s, target=%s, template=%s, date=%s", sourceFile, targetFile, templateFile, templateDate)
+
+	quiet := printPath
 
 	// Validate all input arguments
 	if err := validateProcessArgs(sourceFile, targetFile, templateDate); err != nil {
@@ -181,7 +200,7 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 		return err
 	}
 
-	logDebug("Using template source: %s", templateSource)
+	logger.Debug("Using template source: %s", templateSource)
 
 	result, err := gen.ProcessFile(sourceFile)
 	if err != nil {
@@ -198,13 +217,17 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 		return fmt.Errorf("error reading new file content: %v", err)
 	}
 
-	logDebug("Writing %d bytes to target file: %s", len(newContentBytes), targetFile)
+	logger.Debug("Writing %d bytes to target file: %s", len(newContentBytes), targetFile)
 	err = safeWriteFile(targetFile, newContentBytes, FilePermissions)
 	if err != nil {
 		return fmt.Errorf("error writing to target file %s: %v", targetFile, err)
 	}
 
-	logInfo("Successfully processed %s -> %s (template: %s)", sourceFile, targetFile, templateSource)
+	logger.Info("Successfully processed %s -> %s (template: %s)", sourceFile, targetFile, templateSource)
+
+	if printPath {
+		fmt.Println(targetFile)
+	}
 
 	if len(modifiedContentBytes) > 0 && !skipBackup {
 		// Create backup of original file (before any modifications)
@@ -224,9 +247,13 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 			return fmt.Errorf("error updating source file %s: %v", sourceFile, err)
 		}
 
-		fmt.Printf("Backup of original file created: %s\n", backupFile)
+		if !quiet {
+			fmt.Printf("Backup of original file created: %s\n", backupFile)
+		}
 	} else {
-		fmt.Printf("No modifications found in the original file, backup not created.\n")
+		if !quiet {
+			fmt.Printf("No modifications found in the original file, backup not created.\n")
+		}
 	}
 	return nil
 }
@@ -284,12 +311,16 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 	return closestFile, nil
 }
 
-func cmdNew(rootDir, templateFile string, config *Config) error {
+func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger *Logger) error {
 	today := time.Now().Format(core.DateFormat)
 	journalPath := buildJournalPath(rootDir, today)
 
 	if _, err := os.Stat(journalPath); err == nil {
-		fmt.Printf("Journal for today already exists: %s\n", journalPath)
+		if printPath {
+			fmt.Println(journalPath)
+		} else {
+			fmt.Printf("Journal for today already exists: %s\n", journalPath)
+		}
 		return nil
 	}
 
@@ -300,7 +331,9 @@ func cmdNew(rootDir, templateFile string, config *Config) error {
 	closest, err := findClosestJournalFile(rootDir, today)
 	skipBackup := false
 	if err != nil {
-		fmt.Println("No previous journal found, creating a new one from template.")
+		if !printPath {
+			fmt.Println("No previous journal found, creating a new one from template.")
+		}
 		// Create an empty temporary file to seed the new journal
 		tmpFile, err := os.CreateTemp("", "empty-journal-*.md")
 		if err != nil {
@@ -320,8 +353,16 @@ func cmdNew(rootDir, templateFile string, config *Config) error {
 		skipBackup = true
 	}
 
-	fmt.Printf("Using '%s' as source to create new journal for today.\n", closest)
-	return processJournal(closest, journalPath, templateFile, today, skipBackup, config)
+	if !printPath {
+		fmt.Printf("Using '%s' as source to create new journal for today.\n", closest)
+	}
+
+	err = processJournal(closest, journalPath, templateFile, today, skipBackup, printPath, config, logger)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // buildJournalPath constructs the path for a journal file based on date and root directory
@@ -389,7 +430,7 @@ func getConfigValue(cliValue, configValue string) string {
 
 // fatalError logs an error and exits with code 1
 func fatalError(format string, args ...interface{}) {
-	logError(format, args...)
+	fmt.Fprintf(os.Stderr, "ERROR: "+format+"\n", args...)
 	os.Exit(1)
 }
 

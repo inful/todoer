@@ -497,7 +497,8 @@ func TestProcessJournal_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := processJournal(tt.sourceFile, tt.targetFile, "", tt.templateDate, false, config)
+			logger := NewLogger(ModeQuiet)
+			err := processJournal(tt.sourceFile, tt.targetFile, "", tt.templateDate, false, false, config, logger)
 
 			if tt.expectError {
 				if err == nil {
@@ -542,7 +543,8 @@ Some notes here.
 
 	config := &Config{RootDir: tempDir}
 
-	err := processJournal(sourceFile, targetFile, "", "", false, config)
+	logger := NewLogger(ModeQuiet)
+	err := processJournal(sourceFile, targetFile, "", "", false, false, config, logger)
 	if err != nil {
 		t.Fatalf("processJournal() unexpected error: %v", err)
 	}
@@ -667,7 +669,8 @@ Previous notes.
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := cmdNew(tt.rootDir, "", config)
+			logger := NewLogger(ModeQuiet)
+			err := cmdNew(tt.rootDir, "", false, config, logger)
 
 			if tt.expectError {
 				if err == nil {
@@ -696,7 +699,8 @@ func TestCmdNew_AlreadyExists(t *testing.T) {
 	createTestFile(t, expectedPath, "existing content")
 
 	// Should not error if file already exists
-	err := cmdNew(tempDir, "", config)
+	logger := NewLogger(ModeQuiet)
+	err := cmdNew(tempDir, "", false, config, logger)
 	if err != nil {
 		t.Errorf("cmdNew() unexpected error when file exists: %v", err)
 	}

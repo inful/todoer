@@ -3,7 +3,6 @@ package core
 
 import (
 	"fmt"
-	"math/rand"
 	"regexp"
 	"strings"
 	"text/template"
@@ -303,29 +302,53 @@ func cleanExcessiveBlankLines(content string) string {
 	return excessiveBlankLinesRegex.ReplaceAllString(content, BlankLineSeparator)
 }
 
-// CreateFromTemplateContentWithStats creates file content from template content using Go template syntax with todo statistics.
-// It validates inputs, calculates todo statistics, executes the template with comprehensive data, and cleans up formatting.
-// The template receives TemplateData with date formatting, todo statistics, and content variables.
-func CreateFromTemplateContentWithStats(templateContent, todosContent, currentDate, previousDate string, journal *TodoJournal) (string, error) {
+// TemplateOptions contains all options for template creation.
+// This provides a flexible interface for template rendering with optional features.
+type TemplateOptions struct {
+	// Required fields
+	Content      string // Template content to render
+	TodosContent string // Todos content to insert
+	CurrentDate  string // Current date in YYYY-MM-DD format
+	
+	// Optional fields
+	PreviousDate string                 // Previous journal date (optional)
+	Journal      *TodoJournal           // Journal for statistics calculation (optional)
+	CustomVars   map[string]interface{} // Custom template variables (optional)
+}
+
+// CreateFromTemplate creates file content from template using the options pattern.
+// This is the unified function that supports all template features: date formatting,
+// todo statistics, and custom variables. Use TemplateOptions to specify what features to enable.
+func CreateFromTemplate(opts TemplateOptions) (string, error) {
 	// Validate inputs
-	if err := validateTemplateInputs(templateContent, currentDate); err != nil {
+	if err := validateTemplateInputs(opts.Content, opts.CurrentDate); err != nil {
 		return "", err
 	}
 
+	// Validate custom variables if present
+	if opts.CustomVars != nil {
+		if err := ValidateCustomVariables(opts.CustomVars); err != nil {
+			return "", fmt.Errorf("invalid custom variables: %w", err)
+		}
+	}
+
 	// Format current date variables
-	currentDateVars := FormatDateVariables(currentDate)
+	currentDateVars := FormatDateVariables(opts.CurrentDate)
 
 	// Format previous date variables
-	previousDateVars := FormatDateVariables(previousDate)
+	previousDateVars := FormatDateVariables(opts.PreviousDate)
 
-	// Calculate todo statistics
-	todoStats := CalculateTodoStatistics(journal, currentDate)
+	// Calculate todo statistics if journal provided
+	var todoStats TodoStatistics
+	if opts.Journal != nil {
+		todoStats = CalculateTodoStatistics(opts.Journal, opts.CurrentDate)
+	}
 
 	// Create template data with all variants and statistics
 	data := TemplateData{
-		Date:         currentDate,
-		TODOS:        todosContent,
-		PreviousDate: previousDate,
+		Date:         opts.CurrentDate,
+		TODOS:        opts.TodosContent,
+		PreviousDate: opts.PreviousDate,
 
 		// Current date variants
 		DateShort:  currentDateVars.Short,
@@ -347,27 +370,45 @@ func CreateFromTemplateContentWithStats(templateContent, todosContent, currentDa
 		PreviousDayName:    previousDateVars.DayName,
 		PreviousWeekNumber: previousDateVars.WeekNumber,
 
-		// Todo statistics
-		TotalTodos:       todoStats.TotalTodos,
-		CompletedTodos:   todoStats.CompletedTodos,
-		UncompletedTodos: todoStats.UncompletedTodos,
-		TodoDates:        todoStats.TodoDates,
-		OldestTodoDate:   todoStats.OldestTodoDate,
-		TodoDaysSpan:     todoStats.TodoDaysSpan,
+		// Todo statistics (will be zero values if journal not provided)
+		TotalTodos:               todoStats.TotalTodos,
+		CompletedTodos:           todoStats.CompletedTodos,
+		UncompletedTodos:         todoStats.UncompletedTodos,
+		UncompletedTopLevelTodos: todoStats.UncompletedTopLevelTodos,
+		TodoDates:                todoStats.TodoDates,
+		OldestTodoDate:           todoStats.OldestTodoDate,
+		TodoDaysSpan:             todoStats.TodoDaysSpan,
+	}
+
+	// Merge custom variables if provided
+	if opts.CustomVars != nil {
+		MergeCustomVariables(&data, opts.CustomVars)
 	}
 
 	// Parse and execute the Go template
-	output, err := executeTemplate(templateContent, data)
+	output, err := executeTemplate(opts.Content, data)
 	if err != nil {
 		return "", err
 	}
 
 	// Clean up extra blank lines when TODOS is empty
-	if strings.TrimSpace(todosContent) == "" {
+	if strings.TrimSpace(opts.TodosContent) == "" {
 		output = cleanExcessiveBlankLines(output)
 	}
 
 	return output, nil
+}
+
+// CreateFromTemplateContentWithStats creates file content from template content using Go template syntax with todo statistics.
+// Deprecated: Use CreateFromTemplate with TemplateOptions instead for better flexibility.
+func CreateFromTemplateContentWithStats(templateContent, todosContent, currentDate, previousDate string, journal *TodoJournal) (string, error) {
+	return CreateFromTemplate(TemplateOptions{
+		Content:      templateContent,
+		TodosContent: todosContent,
+		CurrentDate:  currentDate,
+		PreviousDate: previousDate,
+		Journal:      journal,
+	})
 }
 
 // ProcessTodosSectionWithStats processes the Todos section and returns completed/uncompleted sections plus parsed journal.
@@ -415,356 +456,38 @@ func ProcessTodosSectionWithStats(todosSection string, originalDate string, curr
 }
 
 // CreateFromTemplateContentWithCustom creates template output with comprehensive data including custom variables.
-// This is the most advanced template rendering function that supports date formatting, todo statistics, and custom variables.
+// Deprecated: Use CreateFromTemplate with TemplateOptions instead for better flexibility.
 func CreateFromTemplateContentWithCustom(templateContent, todosContent, currentDate, previousDate string, journal *TodoJournal, customVars map[string]interface{}) (string, error) {
-	// Validate inputs
-	if err := validateTemplateInputs(templateContent, currentDate); err != nil {
-		return "", err
-	}
-
-	// Validate custom variables
-	if err := ValidateCustomVariables(customVars); err != nil {
-		return "", fmt.Errorf("invalid custom variables: %w", err)
-	}
-
-	// Format current date variables
-	currentDateVars := FormatDateVariables(currentDate)
-
-	// Format previous date variables
-	previousDateVars := FormatDateVariables(previousDate)
-
-	// Calculate todo statistics
-	todoStats := CalculateTodoStatistics(journal, currentDate)
-
-	// Create template data with all variants and statistics
-	data := TemplateData{
-		Date:         currentDate,
-		TODOS:        todosContent,
+	return CreateFromTemplate(TemplateOptions{
+		Content:      templateContent,
+		TodosContent: todosContent,
+		CurrentDate:  currentDate,
 		PreviousDate: previousDate,
-
-		// Current date variants
-		DateShort:  currentDateVars.Short,
-		DateLong:   currentDateVars.Long,
-		Year:       currentDateVars.Year,
-		Month:      currentDateVars.Month,
-		MonthName:  currentDateVars.MonthName,
-		Day:        currentDateVars.Day,
-		DayName:    currentDateVars.DayName,
-		WeekNumber: currentDateVars.WeekNumber,
-
-		// Previous date variants
-		PreviousDateShort:  previousDateVars.Short,
-		PreviousDateLong:   previousDateVars.Long,
-		PreviousYear:       previousDateVars.Year,
-		PreviousMonth:      previousDateVars.Month,
-		PreviousMonthName:  previousDateVars.MonthName,
-		PreviousDay:        previousDateVars.Day,
-		PreviousDayName:    previousDateVars.DayName,
-		PreviousWeekNumber: previousDateVars.WeekNumber,
-
-		// Todo statistics
-		TotalTodos:               todoStats.TotalTodos,
-		CompletedTodos:           todoStats.CompletedTodos,
-		UncompletedTodos:         todoStats.UncompletedTodos,
-		UncompletedTopLevelTodos: todoStats.UncompletedTopLevelTodos,
-		TodoDates:                todoStats.TodoDates,
-		OldestTodoDate:           todoStats.OldestTodoDate,
-		TodoDaysSpan:             todoStats.TodoDaysSpan,
-	}
-
-	// Merge custom variables
-	MergeCustomVariables(&data, customVars)
-
-	// Parse and execute the Go template
-	output, err := executeTemplate(templateContent, data)
-	if err != nil {
-		return "", err
-	}
-
-	// Clean up extra blank lines when TODOS is empty
-	if strings.TrimSpace(todosContent) == "" {
-		output = cleanExcessiveBlankLines(output)
-	}
-
-	return output, nil
+		Journal:      journal,
+		CustomVars:   customVars,
+	})
 }
 
 // CreateTemplateFunctions returns a map of custom template functions for enhanced template functionality.
 // These functions provide date arithmetic, string manipulation, and utility operations for templates.
+// The functions are organized into separate categories for maintainability.
 func CreateTemplateFunctions() template.FuncMap {
-	return template.FuncMap{
-		// Date arithmetic functions
-		"addDays": func(dateStr string, days int) string {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return dateStr // Return original on error
-			}
-			return date.AddDate(0, 0, days).Format(DateFormat)
-		},
-		"subDays": func(dateStr string, days int) string {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return dateStr // Return original on error
-			}
-			return date.AddDate(0, 0, -days).Format(DateFormat)
-		},
-		"addWeeks": func(dateStr string, weeks int) string {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return dateStr // Return original on error
-			}
-			return date.AddDate(0, 0, weeks*7).Format(DateFormat)
-		},
-		"addMonths": func(dateStr string, months int) string {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return dateStr // Return original on error
-			}
-			return date.AddDate(0, months, 0).Format(DateFormat)
-		},
-		"formatDate": func(dateStr, format string) string {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return dateStr // Return original on error
-			}
-			return date.Format(format)
-		},
-		"weekday": func(dateStr string) string {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return "" // Return empty on error
-			}
-			return date.Weekday().String()
-		},
-		"isWeekend": func(dateStr string) bool {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return false // Return false on error
-			}
-			weekday := date.Weekday()
-			return weekday == time.Saturday || weekday == time.Sunday
-		},
-		"daysDiff": func(dateStr1, dateStr2 string) int {
-			date1, err1 := time.Parse(DateFormat, dateStr1)
-			date2, err2 := time.Parse(DateFormat, dateStr2)
-			if err1 != nil || err2 != nil {
-				return 0 // Return 0 on error
-			}
-			return int(date2.Sub(date1).Hours() / 24)
-		},
+	result := make(template.FuncMap)
 
-		// String manipulation functions
-		"upper": strings.ToUpper,
-		"lower": strings.ToLower,
-		"title": func(s string) string {
-			// Simple title case implementation - capitalize first letter of each word
-			if s == "" {
-				return s
-			}
-			words := strings.Fields(s)
-			for i, word := range words {
-				if len(word) > 0 {
-					words[i] = strings.ToUpper(word[:1]) + strings.ToLower(word[1:])
-				}
-			}
-			return strings.Join(words, " ")
-		},
-		"trim": strings.TrimSpace,
-		"replace": func(old, new, str string) string {
-			return strings.ReplaceAll(str, old, new)
-		},
-		"contains":  strings.Contains,
-		"hasPrefix": strings.HasPrefix,
-		"hasSuffix": strings.HasSuffix,
-		"split": func(sep, str string) []string {
-			return strings.Split(str, sep)
-		},
-		"join": func(sep string, strs []string) string {
-			return strings.Join(strs, sep)
-		},
-		"repeat": strings.Repeat,
-		"len": func(s string) int {
-			return len(s)
-		},
-
-		// Utility functions
-		"default": func(defaultVal interface{}, val interface{}) interface{} {
-			if val == nil || val == "" {
-				return defaultVal
-			}
-			return val
-		},
-		"empty": func(val interface{}) bool {
-			if val == nil {
-				return true
-			}
-			switch v := val.(type) {
-			case string:
-				return v == ""
-			case []string:
-				return len(v) == 0
-			case map[string]interface{}:
-				return len(v) == 0
-			case int:
-				return v == 0
-			default:
-				return false
-			}
-		},
-		"notEmpty": func(val interface{}) bool {
-			if val == nil {
-				return false
-			}
-			switch v := val.(type) {
-			case string:
-				return v != ""
-			case []string:
-				return len(v) > 0
-			case map[string]interface{}:
-				return len(v) > 0
-			case int:
-				return v != 0
-			default:
-				return true
-			}
-		},
-		"seq": func(start, end int) []int {
-			if start > end {
-				return []int{}
-			}
-			result := make([]int, end-start+1)
-			for i := 0; i < len(result); i++ {
-				result[i] = start + i
-			}
-			return result
-		},
-		"dict": func(values ...interface{}) map[string]interface{} {
-			if len(values)%2 != 0 {
-				return nil
-			}
-			dict := make(map[string]interface{})
-			for i := 0; i < len(values); i += 2 {
-				key, ok := values[i].(string)
-				if !ok {
-					return nil
-				}
-				dict[key] = values[i+1]
-			}
-			return dict
-		},
-		"shuffle": func(text string) string {
-			// Split the text into lines, filter out empty lines
-			lines := strings.Split(strings.TrimSpace(text), "\n")
-			var nonEmptyLines []string
-			for _, line := range lines {
-				if trimmed := strings.TrimSpace(line); trimmed != "" {
-					nonEmptyLines = append(nonEmptyLines, line)
-				}
-			}
-
-			// If we have no lines or only one line, return as-is
-			if len(nonEmptyLines) <= 1 {
-				return text
-			}
-
-			// Create a copy for shuffling
-			shuffled := make([]string, len(nonEmptyLines))
-			copy(shuffled, nonEmptyLines)
-
-			// Shuffle using Fisher-Yates algorithm
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			for i := len(shuffled) - 1; i > 0; i-- {
-				j := r.Intn(i + 1)
-				shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-			}
-
-			return strings.Join(shuffled, "\n")
-		},
-		"shuffleLines": func(lines []string) []string {
-			// Create a copy for shuffling
-			if len(lines) <= 1 {
-				return lines
-			}
-
-			shuffled := make([]string, len(lines))
-			copy(shuffled, lines)
-
-			// Shuffle using Fisher-Yates algorithm
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			for i := len(shuffled) - 1; i > 0; i-- {
-				j := r.Intn(i + 1)
-				shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-			}
-
-			return shuffled
-		},
-
-		// Simple arithmetic functions for templates
-		"add": func(a, b int) int {
-			return a + b
-		},
-		"sub": func(a, b int) int {
-			return a - b
-		},
-		"mul": func(a, b int) int {
-			return a * b
-		},
-		"div": func(a, b int) int {
-			if b == 0 {
-				return 0 // Prevent division by zero
-			}
-			return a / b
-		},
-
-		// Day of week functions
-		"isMonday": func(dateStr string) bool {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return false
-			}
-			return date.Weekday() == time.Monday
-		},
-		"isTuesday": func(dateStr string) bool {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return false
-			}
-			return date.Weekday() == time.Tuesday
-		},
-		"isWednesday": func(dateStr string) bool {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return false
-			}
-			return date.Weekday() == time.Wednesday
-		},
-		"isThursday": func(dateStr string) bool {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return false
-			}
-			return date.Weekday() == time.Thursday
-		},
-		"isFriday": func(dateStr string) bool {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return false
-			}
-			return date.Weekday() == time.Friday
-		},
-		"isSaturday": func(dateStr string) bool {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return false
-			}
-			return date.Weekday() == time.Saturday
-		},
-		"isSunday": func(dateStr string) bool {
-			date, err := time.Parse(DateFormat, dateStr)
-			if err != nil {
-				return false
-			}
-			return date.Weekday() == time.Sunday
-		},
+	// Merge date functions
+	for k, v := range createDateFunctions() {
+		result[k] = v
 	}
+
+	// Merge string functions
+	for k, v := range createStringFunctions() {
+		result[k] = v
+	}
+
+	// Merge utility functions
+	for k, v := range createUtilityFunctions() {
+		result[k] = v
+	}
+
+	return result
 }
