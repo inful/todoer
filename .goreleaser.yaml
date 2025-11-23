@@ -44,3 +44,26 @@ checksum:
 
 changelog:
   use: git
+  sort: asc
+  filters:
+    exclude:
+      - '^chore:'
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^refactor:'
+      - '^style:'
+  groups:
+    - title: Features
+      regexp: '^feat(\(.+\))?:'
+      order: 0
+    - title: Fixes
+      regexp: '^fix(\(.+\))?:'
+      order: 1
+    - title: Documentation
+      regexp: '^docs(\(.+\))?:'
+      order: 2
+    - title: Maintenance
+      regexp: '^chore(\(.+\))?:'
+      order: 3
+  abbrev: 8
