@@ -40,7 +40,7 @@ Configuration precedence is:
 
 ### Create a new daily journal
 
-To create todays journal file and carry over incomplete todos from the most recent previous journal:
+To create todays journal file and carry over incomplete todos from the most recent previous journal:
 
 ```bash
 # Uses configuration or defaults
@@ -198,8 +198,8 @@ integrations.
 
 Available commands:
 
-- `todoer new`  prints the created journal file path.
-- `todoer process`  prints the target file path.
+- `todoer new` - prints the created journal file path.
+- `todoer process` - prints the target file path.
 
 Examples:
 

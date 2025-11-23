@@ -18,9 +18,9 @@ todoer new [--root-dir PATH] [--template-file PATH] [--print-path]
 
 Options:
 
-- `--root-dir PATH`  override the journals root directory.
-- `--template-file PATH`  override the template file for this run.
-- `--print-path`  print the created file path to standard output.
+- `--root-dir PATH` - override the journals root directory.
+- `--template-file PATH` - override the template file for this run.
+- `--print-path` - print the created file path to standard output.
 
 ### `todoer process`
 
@@ -34,11 +34,11 @@ todoer process SOURCE TARGET [--template-file PATH] [--template-date YYYY-MM-DD]
 
 Options:
 
-- `SOURCE`  input journal file.
-- `TARGET`  output file for uncompleted tasks.
-- `--template-file PATH`  template file used for the target file.
-- `--template-date YYYY-MM-DD`  logical date used for template variables.
-- `--print-path`  print the target file path to standard output.
+- `SOURCE` - input journal file.
+- `TARGET` - output file for uncompleted tasks.
+- `--template-file PATH` - template file used for the target file.
+- `--template-date YYYY-MM-DD` - logical date used for template variables.
+- `--print-path` - print the target file path to standard output.
 
 ### `todoer preview`
 
@@ -54,11 +54,11 @@ todoer preview [--template-file PATH] [--date YYYY-MM-DD] \
 
 Options:
 
-- `--template-file PATH`  template file to render.
-- `--date YYYY-MM-DD`  date used for date-related template variables.
-- `--todos-file PATH`  file containing a todos section.
-- `--todos-string STRING`  inline todos section string.
-- `--custom-vars JSON`  JSON object for custom variables.
+- `--template-file PATH` - template file to render.
+- `--date YYYY-MM-DD` - date used for date-related template variables.
+- `--todos-file PATH` - file containing a todos section.
+- `--todos-string STRING` - inline todos section string.
+- `--custom-vars JSON` - JSON object for custom variables.
 
 ## Journal format
 
@@ -101,50 +101,50 @@ available in the template context.
 
 ### Current date variables
 
-- `{{.Date}}`  current date in `YYYY-MM-DD` format.
-- `{{.DateShort}}`  short date format, for example `06/20/25`.
-- `{{.DateLong}}`  long date format, for example `June 20, 2025`.
-- `{{.Year}}`  year, for example `2025`.
-- `{{.Month}}`  month number, for example `06`.
-- `{{.MonthName}}`  month name, for example `June`.
-- `{{.Day}}`  day of month, for example `20`.
-- `{{.DayName}}`  day name, for example `Friday`.
-- `{{.WeekNumber}}`  ISO week number, for example `25`.
+- `{{.Date}}` - current date in `YYYY-MM-DD` format.
+- `{{.DateShort}}` - short date format, for example `06/20/25`.
+- `{{.DateLong}}` - long date format, for example `June 20, 2025`.
+- `{{.Year}}` - year, for example `2025`.
+- `{{.Month}}` - month number, for example `06`.
+- `{{.MonthName}}` - month name, for example `June`.
+- `{{.Day}}` - day of month, for example `20`.
+- `{{.DayName}}` - day name, for example `Friday`.
+- `{{.WeekNumber}}` - ISO week number, for example `25`.
 
 ### Previous date variables
 
 Empty if there is no previous journal.
 
-- `{{.PreviousDate}}`  previous journal date in `YYYY-MM-DD` format.
-- `{{.PreviousDateShort}}`  short format.
-- `{{.PreviousDateLong}}`  long format.
-- `{{.PreviousYear}}`  previous year.
-- `{{.PreviousMonth}}`  previous month number.
-- `{{.PreviousMonthName}}`  previous month name.
-- `{{.PreviousDay}}`  previous day of month.
-- `{{.PreviousDayName}}`  previous day name.
-- `{{.PreviousWeekNumber}}`  previous week number.
+- `{{.PreviousDate}}` - previous journal date in `YYYY-MM-DD` format.
+- `{{.PreviousDateShort}}` - short format.
+- `{{.PreviousDateLong}}` - long format.
+- `{{.PreviousYear}}` - previous year.
+- `{{.PreviousMonth}}` - previous month number.
+- `{{.PreviousMonthName}}` - previous month name.
+- `{{.PreviousDay}}` - previous day of month.
+- `{{.PreviousDayName}}` - previous day name.
+- `{{.PreviousWeekNumber}}` - previous week number.
 
 ### Content variables
 
-- `{{.TODOS}}`  uncompleted tasks section content.
+- `{{.TODOS}}` - uncompleted tasks section content.
 
 ### Todo statistics variables
 
 Statistics are derived from the source journal when processing or
 creating a new journal.
 
-- `{{.TotalTodos}}`  number of incomplete todos being carried over.
-- `{{.CompletedTodos}}`  number of completed todos in the source
+- `{{.TotalTodos}}` - number of incomplete todos being carried over.
+- `{{.CompletedTodos}}` - number of completed todos in the source
   journal.
-- `{{.UncompletedTodos}}`  number of uncompleted todos in the source
+- `{{.UncompletedTodos}}` - number of uncompleted todos in the source
   journal.
-- `{{.UncompletedTopLevelTodos}}`  number of uncompleted top-level
+- `{{.UncompletedTopLevelTodos}}` - number of uncompleted top-level
   todos.
-- `{{.TodoDates}}`  list of unique dates that todos came from.
-- `{{.OldestTodoDate}}`  date of the oldest incomplete todo, or empty
+- `{{.TodoDates}}` - list of unique dates that todos came from.
+- `{{.OldestTodoDate}}` - date of the oldest incomplete todo, or empty
   if none.
-- `{{.TodoDaysSpan}}`  number of days between the oldest incomplete
+- `{{.TodoDaysSpan}}` - number of days between the oldest incomplete
   todo and the current date.
 
 ### Custom variables
@@ -152,7 +152,7 @@ creating a new journal.
 Custom variables are provided via configuration and exposed under the
 `.Custom` field.
 
-- `{{.Custom.VariableName}}`  value of a user-defined variable.
+- `{{.Custom.VariableName}}` - value of a user-defined variable.
 
 Constraints:
 
@@ -274,9 +274,9 @@ Key types and functions:
 
 `ProcessResult` has the fields:
 
-- `ModifiedOriginal io.Reader`  modified source content with completed
+- `ModifiedOriginal io.Reader` - modified source content with completed
   tasks tagged.
-- `NewFile io.Reader`  generated file content with uncompleted tasks.
+- `NewFile io.Reader` - generated file content with uncompleted tasks.
 
 ### Core template API
 
@@ -292,10 +292,10 @@ Main entry point for template rendering:
 
 `TemplateOptions` groups:
 
-- `Content`  template content.
-- `TodosContent`  todos section content.
-- `CurrentDate`  date used for date variables.
-- `PreviousDate`  optional previous journal date.
-- `Journal`  optional journal structure for statistics.
-- `CustomVars`  optional custom variables map.
+- `Content` - template content.
+- `TodosContent` - todos section content.
+- `CurrentDate` - date used for date variables.
+- `PreviousDate` - optional previous journal date.
+- `Journal` - optional journal structure for statistics.
+- `CustomVars` - optional custom variables map.
 
