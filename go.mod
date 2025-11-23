@@ -1,4 +1,4 @@
-module todoer
+module github.com/inful/todoer
 
 go 1.24.3
 

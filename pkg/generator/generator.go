@@ -7,7 +7,8 @@ import (
 	"os"
 	"strings"
 	"text/template"
-	"todoer/pkg/core"
+
+	"github.com/inful/todoer/pkg/core"
 )
 
 // Generator instances are safe for concurrent use by multiple goroutines as they

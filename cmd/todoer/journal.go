@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"todoer/pkg/core"
-	"todoer/pkg/generator"
+	"github.com/inful/todoer/pkg/core"
+	"github.com/inful/todoer/pkg/generator"
 )
 
 // getGenerator builds a Generator from CLI/config, resolving template and previous date.

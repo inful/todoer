@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/inful/todoer/pkg/generator"
 	"github.com/spf13/afero"
-	"todoer/pkg/generator"
 )
 
 func TestIntegration(t *testing.T) {

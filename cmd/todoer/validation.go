@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"todoer/pkg/core"
+
+	"github.com/inful/todoer/pkg/core"
 )
 
 // Validation errors

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"todoer/pkg/core"
+	"github.com/inful/todoer/pkg/core"
 )
 
 func cmdPreview(templateFile, date, todosFile, todosString, customVars string, config *Config) error {

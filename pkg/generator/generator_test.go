@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"todoer/pkg/core"
+	"github.com/inful/todoer/pkg/core"
 )
 
 // TestNewGeneratorWithOptions_Basic tests basic generator creation using options-based constructor

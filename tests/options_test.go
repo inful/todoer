@@ -2,7 +2,8 @@ package main
 
 import (
 	"testing"
-	"todoer/pkg/generator"
+
+	"github.com/inful/todoer/pkg/generator"
 )
 
 func TestNewGeneratorWithOptions(t *testing.T) {

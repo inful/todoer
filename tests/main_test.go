@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"todoer/pkg/core"
-	"todoer/pkg/generator"
+	"github.com/inful/todoer/pkg/core"
+	"github.com/inful/todoer/pkg/generator"
 
 	"github.com/spf13/afero"
 )

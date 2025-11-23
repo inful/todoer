@@ -5,8 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"todoer/pkg/generator"
-
+	"github.com/inful/todoer/pkg/generator"
 	"github.com/spf13/afero"
 )
 
