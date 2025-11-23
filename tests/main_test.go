@@ -433,7 +433,7 @@ title: 2024-01-14
 			t.Fatalf("Failed to read template: %v", err)
 		}
 
-		gen, err := generator.NewGenerator(string(templateContentFromFile), "2024-01-15")
+		gen, err := generator.NewGeneratorWithOptions(string(templateContentFromFile), "2024-01-15")
 		if err != nil {
 			t.Fatalf("NewGeneratorFromFileWithOptions failed: %v", err)
 		}

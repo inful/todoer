@@ -491,7 +491,14 @@ func cmdPreview(templateFile, date, todosFile, todosString, customVars string, c
 	}
 
 	// Render template
-	output, err := core.CreateFromTemplateContentWithCustom(tmplSource.content, todosContent, date, "", journal, custom)
+	output, err := core.CreateFromTemplate(core.TemplateOptions{
+		Content:      tmplSource.content,
+		TodosContent: todosContent,
+		CurrentDate:  date,
+		PreviousDate: "",
+		Journal:      journal,
+		CustomVars:   custom,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to render template: %w", err)
 	}

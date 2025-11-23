@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// TestNewGenerator tests the basic generator creation
-func TestNewGenerator(t *testing.T) {
+// TestNewGeneratorWithOptions_Basic tests basic generator creation using options-based constructor
+func TestNewGeneratorWithOptions_Basic(t *testing.T) {
 	tests := []struct {
 		name         string
 		template     string
@@ -38,13 +38,13 @@ func TestNewGenerator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gen, err := NewGenerator(tt.template, tt.templateDate)
+			gen, err := NewGeneratorWithOptions(tt.template, tt.templateDate)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("NewGenerator() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("NewGeneratorWithOptions() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr && gen == nil {
-				t.Errorf("NewGenerator() returned nil generator")
+				t.Errorf("NewGeneratorWithOptions() returned nil generator")
 			}
 		})
 	}
@@ -113,7 +113,7 @@ func TestNewGeneratorFromFile(t *testing.T) {
 	}
 
 	t.Run("valid file", func(t *testing.T) {
-		gen, err := NewGeneratorFromFile(templateFile, "2024-01-15")
+		gen, err := NewGeneratorFromFileWithOptions(templateFile, "2024-01-15")
 		if err != nil {
 			t.Fatalf("NewGeneratorFromFile() error = %v", err)
 		}
@@ -123,7 +123,7 @@ func TestNewGeneratorFromFile(t *testing.T) {
 	})
 
 	t.Run("nonexistent file", func(t *testing.T) {
-		_, err := NewGeneratorFromFile("nonexistent.md", "2024-01-15")
+		_, err := NewGeneratorFromFileWithOptions("nonexistent.md", "2024-01-15")
 		if err == nil {
 			t.Error("NewGeneratorFromFile() should fail for nonexistent file")
 		}
@@ -432,40 +432,7 @@ func TestTemplateValidation(t *testing.T) {
 }
 
 // TestDeprecatedConstructors tests that deprecated constructors still work
-func TestDeprecatedConstructors(t *testing.T) {
-	template := "# {{.Date}}\n{{.TODOS}}"
-
-	t.Run("NewGenerator (deprecated)", func(t *testing.T) {
-		gen, err := NewGenerator(template, "2024-01-15")
-		if err != nil {
-			t.Errorf("Deprecated NewGenerator() should still work: %v", err)
-		}
-		if gen == nil {
-			t.Error("Deprecated NewGenerator() should return generator")
-		}
-	})
-
-	t.Run("NewGeneratorWithPrevious", func(t *testing.T) {
-		gen, err := NewGeneratorWithPrevious(template, "2024-01-15", "2024-01-14")
-		if err != nil {
-			t.Errorf("NewGeneratorWithPrevious() error = %v", err)
-		}
-		if gen.previousDate != "2024-01-14" {
-			t.Errorf("previousDate = %v, want %v", gen.previousDate, "2024-01-14")
-		}
-	})
-
-	t.Run("NewGeneratorWithCustom", func(t *testing.T) {
-		customVars := map[string]interface{}{"test": "value"}
-		gen, err := NewGeneratorWithCustom(template, "2024-01-15", customVars)
-		if err != nil {
-			t.Errorf("NewGeneratorWithCustom() error = %v", err)
-		}
-		if gen.customVars["test"] != "value" {
-			t.Errorf("customVars[test] = %v, want %v", gen.customVars["test"], "value")
-		}
-	})
-}
+// Deprecated constructor tests removed; NewGeneratorWithOptions/NewGeneratorFromFileWithOptions are the supported APIs.
 
 // TestConvenienceFunctions tests the convenience functions
 func TestConvenienceFunctions(t *testing.T) {

@@ -302,8 +302,8 @@ func TestProcessTodosSection(t *testing.T) {
 	}
 }
 
-// Test CreateFromTemplateContent function
-func TestCreateFromTemplateContent(t *testing.T) {
+// Test CreateFromTemplate basic behavior
+func TestCreateFromTemplate(t *testing.T) {
 	tests := []struct {
 		name         string
 		template     string
@@ -361,7 +361,11 @@ func TestCreateFromTemplateContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := CreateFromTemplateContent(tt.template, tt.todosContent, tt.currentDate, "")
+			result, err := CreateFromTemplate(TemplateOptions{
+				Content:      tt.template,
+				TodosContent: tt.todosContent,
+				CurrentDate:  tt.currentDate,
+			})
 
 			if tt.expectError {
 				if err == nil {
@@ -382,8 +386,8 @@ func TestCreateFromTemplateContent(t *testing.T) {
 	}
 }
 
-// Test enhanced date variables in CreateFromTemplateContent
-func TestCreateFromTemplateContentWithDateVariables(t *testing.T) {
+// Test enhanced date variables in CreateFromTemplate
+func TestCreateFromTemplateWithDateVariables(t *testing.T) {
 	tests := []struct {
 		name             string
 		templateContent  string
@@ -458,7 +462,12 @@ PrevLong: '{{.PreviousDateLong}}'`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := CreateFromTemplateContent(tt.templateContent, tt.todosContent, tt.currentDate, tt.previousDate)
+			result, err := CreateFromTemplate(TemplateOptions{
+				Content:      tt.templateContent,
+				TodosContent: tt.todosContent,
+				CurrentDate:  tt.currentDate,
+				PreviousDate: tt.previousDate,
+			})
 
 			if tt.expectError {
 				if err == nil {
@@ -481,8 +490,8 @@ PrevLong: '{{.PreviousDateLong}}'`,
 	}
 }
 
-// Test CreateFromTemplateContentWithStats function
-func TestCreateFromTemplateContentWithStats(t *testing.T) {
+// Test CreateFromTemplate with statistics via TemplateOptions
+func TestCreateFromTemplateWithStats(t *testing.T) {
 	tests := []struct {
 		name             string
 		templateContent  string
@@ -551,7 +560,13 @@ Oldest: {{.OldestTodoDate}}`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := CreateFromTemplateContentWithStats(tt.templateContent, tt.todosContent, tt.currentDate, tt.previousDate, tt.journal)
+			result, err := CreateFromTemplate(TemplateOptions{
+				Content:      tt.templateContent,
+				TodosContent: tt.todosContent,
+				CurrentDate:  tt.currentDate,
+				PreviousDate: tt.previousDate,
+				Journal:      tt.journal,
+			})
 
 			if tt.expectError {
 				if err == nil {
@@ -574,8 +589,8 @@ Oldest: {{.OldestTodoDate}}`,
 	}
 }
 
-// Test CreateFromTemplateContentWithCustom function
-func TestCreateFromTemplateContentWithCustom(t *testing.T) {
+// Test CreateFromTemplate with custom variables via TemplateOptions
+func TestCreateFromTemplateWithCustom(t *testing.T) {
 	tests := []struct {
 		name         string
 		template     string
@@ -662,7 +677,14 @@ Todos: {{.TODOS}}`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := CreateFromTemplateContentWithCustom(tt.template, tt.todos, tt.currentDate, tt.previousDate, tt.journal, tt.customVars)
+			result, err := CreateFromTemplate(TemplateOptions{
+				Content:      tt.template,
+				TodosContent: tt.todos,
+				CurrentDate:  tt.currentDate,
+				PreviousDate: tt.previousDate,
+				Journal:      tt.journal,
+				CustomVars:   tt.customVars,
+			})
 
 			if tt.expectError {
 				if err == nil {

@@ -119,7 +119,7 @@ func TestGeneratorFromFile(t *testing.T) {
 		t.Fatalf("Failed to read template file: %v", err)
 	}
 
-	gen, err := generator.NewGenerator(string(templateContentFromFile), templateDate)
+	gen, err := generator.NewGeneratorWithOptions(string(templateContentFromFile), templateDate)
 	if err != nil {
 		t.Fatalf("Failed to create generator from file: %v", err)
 	}
