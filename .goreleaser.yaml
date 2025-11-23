@@ -38,6 +38,9 @@ kos:
     platforms:
       - linux/amd64
       - linux/arm64
+    tags:
+      - "{{ .Tag }}"
+      - "latest"
 
 checksum:
   name_template: "checksums.txt"
