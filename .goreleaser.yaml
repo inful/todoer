@@ -41,7 +41,7 @@ kos:
       - "{{ .Tag }}"
       - "latest"
     annotations:
-      org.opencontainers.image.source: "{{ .RepoURL }}"
+      org.opencontainers.image.source: "https://github.com/{{ .Env.GITHUB_REPOSITORY }}/"
       org.opencontainers.image.licenses: "GPL-3.0"
       org.opencontainers.image.title: "{{ .ProjectName }}"
       org.opencontainers.image.description: "Todoer is a CLI tool that manages todos in daily markdown journals"
