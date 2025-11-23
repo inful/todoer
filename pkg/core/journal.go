@@ -200,3 +200,51 @@ func writeItemToString(builder *strings.Builder, item *TodoItem, depth int) {
 		writeItemToString(builder, subItem, depth+1)
 	}
 }
+
+// MoveUndatedTodosToCurrentDate moves incomplete todos that don't have a date (empty date string)
+// to the specified current date. Completed undated todos are removed.
+// This handles the case where users add todos without specifying dates.
+func MoveUndatedTodosToCurrentDate(journal *TodoJournal, currentDate string) *TodoJournal {
+	if journal == nil || currentDate == "" {
+		return journal
+	}
+
+	result := &TodoJournal{Days: []*DaySection{}}
+	var currentDateDay *DaySection
+	var undatedIncompleteTodos []*TodoItem
+
+	// First pass: collect undated incomplete todos and find/keep dated sections
+	for _, day := range journal.Days {
+		if day.Date == "" {
+			// This is an undated section - collect incomplete todos
+			for _, item := range day.Items {
+				if !item.Completed {
+					undatedIncompleteTodos = append(undatedIncompleteTodos, item)
+				}
+			}
+		} else {
+			// Keep dated sections
+			if day.Date == currentDate {
+				currentDateDay = day
+			}
+			result.Days = append(result.Days, day)
+		}
+	}
+
+	// If we have undated incomplete todos, add them to the current date section
+	if len(undatedIncompleteTodos) > 0 {
+		if currentDateDay == nil {
+			// Create current date section if it doesn't exist
+			currentDateDay = &DaySection{
+				Date:  currentDate,
+				Items: undatedIncompleteTodos,
+			}
+			result.Days = append(result.Days, currentDateDay)
+		} else {
+			// Add undated todos to the existing current date section
+			currentDateDay.Items = append(currentDateDay.Items, undatedIncompleteTodos...)
+		}
+	}
+
+	return result
+}

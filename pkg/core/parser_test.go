@@ -292,7 +292,7 @@ unparseable line`
 		}
 	})
 
-	t.Run("todo lines without day header should be ignored", func(t *testing.T) {
+	t.Run("todo lines without day header should create undated section", func(t *testing.T) {
 		content := `  - [ ] Task without day header
 - [[2023-01-01]]
   - [ ] Valid task`
@@ -302,11 +302,28 @@ unparseable line`
 			t.Errorf("Expected no error, got: %v", err)
 		}
 
-		if len(journal.Days) != 1 {
-			t.Errorf("Expected 1 day, got %d", len(journal.Days))
+		// Should have 2 days: one undated (empty date string) and one dated
+		if len(journal.Days) != 2 {
+			t.Errorf("Expected 2 days, got %d", len(journal.Days))
+		}
+
+		// First day should be undated with empty date string
+		if journal.Days[0].Date != "" {
+			t.Errorf("Expected first day to have empty date, got '%s'", journal.Days[0].Date)
 		}
 		if len(journal.Days[0].Items) != 1 {
-			t.Errorf("Expected 1 item, got %d", len(journal.Days[0].Items))
+			t.Errorf("Expected 1 item in undated section, got %d", len(journal.Days[0].Items))
+		}
+		if journal.Days[0].Items[0].Text != "Task without day header" {
+			t.Errorf("Expected undated task text, got '%s'", journal.Days[0].Items[0].Text)
+		}
+
+		// Second day should be the dated section
+		if journal.Days[1].Date != "2023-01-01" {
+			t.Errorf("Expected second day to have date '2023-01-01', got '%s'", journal.Days[1].Date)
+		}
+		if len(journal.Days[1].Items) != 1 {
+			t.Errorf("Expected 1 item in dated section, got %d", len(journal.Days[1].Items))
 		}
 	})
 }

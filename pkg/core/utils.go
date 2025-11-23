@@ -424,13 +424,12 @@ func isValidVariableName(name string) bool {
 // isSupportedVariableType checks if the variable type is supported in templates.
 // Supported types: string, int, float64, bool, []string, []int
 func isSupportedVariableType(value interface{}) bool {
-	switch value.(type) {
+	switch v := value.(type) {
 	case string, int, int64, float64, bool:
 		return true
 	case []interface{}:
 		// Check if all elements are of supported types
-		slice := value.([]interface{})
-		for _, elem := range slice {
+		for _, elem := range v {
 			if !isSupportedVariableType(elem) {
 				return false
 			}

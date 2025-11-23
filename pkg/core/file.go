@@ -174,6 +174,9 @@ func ProcessTodosSection(todosSection string, originalDate string, currentDate s
 		return "", "", fmt.Errorf("failed to parse todos section: %w", err)
 	}
 
+	// Move undated todos to the original date (the date from the file frontmatter)
+	journal = MoveUndatedTodosToCurrentDate(journal, originalDate)
+
 	// Split the journal into completed and uncompleted tasks
 	completedJournal, uncompletedJournal := SplitJournal(journal)
 
@@ -385,6 +388,9 @@ func ProcessTodosSectionWithStats(todosSection string, originalDate string, curr
 	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to parse todos section: %w", err)
 	}
+
+	// Move undated todos to the original date (the date from the file frontmatter)
+	journal = MoveUndatedTodosToCurrentDate(journal, originalDate)
 
 	// Split the journal into completed and uncompleted tasks
 	completedJournal, uncompletedJournal := SplitJournal(journal)
@@ -666,9 +672,9 @@ func CreateTemplateFunctions() template.FuncMap {
 			copy(shuffled, nonEmptyLines)
 
 			// Shuffle using Fisher-Yates algorithm
-			rand.Seed(time.Now().UnixNano())
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			for i := len(shuffled) - 1; i > 0; i-- {
-				j := rand.Intn(i + 1)
+				j := r.Intn(i + 1)
 				shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 			}
 
@@ -684,9 +690,9 @@ func CreateTemplateFunctions() template.FuncMap {
 			copy(shuffled, lines)
 
 			// Shuffle using Fisher-Yates algorithm
-			rand.Seed(time.Now().UnixNano())
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			for i := len(shuffled) - 1; i > 0; i-- {
-				j := rand.Intn(i + 1)
+				j := r.Intn(i + 1)
 				shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 			}
 

@@ -73,29 +73,44 @@ func processLine(journal *TodoJournal, state *parserState, line string, lineNum 
 		return processDayHeader(journal, state, dateMatch[1])
 	}
 
-	// Skip processing if we don't have a current day
-	if state.currentDay == nil {
-		return nil
-	}
-
 	// Check for todo item first
 	if todoMatch := TodoItemRegex.FindStringSubmatch(line); todoMatch != nil {
+		// If we don't have a current day, create an undated section
+		if state.currentDay == nil {
+			state.currentDay = &DaySection{
+				Date:  "",
+				Items: []*TodoItem{},
+			}
+		}
 		return processTodoItem(state, todoMatch)
 	}
 
 	// Check for bullet entry (- something that's not a todo)
 	if bulletMatch := BulletEntryRegex.FindStringSubmatch(line); bulletMatch != nil {
-		return processAssociatedLine(state, line, bulletMatch)
+		// Only process if we have a current day (otherwise skip)
+		if state.currentDay != nil {
+			return processAssociatedLine(state, line, bulletMatch)
+		}
+		return nil
 	}
 
 	// Check for continuation line (indented text that's part of a bullet or todo)
 	if contMatch := ContinuationRegex.FindStringSubmatch(line); contMatch != nil {
-		return processAssociatedLine(state, line, contMatch)
+		// Only process if we have a current day (otherwise skip)
+		if state.currentDay != nil {
+			return processAssociatedLine(state, line, contMatch)
+		}
+		return nil
 	}
 
 	// If we have a current day and the line is not empty but doesn't match any pattern,
 	// it's an unparseable line.
-	return fmt.Errorf("unparseable line %d: %q", lineNum, line)
+	if state.currentDay != nil {
+		return fmt.Errorf("unparseable line %d: %q", lineNum, line)
+	}
+
+	// If we don't have a current day yet, skip this line (it's before any todos)
+	return nil
 }
 
 // processDayHeader processes a day header line

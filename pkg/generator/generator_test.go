@@ -315,6 +315,27 @@ func TestGeneratorWithOptions(t *testing.T) {
 	if gen.previousDate != "" {
 		t.Errorf("Original generator should be unchanged")
 	}
+
+	// Test that the reconfigured generator can process content
+	content := `---
+title: 2024-01-14
+---
+
+## Todos
+
+- [ ] Task 1`
+
+	result, err := newGen.Process(content)
+	if err != nil {
+		t.Fatalf("Failed to process with newGen: %v", err)
+	}
+
+	if _, err := io.ReadAll(result.ModifiedOriginal); err != nil {
+		t.Fatalf("Failed to read modified original: %v", err)
+	}
+	if _, err := io.ReadAll(result.NewFile); err != nil {
+		t.Fatalf("Failed to read new file: %v", err)
+	}
 }
 
 // TestGeneratorEdgeCases tests edge cases and error conditions
@@ -532,7 +553,11 @@ title: 2024-01-15
 			b.Fatalf("Processing failed: %v", err)
 		}
 		// Consume the readers to ensure full processing
-		io.ReadAll(result.ModifiedOriginal)
-		io.ReadAll(result.NewFile)
+		if _, err := io.ReadAll(result.ModifiedOriginal); err != nil {
+			b.Fatalf("Failed to read modified original: %v", err)
+		}
+		if _, err := io.ReadAll(result.NewFile); err != nil {
+			b.Fatalf("Failed to read new file: %v", err)
+		}
 	}
 }
