@@ -16,7 +16,7 @@ import (
 type Generator struct {
 	templateContent    string
 	templateDate       string
-	currentDate        string
+	taggingDate        string
 	previousDate       string                 // Date from the previous journal being processed (empty if none)
 	customVars         map[string]interface{} // Custom template variables
 	frontmatterDateKey string                 // Configurable frontmatter date key
@@ -26,9 +26,9 @@ type Generator struct {
 // NewGeneratorWithOptions creates a new Generator with flexible configuration options.
 // This is the recommended constructor for new code as it provides the most flexibility.
 // Returns an error if the template date is invalid, custom variables are invalid, or template syntax is invalid.
-func NewGeneratorWithOptions(templateContent, templateDate string, opts ...GeneratorOption) (*Generator, error) {
+func NewGeneratorWithOptions(templateContent, templateDate string, opts ...Option) (*Generator, error) {
 	// Set up default configuration
-	config := &generatorConfig{
+	config := &options{
 		todosHeader: core.TodosHeader, // Default to core.TodosHeader
 	}
 
@@ -50,12 +50,12 @@ func NewGeneratorWithOptions(templateContent, templateDate string, opts ...Gener
 	}
 
 	// Use current date for completion tagging
-	currentDate := time.Now().Format(core.DateFormat)
+	taggingDate := time.Now().Format(core.DateFormat)
 
 	g := &Generator{
 		templateContent:    templateContent,
 		templateDate:       templateDate,
-		currentDate:        currentDate,
+		taggingDate:        taggingDate,
 		previousDate:       config.previousDate,
 		customVars:         config.customVars,
 		frontmatterDateKey: config.frontmatterDateKey,
@@ -73,7 +73,7 @@ func NewGeneratorWithOptions(templateContent, templateDate string, opts ...Gener
 // NewGeneratorFromFileWithOptions creates a new Generator by reading template from file with flexible options.
 // This is the recommended constructor for file-based templates.
 // Returns an error if the file cannot be read, template date is invalid, or template syntax is invalid.
-func NewGeneratorFromFileWithOptions(templateFile, templateDate string, opts ...GeneratorOption) (*Generator, error) {
+func NewGeneratorFromFileWithOptions(templateFile, templateDate string, opts ...Option) (*Generator, error) {
 	templateBytes, err := os.ReadFile(templateFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read template file '%s': %w", templateFile, err)
@@ -162,17 +162,6 @@ func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) 
 	return core.ExtractDateFromFrontmatter(content, dateKey)
 }
 
-// CreateFromTemplateContent creates file content from template content using Go template syntax.
-// Returns the generated content or an error if template processing fails.
-// This function is provided for testing compatibility and convenience.
-func CreateFromTemplateContent(templateContent, todosContent, currentDate string) (string, error) {
-	return core.CreateFromTemplate(core.TemplateOptions{
-		Content:      templateContent,
-		TodosContent: todosContent,
-		CurrentDate:  currentDate,
-	})
-}
-
 // validateTemplate validates the template syntax to catch errors early
 func (g *Generator) validateTemplate() error {
 	// Try parsing the template with the same functions used during execution
@@ -183,11 +172,11 @@ func (g *Generator) validateTemplate() error {
 	return nil
 }
 
-// GeneratorOption represents a configuration option for Generator creation
-type GeneratorOption func(*generatorConfig)
+// Option represents a configuration option for Generator creation
+type Option func(*options)
 
-// generatorConfig holds configuration for Generator creation
-type generatorConfig struct {
+// options holds configuration for Generator creation
+type options struct {
 	previousDate       string
 	customVars         map[string]interface{}
 	frontmatterDateKey string
@@ -195,38 +184,38 @@ type generatorConfig struct {
 }
 
 // WithPreviousDate sets the previous journal date for the generator
-func WithPreviousDate(date string) GeneratorOption {
-	return func(config *generatorConfig) {
+func WithPreviousDate(date string) Option {
+	return func(config *options) {
 		config.previousDate = date
 	}
 }
 
 // WithCustomVariables sets custom template variables for the generator
-func WithCustomVariables(vars map[string]interface{}) GeneratorOption {
-	return func(config *generatorConfig) {
+func WithCustomVariables(vars map[string]interface{}) Option {
+	return func(config *options) {
 		config.customVars = vars
 	}
 }
 
 // WithFrontmatterDateKey sets the frontmatter date key for the generator
-func WithFrontmatterDateKey(key string) GeneratorOption {
-	return func(config *generatorConfig) {
+func WithFrontmatterDateKey(key string) Option {
+	return func(config *options) {
 		config.frontmatterDateKey = key
 	}
 }
 
 // WithTodosHeader sets the TODOS section header for the generator
-func WithTodosHeader(header string) GeneratorOption {
-	return func(config *generatorConfig) {
+func WithTodosHeader(header string) Option {
+	return func(config *options) {
 		config.todosHeader = header
 	}
 }
 
 // WithOptions creates a new Generator based on the current one but with modified options.
 // This allows reconfiguring an existing generator without rebuilding from scratch.
-func (g *Generator) WithOptions(opts ...GeneratorOption) (*Generator, error) {
+func (g *Generator) WithOptions(opts ...Option) (*Generator, error) {
 	// Set up configuration with current values
-	config := &generatorConfig{
+	config := &options{
 		previousDate: g.previousDate,
 		customVars:   g.customVars,
 	}
@@ -247,7 +236,7 @@ func (g *Generator) WithOptions(opts ...GeneratorOption) (*Generator, error) {
 	newGen := &Generator{
 		templateContent:    g.templateContent,
 		templateDate:       g.templateDate,
-		currentDate:        g.currentDate,
+		taggingDate:        g.taggingDate,
 		previousDate:       config.previousDate,
 		customVars:         config.customVars,
 		frontmatterDateKey: config.frontmatterDateKey,

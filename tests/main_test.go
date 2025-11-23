@@ -335,8 +335,12 @@ Notes here.`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Test the function via the generator package (which uses core)
-			result, err := generator.CreateFromTemplateContent(tt.template, tt.todosContent, tt.currentDate)
+			// Use the core template API directly
+			result, err := core.CreateFromTemplate(core.TemplateOptions{
+				Content:      tt.template,
+				TodosContent: tt.todosContent,
+				CurrentDate:  tt.currentDate,
+			})
 			if err != nil {
 				t.Fatalf("generator.CreateFromTemplateContent failed: %v", err)
 			}

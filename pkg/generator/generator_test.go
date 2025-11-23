@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"todoer/pkg/core"
 )
 
 // TestNewGeneratorWithOptions_Basic tests basic generator creation using options-based constructor
@@ -456,7 +458,11 @@ title: 2024-01-15
 		todos := "- [ ] Task 1"
 		date := "2024-01-15"
 
-		result, err := CreateFromTemplateContent(template, todos, date)
+		result, err := core.CreateFromTemplate(core.TemplateOptions{
+			Content:      template,
+			TodosContent: todos,
+			CurrentDate:  date,
+		})
 		if err != nil {
 			t.Errorf("CreateFromTemplateContent() error = %v", err)
 		}
