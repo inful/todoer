@@ -1,3 +1,4 @@
+version: 2
 project_name: todoer
 
 before:
@@ -20,13 +21,23 @@ builds:
 
 archives:
   - id: archives
-    builds:
-      - todoer
-    format: tar.gz
+    formats: 
+      - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    ids:
+      - todoer
     files:
       - LICENSE
       - README.md
+
+kos:
+  - id: docker_images
+    build: todoer
+    repositories: 
+      - ghcr.io/inful/todoer
+    platforms:
+      - linux/amd64
+      - linux/arm64
 
 checksum:
   name_template: "checksums.txt"
