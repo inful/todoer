@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-// safeWriteFile writes data to a file safely with atomic operations.
+// safeWriteFile atomically writes data to filename using a temp file and rename.
 func safeWriteFile(filename string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(filename)
 	tmpFile, err := os.CreateTemp(dir, filepath.Base(filename)+".tmp.*")
@@ -42,7 +42,7 @@ func safeWriteFile(filename string, data []byte, perm os.FileMode) error {
 	return nil
 }
 
-// getConfigValue returns the CLI value if provided, otherwise falls back to config value.
+// getConfigValue prefers the CLI value over the config value.
 func getConfigValue(cliValue, configValue string) string {
 	if cliValue != "" {
 		return cliValue

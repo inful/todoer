@@ -47,8 +47,8 @@ func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) 
 	return extractedDate, nil
 }
 
-// ExtractTodosSection extracts the Todos section from the file content.
-// It returns three parts: content before Todos, the Todos section content, and content after Todos.
+// ExtractTodosSection extracts the TODOS section from the file content.
+// It returns content before the section, the section body, and content after.
 // The function expects a specific format with a blank line after the Todos header.
 func ExtractTodosSection(content string) (string, string, string, error) {
 	if content == "" {
@@ -100,8 +100,8 @@ func ExtractTodosSection(content string) (string, string, string, error) {
 	return beforeTodos, strings.TrimSpace(todosSection), afterTodos, nil
 }
 
-// ExtractTodosSectionWithHeader extracts the Todos section from the file content using a configurable header.
-// It returns three parts: content before Todos, the Todos section content, and content after Todos.
+// ExtractTodosSectionWithHeader extracts the TODOS section using a configurable header.
+// It returns content before the section, the section body, and content after.
 // The function expects a specific format with a blank line after the Todos header.
 func ExtractTodosSectionWithHeader(content string, todosHeader string) (string, string, string, error) {
 	if content == "" {
@@ -153,8 +153,8 @@ func ExtractTodosSectionWithHeader(content string, todosHeader string) (string, 
 	return beforeTodos, strings.TrimSpace(todosSection), afterTodos, nil
 }
 
-// ProcessTodosSection processes the Todos section and returns the completed and uncompleted sections.
-// It parses the todos, splits them into completed/uncompleted, adds date tags, and converts back to strings.
+// ProcessTodosSection processes the TODOS section and returns completed and uncompleted sections.
+// It parses todos, splits them, adds date tags, and converts back to strings.
 // If there are no completed tasks, it returns a "Moved to [[date]]" message for the completed section.
 func ProcessTodosSection(todosSection string, originalDate string, currentDate string) (string, string, error) {
 	// Validate inputs

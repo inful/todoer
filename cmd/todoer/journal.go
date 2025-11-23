@@ -12,6 +12,7 @@ import (
 	"todoer/pkg/generator"
 )
 
+// getGenerator builds a Generator from CLI/config, resolving template and previous date.
 func getGenerator(templateFile, templateDate, sourceFile string, config *Config) (*generator.Generator, string, error) {
 	if templateDate == "" {
 		templateDate = time.Now().Format(core.DateFormat)
@@ -44,6 +45,7 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 	return gen, tmplSource.name, nil
 }
 
+// processJournal processes a journal file, writing the target and optionally updating source with backup.
 func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup, printPath bool, config *Config, logger *Logger) error {
 	logger.Debug("Processing journal: source=%s, target=%s, template=%s, date=%s", sourceFile, targetFile, templateFile, templateDate)
 
@@ -114,6 +116,7 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 	return nil
 }
 
+// findClosestJournalFile returns the most recent journal before the given date.
 func findClosestJournalFile(rootDir, today string) (string, error) {
 	var closestFile string
 	var minDiff time.Duration = -1
@@ -164,6 +167,7 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 	return closestFile, nil
 }
 
+// cmdNew creates today's journal using the closest previous journal or a blank template.
 func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger *Logger) error {
 	today := time.Now().Format(core.DateFormat)
 	journalPath := buildJournalPath(rootDir, today)
@@ -216,6 +220,7 @@ func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger
 	return nil
 }
 
+// buildJournalPath constructs a YYYY/MM/YYYY-MM-DD.md path under rootDir.
 func buildJournalPath(rootDir, date string) string {
 	t, err := time.Parse(core.DateFormat, date)
 	if err != nil {

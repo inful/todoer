@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"text/template"
-	"time"
 	"todoer/pkg/core"
 )
 
@@ -16,11 +15,10 @@ import (
 type Generator struct {
 	templateContent    string
 	templateDate       string
-	taggingDate        string
-	previousDate       string                 // Date from the previous journal being processed (empty if none)
+	previousDate       string                 // Date of previous journal (empty if none)
 	customVars         map[string]interface{} // Custom template variables
-	frontmatterDateKey string                 // Configurable frontmatter date key
-	todosHeader        string                 // Configurable TODOS section header
+	frontmatterDateKey string                 // Frontmatter date key
+	todosHeader        string                 // TODOS section header
 }
 
 // NewGeneratorWithOptions creates a new Generator with flexible configuration options.
@@ -49,13 +47,9 @@ func NewGeneratorWithOptions(templateContent, templateDate string, opts ...Optio
 		}
 	}
 
-	// Use current date for completion tagging
-	taggingDate := time.Now().Format(core.DateFormat)
-
 	g := &Generator{
 		templateContent:    templateContent,
 		templateDate:       templateDate,
-		taggingDate:        taggingDate,
 		previousDate:       config.previousDate,
 		customVars:         config.customVars,
 		frontmatterDateKey: config.frontmatterDateKey,
@@ -82,14 +76,14 @@ func NewGeneratorFromFileWithOptions(templateFile, templateDate string, opts ...
 	return NewGeneratorWithOptions(string(templateBytes), templateDate, opts...)
 }
 
-// ProcessResult holds the results of processing a journal
+// ProcessResult holds readers for the modified original and new file.
 type ProcessResult struct {
 	ModifiedOriginal io.Reader
 	NewFile          io.Reader
 }
 
-// Process processes the original journal content and returns a ProcessResult containing readers for both the modified original and the new file.
-// Returns an error if parsing or processing fails.
+// Process processes journal content and returns a ProcessResult.
+// It returns an error if parsing or processing fails.
 func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	// Empty content is invalid; require at least some frontmatter/body
 	if strings.TrimSpace(originalContent) == "" {
@@ -131,8 +125,8 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	}, nil
 }
 
-// ProcessFile processes a journal file and returns a ProcessResult containing readers for both the modified original and the new file.
-// Returns an error if the file cannot be read or processing fails.
+// ProcessFile processes a journal file and returns a ProcessResult.
+// It returns an error if the file cannot be read or processing fails.
 func (g *Generator) ProcessFile(filename string) (*ProcessResult, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -142,8 +136,7 @@ func (g *Generator) ProcessFile(filename string) (*ProcessResult, error) {
 	return g.Process(string(content))
 }
 
-// createFromTemplateWithCustom creates file content from the generator's template with custom variables.
-// This is the most comprehensive template creation method, supporting custom variables and statistics.
+// createFromTemplateWithCustom renders the template using todos, dates, journal stats, and custom variables.
 func (g *Generator) createFromTemplateWithCustom(todosContent string, dateToUse string, journal *core.TodoJournal) (string, error) {
 	return core.CreateFromTemplate(core.TemplateOptions{
 		Content:      g.templateContent,
@@ -155,9 +148,7 @@ func (g *Generator) createFromTemplateWithCustom(todosContent string, dateToUse 
 	})
 }
 
-// ExtractDateFromFrontmatter extracts the date from the frontmatter title of the given content.
-// Returns the extracted date or an error if extraction fails.
-// This function is provided for CLI compatibility and convenience.
+// ExtractDateFromFrontmatter extracts the date from frontmatter using the given key.
 func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) {
 	return core.ExtractDateFromFrontmatter(content, dateKey)
 }
@@ -236,7 +227,6 @@ func (g *Generator) WithOptions(opts ...Option) (*Generator, error) {
 	newGen := &Generator{
 		templateContent:    g.templateContent,
 		templateDate:       g.templateDate,
-		taggingDate:        g.taggingDate,
 		previousDate:       config.previousDate,
 		customVars:         config.customVars,
 		frontmatterDateKey: config.frontmatterDateKey,

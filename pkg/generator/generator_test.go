@@ -433,7 +433,6 @@ func TestTemplateValidation(t *testing.T) {
 	}
 }
 
-// TestDeprecatedConstructors tests that deprecated constructors still work
 // Deprecated constructor tests removed; NewGeneratorWithOptions/NewGeneratorFromFileWithOptions are the supported APIs.
 
 // TestConvenienceFunctions tests the convenience functions
