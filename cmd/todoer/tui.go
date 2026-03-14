@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/inful/todoer/pkg/core"
 )
 
@@ -43,6 +44,59 @@ type tuiModel struct {
 
 	filterMode  bool
 	filterQuery string
+}
+
+type tuiStyles struct {
+	header       lipgloss.Style
+	filePath     lipgloss.Style
+	stateClean   lipgloss.Style
+	stateDirty   lipgloss.Style
+	stateChanged lipgloss.Style
+	selected     lipgloss.Style
+	item         lipgloss.Style
+	keyHelp      lipgloss.Style
+	statusOK     lipgloss.Style
+	statusWarn   lipgloss.Style
+	statusErr    lipgloss.Style
+	inputLabel   lipgloss.Style
+	empty        lipgloss.Style
+}
+
+var tuiTheme = tuiStyles{
+	header: lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("229")).
+		Background(lipgloss.Color("62")).
+		Padding(0, 1),
+	filePath: lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
+	stateClean: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("42")).
+		Bold(true),
+	stateDirty: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("214")).
+		Bold(true),
+	stateChanged: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("203")).
+		Bold(true),
+	selected: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("230")).
+		Background(lipgloss.Color("57")).
+		Bold(true),
+	item:     lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
+	keyHelp:  lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
+	statusOK: lipgloss.NewStyle().Foreground(lipgloss.Color("42")),
+	statusWarn: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("214")).
+		Bold(true),
+	statusErr: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("203")).
+		Bold(true),
+	inputLabel: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("229")).
+		Bold(true),
+	empty: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		Italic(true),
 }
 
 func (cmd *tuiCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
@@ -258,27 +312,31 @@ func (m tuiModel) updateFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m tuiModel) View() string {
 	var b strings.Builder
 
-	state := "clean"
+	stateText := "clean"
+	stateStyle := tuiTheme.stateClean
 	if m.dirty {
-		state = "dirty"
+		stateText = "dirty"
+		stateStyle = tuiTheme.stateDirty
 	}
 	if m.externalChanged {
-		state += ", external-changed"
+		stateText += ", external-changed"
+		stateStyle = tuiTheme.stateChanged
 	}
 
-	b.WriteString("todoer tui\n")
-	b.WriteString("File: " + m.journalPath + "\n")
-	b.WriteString("State: " + state + "\n\n")
-	b.WriteString("Filter: " + m.filterQuery + "\n\n")
+	b.WriteString(tuiTheme.header.Render("todoer tui"))
+	b.WriteString("\n")
+	b.WriteString(tuiTheme.filePath.Render("File: "+m.journalPath) + "\n")
+	b.WriteString("State: " + stateStyle.Render(stateText) + "\n")
+	b.WriteString("Filter: " + tuiTheme.filePath.Render(m.filterQuery) + "\n\n")
 
 	filtered := m.filteredItems()
 	if len(filtered) == 0 {
-		b.WriteString("(No todos in today's section)\n")
+		b.WriteString(tuiTheme.empty.Render("(No todos in today's section)") + "\n")
 	} else {
 		for i, entry := range filtered {
-			cursor := "  "
+			cursor := " "
 			if i == m.selected {
-				cursor = "> "
+				cursor = ">"
 			}
 
 			check := "[ ]"
@@ -287,19 +345,32 @@ func (m tuiModel) View() string {
 			}
 
 			indent := strings.Repeat("  ", entry.depth)
-			b.WriteString(cursor + indent + check + " " + entry.item.Text + "\n")
+			line := fmt.Sprintf("%s %s%s %s", cursor, indent, check, entry.item.Text)
+			if i == m.selected {
+				b.WriteString(tuiTheme.selected.Render(line) + "\n")
+			} else {
+				b.WriteString(tuiTheme.item.Render(line) + "\n")
+			}
 		}
 	}
 
 	b.WriteString("\n")
 	if m.inputMode {
-		b.WriteString("Add todo: " + m.inputText + "\n")
+		b.WriteString(tuiTheme.inputLabel.Render("Add todo: ") + m.inputText + "\n")
 	} else if m.filterMode {
-		b.WriteString("Filter todos: " + m.filterQuery + "\n")
+		b.WriteString(tuiTheme.inputLabel.Render("Filter todos: ") + m.filterQuery + "\n")
 	} else {
-		b.WriteString("Keys: j/k move | space toggle | / filter | c clear filter | a add | d delete | s save | r reload | q quit\n")
+		b.WriteString(tuiTheme.keyHelp.Render("Keys: j/k move | space toggle | / filter | c clear filter | a add | d delete | s save | r reload | q quit") + "\n")
 	}
-	b.WriteString("Status: " + m.status + "\n")
+
+	statusStyle := tuiTheme.statusOK
+	lowerStatus := strings.ToLower(m.status)
+	if strings.Contains(lowerStatus, "failed") || strings.Contains(lowerStatus, "error") {
+		statusStyle = tuiTheme.statusErr
+	} else if strings.Contains(lowerStatus, "external") || strings.Contains(lowerStatus, "blocked") {
+		statusStyle = tuiTheme.statusWarn
+	}
+	b.WriteString("Status: " + statusStyle.Render(m.status) + "\n")
 
 	return b.String()
 }
