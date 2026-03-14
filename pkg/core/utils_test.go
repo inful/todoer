@@ -128,29 +128,29 @@ func TestDeepCopyItem(t *testing.T) {
 			Text:      "Test task",
 		}
 
-		copy := DeepCopyItem(original)
-		if copy == nil {
+		copied := DeepCopyItem(original)
+		if copied == nil {
 			t.Fatal("DeepCopyItem returned nil for valid item")
 			return
 		}
 
 		// Check that values are copied
-		if copy.Completed != original.Completed {
-			t.Errorf("Completed not copied correctly: got %v, expected %v", copy.Completed, original.Completed)
+		if copied.Completed != original.Completed {
+			t.Errorf("Completed not copied correctly: got %v, expected %v", copied.Completed, original.Completed)
 		}
-		if copy.Text != original.Text {
-			t.Errorf("Text not copied correctly: got %q, expected %q", copy.Text, original.Text)
+		if copied.Text != original.Text {
+			t.Errorf("Text not copied correctly: got %q, expected %q", copied.Text, original.Text)
 		}
 
 		// Check that it's a different object
-		if copy == original {
+		if copied == original {
 			t.Error("DeepCopyItem returned the same object, not a copy")
 		}
 
 		// Modify original to ensure independence
 		original.Completed = false
 		original.Text = "Modified"
-		if copy.Completed == original.Completed || copy.Text == original.Text {
+		if copied.Completed == original.Completed || copied.Text == original.Text {
 			t.Error("Copy is not independent of original")
 		}
 	})
@@ -161,17 +161,17 @@ func TestDeepCopyItem(t *testing.T) {
 			BulletLines: []string{"- Note 1", "- Note 2"},
 		}
 
-		copy := DeepCopyItem(original)
-		if copy == nil {
+		copied := DeepCopyItem(original)
+		if copied == nil {
 			t.Fatal("DeepCopyItem returned nil")
 			return
 		}
 
-		if len(copy.BulletLines) != len(original.BulletLines) {
-			t.Errorf("BulletLines length mismatch: got %d, expected %d", len(copy.BulletLines), len(original.BulletLines))
+		if len(copied.BulletLines) != len(original.BulletLines) {
+			t.Errorf("BulletLines length mismatch: got %d, expected %d", len(copied.BulletLines), len(original.BulletLines))
 		}
 
-		for i, line := range copy.BulletLines {
+		for i, line := range copied.BulletLines {
 			if line != original.BulletLines[i] {
 				t.Errorf("BulletLines[%d] mismatch: got %q, expected %q", i, line, original.BulletLines[i])
 			}
@@ -179,7 +179,7 @@ func TestDeepCopyItem(t *testing.T) {
 
 		// Test independence
 		original.BulletLines[0] = "Modified"
-		if copy.BulletLines[0] == original.BulletLines[0] {
+		if copied.BulletLines[0] == original.BulletLines[0] {
 			t.Error("BulletLines slice is not independent")
 		}
 	})
@@ -193,17 +193,17 @@ func TestDeepCopyItem(t *testing.T) {
 			},
 		}
 
-		copy := DeepCopyItem(original)
-		if copy == nil {
+		copied := DeepCopyItem(original)
+		if copied == nil {
 			t.Fatal("DeepCopyItem returned nil")
 			return
 		}
 
-		if len(copy.SubItems) != len(original.SubItems) {
-			t.Errorf("SubItems length mismatch: got %d, expected %d", len(copy.SubItems), len(original.SubItems))
+		if len(copied.SubItems) != len(original.SubItems) {
+			t.Errorf("SubItems length mismatch: got %d, expected %d", len(copied.SubItems), len(original.SubItems))
 		}
 
-		for i, subItem := range copy.SubItems {
+		for i, subItem := range copied.SubItems {
 			if subItem == original.SubItems[i] {
 				t.Errorf("SubItem[%d] is the same object, not a copy", i)
 			}
@@ -214,7 +214,7 @@ func TestDeepCopyItem(t *testing.T) {
 
 		// Test independence
 		original.SubItems[0].Text = "Modified"
-		if copy.SubItems[0].Text == original.SubItems[0].Text {
+		if copied.SubItems[0].Text == original.SubItems[0].Text {
 			t.Error("SubItems are not independent")
 		}
 	})

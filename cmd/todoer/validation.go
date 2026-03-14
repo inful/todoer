@@ -150,11 +150,11 @@ func validateConfig(config *Config) error {
 		if info, err := os.Stat(config.TemplateFile); err != nil {
 			if os.IsNotExist(err) {
 				return fmt.Errorf("%w: template file '%s' does not exist", ErrTemplateNotFound, config.TemplateFile)
-			} else if os.IsPermission(err) {
-				return fmt.Errorf("%w: cannot read template file '%s': %w", ErrPermissionDenied, config.TemplateFile, err)
-			} else {
-				return fmt.Errorf("%w: error accessing template file '%s': %w", ErrInvalidConfig, config.TemplateFile, err)
 			}
+			if os.IsPermission(err) {
+				return fmt.Errorf("%w: cannot read template file '%s': %w", ErrPermissionDenied, config.TemplateFile, err)
+			}
+			return fmt.Errorf("%w: error accessing template file '%s': %w", ErrInvalidConfig, config.TemplateFile, err)
 		} else if info.IsDir() {
 			return fmt.Errorf("%w: template path '%s' is a directory, not a file", ErrInvalidConfig, config.TemplateFile)
 		}

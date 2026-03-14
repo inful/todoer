@@ -184,7 +184,7 @@ func TestSplitJournal(t *testing.T) {
 }
 
 func TestTagCompletedItems(t *testing.T) {
-	t.Run("nil journal should not panic", func(t *testing.T) {
+	t.Run("nil journal should not panic", func(_ *testing.T) {
 		TagCompletedItems(nil, "2023-01-01")
 		// Should not panic
 	})
@@ -202,7 +202,7 @@ func TestTagCompletedItems(t *testing.T) {
 		}
 	})
 
-	t.Run("nil day should be skipped", func(t *testing.T) {
+	t.Run("nil day should be skipped", func(_ *testing.T) {
 		journal := &TodoJournal{
 			Days: []*DaySection{nil},
 		}
@@ -285,7 +285,7 @@ func TestTagCompletedItems(t *testing.T) {
 }
 
 func TestTagCompletedSubitems(t *testing.T) {
-	t.Run("nil journal should not panic", func(t *testing.T) {
+	t.Run("nil journal should not panic", func(_ *testing.T) {
 		TagCompletedSubitems(nil, "2023-01-01")
 		// Should not panic
 	})
@@ -304,7 +304,7 @@ func TestTagCompletedSubitems(t *testing.T) {
 		}
 	})
 
-	t.Run("nil day should be skipped", func(t *testing.T) {
+	t.Run("nil day should be skipped", func(_ *testing.T) {
 		journal := &TodoJournal{
 			Days: []*DaySection{nil},
 		}
@@ -603,7 +603,7 @@ func TestWriteItemToString(t *testing.T) {
 }
 
 func TestTagCompletedItemsRecursive(t *testing.T) {
-	t.Run("nil item should not panic", func(t *testing.T) {
+	t.Run("nil item should not panic", func(_ *testing.T) {
 		tagCompletedItemsRecursive(nil, "2023-01-01")
 		// Should not panic
 	})

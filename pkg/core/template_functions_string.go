@@ -29,8 +29,8 @@ func createStringFunctions() template.FuncMap {
 
 		// String operations
 		"trim": strings.TrimSpace,
-		"replace": func(old, new, str string) string {
-			return strings.ReplaceAll(str, old, new)
+		"replace": func(oldValue, newValue, str string) string {
+			return strings.ReplaceAll(str, oldValue, newValue)
 		},
 		"repeat": strings.Repeat,
 

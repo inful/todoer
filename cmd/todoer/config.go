@@ -1,3 +1,4 @@
+// Package main provides the todoer CLI entrypoints and command helpers.
 package main
 
 import (
