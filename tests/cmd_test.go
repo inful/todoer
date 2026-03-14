@@ -254,6 +254,9 @@ func testHelpCommand(t *testing.T, binaryPath string) {
 	if !strings.Contains(outputStr, "add") {
 		t.Error("Help should contain add command")
 	}
+	if !strings.Contains(outputStr, "tui") {
+		t.Error("Help should contain tui command")
+	}
 
 	// Test subcommand help
 	cmd = exec.Command(binaryPath, "process", "--help")

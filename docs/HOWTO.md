@@ -69,6 +69,25 @@ Behavior:
   section.
 - Multi-word todo text can be passed without quotes.
 
+### Manage today's todos in a terminal UI
+
+To open an interactive terminal UI for today's journal:
+
+```bash
+todoer tui
+
+# With explicit root directory
+todoer --root-dir "./journals" tui
+```
+
+Behavior:
+
+- If today's journal does not exist yet, todoer creates it first using
+  the same transfer behavior as `new`.
+- You can move, toggle, add, and delete todos interactively.
+- You can filter/search visible todos by text with `/` and clear with `c`.
+- `s` saves changes, `r` reloads from disk, and `q` saves (if dirty) and quits.
+
 Behavior:
 
 - Creates a new file under `ROOT/YYYY/MM/YYYY-MM-DD.md`.

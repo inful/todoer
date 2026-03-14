@@ -60,6 +60,31 @@ Options:
 - `TARGET` - output file for uncompleted tasks.
 - `--template-date YYYY-MM-DD` - logical date used for template variables.
 
+### `todoer tui`
+
+Open a minimal terminal UI for today's todo lifecycle.
+
+If today's journal does not exist yet, todoer first creates it using the
+same transfer behavior as `new`, then opens the UI.
+
+Synopsis:
+
+```bash
+todoer [--root-dir PATH] [--template-file PATH] tui
+```
+
+Core keys:
+
+- `j`/`k` or arrow keys - move selection.
+- `/` - filter/search todos by text.
+- `c` - clear active filter.
+- `space` - toggle completed/uncompleted.
+- `a` - add a new todo.
+- `d` - delete selected todo.
+- `s` - save.
+- `r` - reload from disk.
+- `q` - save (if dirty) and quit.
+
 ### `todoer preview`
 
 Render a template with a sample todos section and optional custom

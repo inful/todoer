@@ -19,6 +19,7 @@ type cliOptions struct {
 	Process processCmd `cmd:"" help:"Process a journal file"`
 	New     newCmd     `cmd:"new" help:"Create a new daily journal file"`
 	Add     addCmd     `cmd:"add <todo-text>..." help:"Add a todo item to today's journal (creates today's file first if needed)"`
+	TUI     tuiCmd     `cmd:"tui" help:"Open a minimal terminal UI for today's todo lifecycle"`
 	Preview previewCmd `cmd:"preview" help:"Preview rendering of a template file with a sample TODOS section"`
 }
 

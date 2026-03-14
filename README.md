@@ -20,6 +20,9 @@ go build -o todoer ./cmd/todoer
 # Add a todo directly from the CLI (quotes optional)
 ./todoer add review PR notes
 
+# Open an interactive terminal UI for today's todos
+./todoer tui
+
 # Or process an existing journal into a new file
 ./todoer process source.md target.md
 ```
