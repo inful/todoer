@@ -52,53 +52,7 @@ func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) 
 // It returns content before the section, the section body, and content after.
 // The function expects a specific format with a blank line after the Todos header.
 func ExtractTodosSection(content string) (string, string, string, error) {
-	if content == "" {
-		return "", "", "", fmt.Errorf("content cannot be empty")
-	}
-
-	// Find the Todos section header
-	todosHeaderIndex := strings.Index(content, TodosHeader)
-	if todosHeaderIndex == -1 {
-		return "", "", "", fmt.Errorf("could not find '%s' section in file", TodosHeader)
-	}
-
-	// Calculate the end of the header
-	headerEndIndex := todosHeaderIndex + len(TodosHeader)
-	if headerEndIndex >= len(content) {
-		return "", "", "", fmt.Errorf("incomplete %s section: no content after header", TodosHeader)
-	}
-
-	contentAfterHeader := content[headerEndIndex:]
-
-	// Find the first blank line after the header
-	blankLineIndex := strings.Index(contentAfterHeader, BlankLineSeparator)
-	if blankLineIndex == -1 {
-		return "", "", "", fmt.Errorf("invalid %s section format: expected blank line after header", TodosHeader)
-	}
-
-	// Calculate section boundaries
-	beforeTodosEnd := headerEndIndex + blankLineIndex + len(BlankLineSeparator)
-	beforeTodos := content[:beforeTodosEnd]
-
-	// Find the next section header (if any)
-	afterHeaderContent := content[beforeTodosEnd:]
-	nextSectionMatch := NextSectionRegex.FindStringIndex(afterHeaderContent)
-
-	var todosSection string
-	var afterTodos string
-
-	if nextSectionMatch != nil {
-		// There is another section after Todos
-		todosEndIndex := beforeTodosEnd + nextSectionMatch[0]
-		todosSection = content[beforeTodosEnd:todosEndIndex]
-		afterTodos = content[todosEndIndex:]
-	} else {
-		// Todos is the last section
-		todosSection = afterHeaderContent
-		afterTodos = ""
-	}
-
-	return beforeTodos, strings.TrimSpace(todosSection), afterTodos, nil
+	return ExtractTodosSectionWithHeader(content, TodosHeader)
 }
 
 // ExtractTodosSectionWithHeader extracts the TODOS section using a configurable header.
