@@ -10,14 +10,10 @@ import (
 	"time"
 )
 
-// Helper function to create a temporary directory and clean it up
-func setupTempDir(t *testing.T) (string, func()) {
+// Helper function to create a temporary directory
+func setupTempDir(t *testing.T) string {
 	t.Helper()
-	tmpDir := t.TempDir()
-
-	cleanup := func() {}
-
-	return tmpDir, cleanup
+	return t.TempDir()
 }
 
 // Helper function to create a test file
@@ -84,8 +80,7 @@ func TestExpandPath(t *testing.T) {
 }
 
 func TestResolveTemplate(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	// Test cases
 	tests := []struct {
@@ -152,8 +147,7 @@ func TestLoadConfig(t *testing.T) {
 	originalTemplateFile := os.Getenv("TODOER_TEMPLATE_FILE")
 
 	// Create isolated test environment
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	defer func() {
 		// Restore original environment
@@ -284,8 +278,7 @@ func TestLoadConfigWithXDG(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a unique tempDir for this test case
-			testTempDir, testCleanup := setupTempDir(t)
-			defer testCleanup()
+			testTempDir := setupTempDir(t)
 
 			// Clear environment variables first
 			mustUnsetEnv(t, "TODOER_ROOT_DIR")
@@ -408,8 +401,7 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a unique tempDir for this test case
-			testTempDir, testCleanup := setupTempDir(t)
-			defer testCleanup()
+			testTempDir := setupTempDir(t)
 
 			// Set XDG_CONFIG_HOME to this test's tempDir
 			mustSetEnv(t, "XDG_CONFIG_HOME", testTempDir)
@@ -465,8 +457,7 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 }
 
 func TestProcessJournal_ValidationErrors(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	config := &Config{RootDir: tempDir}
 
@@ -522,8 +513,7 @@ func TestProcessJournal_ValidationErrors(t *testing.T) {
 }
 
 func TestProcessJournal_Success(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	// Create a valid source file with todos
 	sourceContent := `---
@@ -568,8 +558,7 @@ Some notes here.
 }
 
 func TestFindClosestJournalFile(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	// Create some test journal files
 	testFiles := []string{
@@ -633,8 +622,7 @@ func TestFindClosestJournalFile(t *testing.T) {
 }
 
 func TestCmdNew(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	config := &Config{RootDir: tempDir}
 
@@ -692,8 +680,7 @@ Previous notes.
 }
 
 func TestCmdNew_AlreadyExists(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	config := &Config{RootDir: tempDir}
 
@@ -713,8 +700,7 @@ func TestCmdNew_AlreadyExists(t *testing.T) {
 }
 
 func TestValidateFilePath(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	tests := []struct {
 		name        string
@@ -802,8 +788,7 @@ func TestValidateDateFormat(t *testing.T) {
 }
 
 func TestValidateProcessArgs(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	sourceFile := filepath.Join(tempDir, "source.md")
 	targetFile := filepath.Join(tempDir, "target.md")
@@ -860,8 +845,7 @@ func TestValidateProcessArgs(t *testing.T) {
 }
 
 func TestValidateConfig(t *testing.T) {
-	tempDir, cleanup := setupTempDir(t)
-	defer cleanup()
+	tempDir := setupTempDir(t)
 
 	// Create a valid template file for testing
 	validTemplateFile := filepath.Join(tempDir, "valid_template.md")
