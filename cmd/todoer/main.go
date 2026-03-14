@@ -77,7 +77,8 @@ func (cmd *processCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) 
 }
 
 func (cmd *previewCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
-	baseLogger.Debug("Executing preview command")
+	logger := loggerForCommand(baseLogger, cli.PrintPath)
+	logger.Debug("Executing preview command")
 	_, templateFile := sharedPaths(cli, config)
 	return cmdPreview(templateFile, cmd.Date, cmd.TodosFile, cmd.TodosString, cmd.CustomVars, config)
 }
