@@ -603,6 +603,39 @@ func TestCalculateTodoStatistics(t *testing.T) {
 				TodoDaysSpan:   3,
 			},
 		},
+		{
+			name: "TodoDates should be returned in ascending sorted order",
+			journal: &TodoJournal{
+				Days: []*DaySection{
+					{
+						Date: "2025-06-20",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Task C"},
+						},
+					},
+					{
+						Date: "2025-06-18",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Task A"},
+						},
+					},
+					{
+						Date: "2025-06-19",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Task B"},
+						},
+					},
+				},
+			},
+			currentDate: "2025-06-21",
+			expected: TodoStatistics{
+				TotalTodos:     3,
+				CompletedTodos: 0,
+				TodoDates:      []string{"2025-06-18", "2025-06-19", "2025-06-20"},
+				OldestTodoDate: "2025-06-18",
+				TodoDaysSpan:   3,
+			},
+		},
 	}
 
 	for _, tt := range tests {

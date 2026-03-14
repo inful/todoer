@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -278,16 +279,7 @@ func CalculateTodoStatistics(journal *TodoJournal, currentDate string) TodoStati
 		stats.TodoDates = append(stats.TodoDates, date)
 	}
 
-	// Sort dates
-	if len(stats.TodoDates) > 1 {
-		for i := 0; i < len(stats.TodoDates)-1; i++ {
-			for j := i + 1; j < len(stats.TodoDates); j++ {
-				if stats.TodoDates[i] > stats.TodoDates[j] {
-					stats.TodoDates[i], stats.TodoDates[j] = stats.TodoDates[j], stats.TodoDates[i]
-				}
-			}
-		}
-	}
+	slices.Sort(stats.TodoDates)
 
 	stats.OldestTodoDate = oldestDate
 
