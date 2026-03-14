@@ -16,6 +16,7 @@ linters:
     - testableexamples
     - usetesting
     - unused
+    - revive
 
 formatters:
   enable:
