@@ -211,5 +211,5 @@ End of journal.`
 
 // Helper function to write string to file using afero
 func writeStringToFile(fs afero.Fs, filename, content string) error {
-	return afero.WriteFile(fs, filename, []byte(content), 0644)
+	return afero.WriteFile(fs, filename, []byte(content), 0o644)
 }

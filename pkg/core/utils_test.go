@@ -414,54 +414,6 @@ func TestCountCompletedItems(t *testing.T) {
 	})
 }
 
-// Test GetMaxIndentLevel function
-func TestGetMaxIndentLevel(t *testing.T) {
-	t.Run("empty slice should return current level", func(t *testing.T) {
-		result := GetMaxIndentLevel([]*TodoItem{}, 0)
-		if result != 0 {
-			t.Errorf("GetMaxIndentLevel([], 0) = %d, expected 0", result)
-		}
-
-		result = GetMaxIndentLevel([]*TodoItem{}, 2)
-		if result != 2 {
-			t.Errorf("GetMaxIndentLevel([], 2) = %d, expected 2", result)
-		}
-	})
-
-	t.Run("flat list should return current level", func(t *testing.T) {
-		items := []*TodoItem{
-			{Text: "Task 1"},
-			{Text: "Task 2"},
-		}
-		result := GetMaxIndentLevel(items, 1)
-		if result != 1 {
-			t.Errorf("GetMaxIndentLevel with flat list = %d, expected 1", result)
-		}
-	})
-
-	t.Run("nested items should return max level", func(t *testing.T) {
-		items := []*TodoItem{
-			{
-				Text: "Task 1",
-				SubItems: []*TodoItem{
-					{
-						Text: "Subtask 1.1",
-						SubItems: []*TodoItem{
-							{Text: "Sub-subtask 1.1.1"},
-						},
-					},
-				},
-			},
-			{Text: "Task 2"},
-		}
-		// Level 0 (current) + 2 levels of nesting = 2
-		result := GetMaxIndentLevel(items, 0)
-		if result != 2 {
-			t.Errorf("GetMaxIndentLevel with 2 levels of nesting = %d, expected 2", result)
-		}
-	})
-}
-
 // Test TabSpaces constant
 func TestTabSpacesConstant(t *testing.T) {
 	if TabSpaces != 2 {

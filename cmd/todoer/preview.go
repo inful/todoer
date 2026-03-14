@@ -48,9 +48,9 @@ func cmdPreview(templateFile, date, todosFile, todosString, customVars string, c
 		custom = parsed
 	}
 
-	tmplSource := resolveTemplate(templateFile)
-	if tmplSource.err != nil {
-		return fmt.Errorf("error resolving template: %w", tmplSource.err)
+	tmplContent, _, err := resolveTemplate(templateFile)
+	if err != nil {
+		return fmt.Errorf("error resolving template: %w", err)
 	}
 
 	journal, err := core.ParseTodosSection(todosContent)
@@ -59,7 +59,7 @@ func cmdPreview(templateFile, date, todosFile, todosString, customVars string, c
 	}
 
 	output, err := core.CreateFromTemplate(core.TemplateOptions{
-		Content:      tmplSource.content,
+		Content:      tmplContent,
 		TodosContent: todosContent,
 		CurrentDate:  date,
 		PreviousDate: "",

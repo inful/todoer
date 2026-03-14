@@ -60,7 +60,7 @@ title: 2025-06-20
 ## Notes
 Some notes here.`
 
-		if err := os.WriteFile(sourceFile, []byte(sourceContent), 0644); err != nil {
+		if err := os.WriteFile(sourceFile, []byte(sourceContent), 0o644); err != nil {
 			t.Fatalf("Failed to write source file: %v", err)
 		}
 

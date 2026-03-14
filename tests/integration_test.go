@@ -115,13 +115,13 @@ func copyTestdataToAferoFs(t *testing.T, fsys afero.Fs) {
 		}
 		relPath := "/" + path // ensure leading slash for afero memfs
 		if info != nil && info.IsDir() {
-			return fsys.MkdirAll(relPath, 0755)
+			return fsys.MkdirAll(relPath, 0o755)
 		}
 		data, err := afero.ReadFile(diskFs, path)
 		if err != nil {
 			return err
 		}
-		return afero.WriteFile(fsys, relPath, data, 0644)
+		return afero.WriteFile(fsys, relPath, data, 0o644)
 	})
 	if err != nil {
 		t.Fatalf("Failed to copy testdata to afero fs: %v", err)

@@ -112,44 +112,8 @@ func ExtractTodosSectionWithHeader(content string, todosHeader string) (string, 
 // It parses todos, splits them, adds date tags, and converts back to strings.
 // If there are no completed tasks, it returns a "Moved to [[date]]" message for the completed section.
 func ProcessTodosSection(todosSection string, originalDate string, currentDate string) (string, string, error) {
-	// Validate inputs
-	if err := validateProcessInputs(originalDate, currentDate); err != nil {
-		return "", "", err
-	}
-
-	// Handle empty todos section
-	if strings.TrimSpace(todosSection) == "" {
-		return fmt.Sprintf(MovedToTemplate, currentDate), "", nil
-	}
-
-	// Parse the Todos section into a structured format
-	journal, err := ParseTodosSection(todosSection)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to parse todos section: %w", err)
-	}
-
-	// Move undated todos to the original date (the date from the file frontmatter)
-	journal = MoveUndatedTodosToCurrentDate(journal, originalDate)
-
-	// Split the journal into completed and uncompleted tasks
-	completedJournal, uncompletedJournal := SplitJournal(journal)
-
-	// Add date tags to completed tasks
-	TagCompletedItems(completedJournal, originalDate)
-
-	// Add date tags to completed subtasks in uncompleted tasks
-	TagCompletedSubitems(uncompletedJournal, originalDate)
-
-	// Convert back to string format
-	completedTodos := JournalToString(completedJournal)
-	uncompletedTodos := JournalToString(uncompletedJournal)
-
-	// If there are no completed tasks, show "Moved to [[date]]"
-	if completedJournal.IsEmpty() {
-		completedTodos = fmt.Sprintf(MovedToTemplate, currentDate)
-	}
-
-	return completedTodos, uncompletedTodos, nil
+	completed, uncompleted, _, err := ProcessTodosSectionWithStats(todosSection, originalDate, currentDate)
+	return completed, uncompleted, err
 }
 
 // validateProcessInputs validates the inputs for ProcessTodosSection
@@ -298,18 +262,6 @@ func CreateFromTemplate(opts TemplateOptions) (string, error) {
 	return output, nil
 }
 
-// CreateFromTemplateContentWithStats creates file content from template content using Go template syntax with todo statistics.
-// Deprecated: Use CreateFromTemplate with TemplateOptions instead for better flexibility.
-func CreateFromTemplateContentWithStats(templateContent, todosContent, currentDate, previousDate string, journal *TodoJournal) (string, error) {
-	return CreateFromTemplate(TemplateOptions{
-		Content:      templateContent,
-		TodosContent: todosContent,
-		CurrentDate:  currentDate,
-		PreviousDate: previousDate,
-		Journal:      journal,
-	})
-}
-
 // ProcessTodosSectionWithStats processes the Todos section and returns completed/uncompleted sections plus parsed journal.
 // Similar to ProcessTodosSection but also returns the original parsed journal for statistics calculation.
 func ProcessTodosSectionWithStats(todosSection string, originalDate string, currentDate string) (string, string, *TodoJournal, error) {
@@ -352,19 +304,6 @@ func ProcessTodosSectionWithStats(todosSection string, originalDate string, curr
 
 	// Return original journal for statistics calculation
 	return completedSection, uncompletedSection, journal, nil
-}
-
-// CreateFromTemplateContentWithCustom creates template output with comprehensive data including custom variables.
-// Deprecated: Use CreateFromTemplate with TemplateOptions instead for better flexibility.
-func CreateFromTemplateContentWithCustom(templateContent, todosContent, currentDate, previousDate string, journal *TodoJournal, customVars map[string]any) (string, error) {
-	return CreateFromTemplate(TemplateOptions{
-		Content:      templateContent,
-		TodosContent: todosContent,
-		CurrentDate:  currentDate,
-		PreviousDate: previousDate,
-		Journal:      journal,
-		CustomVars:   customVars,
-	})
 }
 
 // CreateTemplateFunctions returns a map of custom template functions for enhanced template functionality.

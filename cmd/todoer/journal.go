@@ -21,18 +21,18 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 	previousDate := ""
 	if sourceFile != "" {
 		if content, readErr := os.ReadFile(sourceFile); readErr == nil {
-			if extractedDate, extractErr := generator.ExtractDateFromFrontmatter(string(content), config.FrontmatterDateKey); extractErr == nil {
+			if extractedDate, extractErr := core.ExtractDateFromFrontmatter(string(content), config.FrontmatterDateKey); extractErr == nil {
 				previousDate = extractedDate
 			}
 		}
 	}
 
-	tmplSource := resolveTemplate(templateFile)
-	if tmplSource.err != nil {
-		return nil, "", fmt.Errorf("error resolving template: %w", tmplSource.err)
+	tmplContent, tmplName, err := resolveTemplate(templateFile)
+	if err != nil {
+		return nil, "", fmt.Errorf("error resolving template: %w", err)
 	}
 
-	gen, err := generator.NewGeneratorWithOptions(tmplSource.content, templateDate,
+	gen, err := generator.NewGeneratorWithOptions(tmplContent, templateDate,
 		generator.WithPreviousDate(previousDate),
 		generator.WithCustomVariables(config.Custom),
 		generator.WithFrontmatterDateKey(config.FrontmatterDateKey),
@@ -42,21 +42,15 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 		return nil, "", fmt.Errorf("error creating generator from template: %w", err)
 	}
 
-	return gen, tmplSource.name, nil
+	return gen, tmplName, nil
 }
 
 // processJournal processes a journal file, writing the target and optionally updating source with backup.
 func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup, printPath bool, config *Config, logger *Logger) error {
 	logger.Debug("Processing journal: source=%s, target=%s, template=%s, date=%s", sourceFile, targetFile, templateFile, templateDate)
 
-	quiet := printPath
-
 	if err := validateProcessArgs(sourceFile, targetFile, templateDate); err != nil {
 		return err
-	}
-
-	if err := validateConfig(config); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 
 	gen, templateSource, err := getGenerator(templateFile, templateDate, sourceFile, config)
@@ -68,22 +62,22 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 
 	result, err := gen.ProcessFile(sourceFile)
 	if err != nil {
-		return fmt.Errorf("error processing file %s: %v", sourceFile, err)
+		return fmt.Errorf("error processing file %s: %w", sourceFile, err)
 	}
 
 	modifiedContentBytes, err := io.ReadAll(result.ModifiedOriginal)
 	if err != nil {
-		return fmt.Errorf("error reading modified content: %v", err)
+		return fmt.Errorf("error reading modified content: %w", err)
 	}
 
 	newContentBytes, err := io.ReadAll(result.NewFile)
 	if err != nil {
-		return fmt.Errorf("error reading new file content: %v", err)
+		return fmt.Errorf("error reading new file content: %w", err)
 	}
 
 	logger.Debug("Writing %d bytes to target file: %s", len(newContentBytes), targetFile)
 	if err := safeWriteFile(targetFile, newContentBytes, FilePermissions); err != nil {
-		return fmt.Errorf("error writing to target file %s: %v", targetFile, err)
+		return fmt.Errorf("error writing to target file %s: %w", targetFile, err)
 	}
 
 	logger.Info("Successfully processed %s -> %s (template: %s)", sourceFile, targetFile, templateSource)
@@ -96,21 +90,19 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 		backupFile := sourceFile + ".bak"
 		originalContentBytes, err := os.ReadFile(sourceFile)
 		if err != nil {
-			return fmt.Errorf("error reading original file for backup: %v", err)
+			return fmt.Errorf("error reading original file for backup: %w", err)
 		}
 		if err := safeWriteFile(backupFile, originalContentBytes, FilePermissions); err != nil {
-			return fmt.Errorf("error creating backup file %s: %v", backupFile, err)
+			return fmt.Errorf("error creating backup file %s: %w", backupFile, err)
 		}
 
 		if err := safeWriteFile(sourceFile, modifiedContentBytes, FilePermissions); err != nil {
-			return fmt.Errorf("error updating source file %s: %v", sourceFile, err)
+			return fmt.Errorf("error updating source file %s: %w", sourceFile, err)
 		}
 
-		if !quiet {
-			fmt.Printf("Backup of original file created: %s\n", backupFile)
-		}
-	} else if !quiet {
-		fmt.Printf("No modifications found in the original file, backup not created.\n")
+		logger.Info("Backup of original file created: %s", backupFile)
+	} else {
+		logger.Info("No modifications found in the original file, backup not created.")
 	}
 
 	return nil
@@ -140,7 +132,7 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 		}
 
 		dateStr := strings.TrimSuffix(base, ".md")
-		fileTime, err := time.Parse("2006-01-02", dateStr)
+		fileTime, err := time.Parse(core.DateFormat, dateStr)
 		if err != nil {
 			return nil
 		}
@@ -176,7 +168,7 @@ func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger
 		if printPath {
 			fmt.Println(journalPath)
 		} else {
-			fmt.Printf("Journal for today already exists: %s\n", journalPath)
+			logger.Info("Journal for today already exists: %s", journalPath)
 		}
 		return nil
 	}
@@ -188,9 +180,7 @@ func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger
 	closest, err := findClosestJournalFile(rootDir, today)
 	skipBackup := false
 	if err != nil {
-		if !printPath {
-			fmt.Println("No previous journal found, creating a new one from template.")
-		}
+		logger.Info("No previous journal found, creating a new one from template.")
 
 		tmpFile, err := os.CreateTemp("", "empty-journal-*.md")
 		if err != nil {
@@ -213,9 +203,7 @@ func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger
 		skipBackup = true
 	}
 
-	if !printPath {
-		fmt.Printf("Using '%s' as source to create new journal for today.\n", closest)
-	}
+	logger.Info("Using '%s' as source to create new journal for today.", closest)
 
 	if err := processJournal(closest, journalPath, templateFile, today, skipBackup, printPath, config, logger); err != nil {
 		return err

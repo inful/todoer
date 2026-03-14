@@ -5,8 +5,31 @@ import (
 	"math/rand"
 	"strings"
 	"text/template"
-	"time"
 )
+
+// isEmptyValue reports whether val is the zero/empty value for its type.
+func isEmptyValue(val any) bool {
+	if val == nil {
+		return true
+	}
+	switch v := val.(type) {
+	case string:
+		return v == ""
+	case []string:
+		return len(v) == 0
+	case map[string]any:
+		return len(v) == 0
+	case int:
+		return v == 0
+	default:
+		return false
+	}
+}
+
+// shuffleStrings shuffles a slice of strings in place using the global RNG.
+func shuffleStrings(s []string) {
+	rand.Shuffle(len(s), func(i, j int) { s[i], s[j] = s[j], s[i] })
+}
 
 // createUtilityFunctions returns a map of utility template functions.
 // These functions provide conditional logic, collections, arithmetic, and shuffling operations.
@@ -20,38 +43,10 @@ func createUtilityFunctions() template.FuncMap {
 			return val
 		},
 		"empty": func(val any) bool {
-			if val == nil {
-				return true
-			}
-			switch v := val.(type) {
-			case string:
-				return v == ""
-			case []string:
-				return len(v) == 0
-			case map[string]any:
-				return len(v) == 0
-			case int:
-				return v == 0
-			default:
-				return false
-			}
+			return isEmptyValue(val)
 		},
 		"notEmpty": func(val any) bool {
-			if val == nil {
-				return false
-			}
-			switch v := val.(type) {
-			case string:
-				return v != ""
-			case []string:
-				return len(v) > 0
-			case map[string]any:
-				return len(v) > 0
-			case int:
-				return v != 0
-			default:
-				return true
-			}
+			return !isEmptyValue(val)
 		},
 
 		// Collection functions
@@ -91,39 +86,24 @@ func createUtilityFunctions() template.FuncMap {
 				}
 			}
 
-			// If we have no lines or only one line, return as-is
 			if len(nonEmptyLines) <= 1 {
 				return text
 			}
 
-			// Create a copy for shuffling
 			shuffled := make([]string, len(nonEmptyLines))
 			copy(shuffled, nonEmptyLines)
-
-			// Shuffle using Fisher-Yates algorithm
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			for i := len(shuffled) - 1; i > 0; i-- {
-				j := r.Intn(i + 1)
-				shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-			}
+			shuffleStrings(shuffled)
 
 			return strings.Join(shuffled, "\n")
 		},
 		"shuffleLines": func(lines []string) []string {
-			// Create a copy for shuffling
 			if len(lines) <= 1 {
 				return lines
 			}
 
 			shuffled := make([]string, len(lines))
 			copy(shuffled, lines)
-
-			// Shuffle using Fisher-Yates algorithm
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			for i := len(shuffled) - 1; i > 0; i-- {
-				j := r.Intn(i + 1)
-				shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-			}
+			shuffleStrings(shuffled)
 
 			return shuffled
 		},

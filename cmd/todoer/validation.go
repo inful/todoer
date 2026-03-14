@@ -104,7 +104,8 @@ func validateProcessArgs(sourceFile, targetFile, templateDate string) error {
 	return nil
 }
 
-// validateConfig validates the configuration structure
+// validateConfig validates the configuration structure.
+// It only observes configuration — it does not create directories or modify state.
 func validateConfig(config *Config) error {
 	if config == nil {
 		return fmt.Errorf("%w: config cannot be nil", ErrInvalidConfig)
@@ -119,17 +120,13 @@ func validateConfig(config *Config) error {
 		return fmt.Errorf("invalid root directory '%s': %w", config.RootDir, err)
 	}
 
-	// Check if root directory exists and is accessible
+	// Check if root directory exists and is accessible (if it exists)
 	if info, err := os.Stat(config.RootDir); err != nil {
-		if os.IsNotExist(err) {
-			// Try to create the directory
-			if err := os.MkdirAll(config.RootDir, 0755); err != nil {
-				return fmt.Errorf("%w: cannot create root directory '%s': %v", ErrInvalidConfig, config.RootDir, err)
+		if !os.IsNotExist(err) {
+			if os.IsPermission(err) {
+				return fmt.Errorf("%w: cannot access root directory '%s': %w", ErrPermissionDenied, config.RootDir, err)
 			}
-		} else if os.IsPermission(err) {
-			return fmt.Errorf("%w: cannot access root directory '%s': %v", ErrPermissionDenied, config.RootDir, err)
-		} else {
-			return fmt.Errorf("%w: error accessing root directory '%s': %v", ErrInvalidConfig, config.RootDir, err)
+			return fmt.Errorf("%w: error accessing root directory '%s': %w", ErrInvalidConfig, config.RootDir, err)
 		}
 	} else if !info.IsDir() {
 		return fmt.Errorf("%w: root path '%s' exists but is not a directory", ErrInvalidConfig, config.RootDir)
@@ -146,9 +143,9 @@ func validateConfig(config *Config) error {
 			if os.IsNotExist(err) {
 				return fmt.Errorf("%w: template file '%s' does not exist", ErrTemplateNotFound, config.TemplateFile)
 			} else if os.IsPermission(err) {
-				return fmt.Errorf("%w: cannot read template file '%s': %v", ErrPermissionDenied, config.TemplateFile, err)
+				return fmt.Errorf("%w: cannot read template file '%s': %w", ErrPermissionDenied, config.TemplateFile, err)
 			} else {
-				return fmt.Errorf("%w: error accessing template file '%s': %v", ErrInvalidConfig, config.TemplateFile, err)
+				return fmt.Errorf("%w: error accessing template file '%s': %w", ErrInvalidConfig, config.TemplateFile, err)
 			}
 		} else if info.IsDir() {
 			return fmt.Errorf("%w: template path '%s' is a directory, not a file", ErrInvalidConfig, config.TemplateFile)
@@ -157,85 +154,31 @@ func validateConfig(config *Config) error {
 
 	// Validate custom variables if present
 	if err := validateCustomVariables(config.Custom); err != nil {
-		return fmt.Errorf("invalid custom variables: %w", err)
+		return fmt.Errorf("%w: invalid custom variables: %w", ErrInvalidConfig, err)
 	}
 
 	return nil
 }
 
-// validateCustomVariables validates the custom variables configuration
+// ensureDirectories creates any directories required by the configuration that do not yet exist.
+func ensureDirectories(config *Config) error {
+	if config == nil {
+		return nil
+	}
+	if config.RootDir != "" {
+		if err := os.MkdirAll(config.RootDir, 0o755); err != nil {
+			return fmt.Errorf("%w: cannot create root directory '%s': %w", ErrInvalidConfig, config.RootDir, err)
+		}
+	}
+	return nil
+}
+
+// validateCustomVariables validates the custom variables configuration.
+// It delegates name and type checking to core.ValidateCustomVariables so both
+// layers enforce exactly the same rules.
 func validateCustomVariables(custom map[string]any) error {
 	if custom == nil {
-		return nil // No custom variables is valid
+		return nil
 	}
-
-	reservedNames := map[string]bool{
-		"Date":           true,
-		"DateLong":       true,
-		"TODOS":          true,
-		"TotalTodos":     true,
-		"CompletedTodos": true,
-		"PreviousDate":   true,
-	}
-
-	for name, value := range custom {
-		// Check for reserved names
-		if reservedNames[name] {
-			return fmt.Errorf("%w: custom variable name '%s' is reserved", ErrInvalidConfig, name)
-		}
-
-		// Validate variable name format (must be valid Go template variable)
-		if !isValidVariableName(name) {
-			return fmt.Errorf("%w: custom variable name '%s' is not valid (must start with letter, contain only letters, numbers, and underscores)", ErrInvalidConfig, name)
-		}
-
-		// Validate variable type
-		if !isValidVariableType(value) {
-			return fmt.Errorf("%w: custom variable '%s' has unsupported type %T", ErrInvalidConfig, name, value)
-		}
-	}
-
-	return nil
-}
-
-// isValidVariableName checks if a variable name is valid for Go templates
-func isValidVariableName(name string) bool {
-	if name == "" {
-		return false
-	}
-
-	// Must start with letter or underscore
-	first := name[0]
-	if (first < 'a' || first > 'z') && (first < 'A' || first > 'Z') && first != '_' {
-		return false
-	}
-
-	// Rest must be letters, numbers, or underscores
-	for _, r := range name[1:] {
-		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_' {
-			return false
-		}
-	}
-
-	return true
-}
-
-// isValidVariableType checks if a variable type is supported in templates
-func isValidVariableType(value any) bool {
-	switch v := value.(type) {
-	case string, int, int32, int64, float32, float64, bool:
-		return true
-	case []any:
-		// Arrays are supported if all elements are valid types
-		for _, item := range v {
-			if !isValidVariableType(item) {
-				return false
-			}
-		}
-		return true
-	case []string, []int, []int32, []int64, []float32, []float64, []bool:
-		return true
-	default:
-		return false
-	}
+	return core.ValidateCustomVariables(custom)
 }

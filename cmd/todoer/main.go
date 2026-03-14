@@ -9,41 +9,35 @@ import (
 	"github.com/alecthomas/kong"
 )
 
-// templateSource represents different sources of templates
-type templateSource struct {
-	content string
-	name    string
-	err     error
-}
-
-// resolveTemplate determines the template content and source based on configuration
-func resolveTemplate(templateFile string) templateSource {
+// resolveTemplate determines the template content and source based on configuration.
+// Returns (content, name, error).
+func resolveTemplate(templateFile string) (string, string, error) {
 	if templateFile != "" {
 		content, err := os.ReadFile(templateFile)
 		if err != nil {
-			return templateSource{err: fmt.Errorf("failed to read template file '%s': %w", templateFile, err)}
+			return "", "", fmt.Errorf("failed to read template file '%s': %w", templateFile, err)
 		}
-		return templateSource{content: string(content), name: templateFile}
+		return string(content), templateFile, nil
 	}
 
 	// Try config directory template
 	configHome, err := getConfigDir()
 	if err != nil {
 		// Fall back to embedded template if can't determine config dir
-		return templateSource{content: defaultTemplate, name: "embedded default template"}
+		return defaultTemplate, "embedded default template", nil
 	}
 
 	configTemplate := filepath.Join(configHome, ConfigDirName, TemplateFileName)
 	if _, err := os.Stat(configTemplate); err == nil {
 		content, err := os.ReadFile(configTemplate)
 		if err != nil {
-			return templateSource{err: fmt.Errorf("failed to read config template '%s': %w", configTemplate, err)}
+			return "", "", fmt.Errorf("failed to read config template '%s': %w", configTemplate, err)
 		}
-		return templateSource{content: string(content), name: configTemplate}
+		return string(content), configTemplate, nil
 	}
 
 	// Fall back to embedded template
-	return templateSource{content: defaultTemplate, name: "embedded default template"}
+	return defaultTemplate, "embedded default template", nil
 }
 
 // CLI defines the command-line arguments structure for kong
@@ -71,6 +65,12 @@ var CLI struct {
 		TodosString  string `help:"String containing a sample TODOS section to use for preview (optional, overrides --todos-file)"`
 		CustomVars   string `help:"Custom variables as JSON string (optional)"`
 	} `cmd:"preview" help:"Preview rendering of a template file with a sample TODOS section"`
+}
+
+// fatalError logs an error message to stderr and exits with code 1.
+func fatalError(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "ERROR: "+format+"\n", args...)
+	os.Exit(1)
 }
 
 //go:embed default_template.md
@@ -115,7 +115,7 @@ func main() {
 		if err != nil {
 			fatalError("Failed to create new journal: %v", err)
 		}
-	case "process <source-file> <target-file>":
+	case cmdProcess:
 		logger := baseLogger
 		if CLI.Process.PrintPath {
 			logger = logger.WithMode(ModeQuiet)

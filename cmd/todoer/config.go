@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/inful/todoer/pkg/core"
 )
 
 // Config represents the configuration file structure
@@ -33,7 +34,6 @@ func loadConfig() (*Config, error) {
 
 	// Load from config file if it exists
 	if _, err := os.Stat(configPath); err == nil {
-		// config loaded from file; logging omitted to keep config package decoupled
 		if err := loadConfigFromFile(configPath, config); err != nil {
 			return nil, err
 		}
@@ -55,12 +55,17 @@ func loadConfig() (*Config, error) {
 		config.FrontmatterDateKey = "title"
 	}
 	if config.TodosHeader == "" {
-		config.TodosHeader = "## Todos"
+		config.TodosHeader = core.TodosHeader
 	}
 
 	// Validate the final configuration
 	if err := validateConfig(config); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
+	}
+
+	// Create any required directories that don't yet exist
+	if err := ensureDirectories(config); err != nil {
+		return nil, err
 	}
 
 	return config, nil

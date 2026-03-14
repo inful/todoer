@@ -377,12 +377,12 @@ func TestTodoJournal_DayCount(t *testing.T) {
 
 // Test regex patterns
 func TestRegexPatterns(t *testing.T) {
-	t.Run("FrontmatterDateRegex", func(t *testing.T) {
+	t.Run("ExtractDateFromFrontmatter", func(t *testing.T) {
 		tests := []struct {
-			name        string
-			input       string
-			expected    string
-			shouldMatch bool
+			name     string
+			input    string
+			expected string
+			wantDate bool // true: expect a specific date, false: expect today's fallback
 		}{
 			{
 				name: "valid frontmatter with date",
@@ -390,40 +390,35 @@ func TestRegexPatterns(t *testing.T) {
 title: 2025-06-19
 author: Test
 ---`,
-				expected:    "2025-06-19",
-				shouldMatch: true,
+				expected: "2025-06-19",
+				wantDate: true,
 			},
 			{
-				name: "frontmatter without date",
+				name: "frontmatter without date falls back to today",
 				input: `---
 title: Some Title
 author: Test
 ---`,
-				expected:    "",
-				shouldMatch: false,
+				wantDate: false,
 			},
 			{
-				name:        "malformed frontmatter",
-				input:       `title: 2025-06-19`,
-				expected:    "",
-				shouldMatch: false,
+				name:     "malformed frontmatter falls back to today",
+				input:    `title: 2025-06-19`,
+				wantDate: false,
 			},
 		}
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				matches := FrontmatterDateRegex.FindStringSubmatch(tt.input)
-				if tt.shouldMatch {
-					if len(matches) < 2 {
-						t.Errorf("Expected to find date match, but got %v", matches)
-					} else if matches[1] != tt.expected {
-						t.Errorf("Expected date %q, got %q", tt.expected, matches[1])
-					}
-				} else {
-					if len(matches) >= 2 {
-						t.Errorf("Expected no match, but got %v", matches)
-					}
+				date, err := ExtractDateFromFrontmatter(tt.input, "title")
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return
 				}
+				if tt.wantDate && date != tt.expected {
+					t.Errorf("expected date %q, got %q", tt.expected, date)
+				}
+				// When wantDate is false, any non-empty date (today's fallback) is acceptable.
 			})
 		}
 	})

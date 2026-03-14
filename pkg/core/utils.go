@@ -56,26 +56,23 @@ func DeepCopyItem(item *TodoItem) *TodoItem {
 		return nil
 	}
 
-	copy := &TodoItem{
+	dst := &TodoItem{
 		Completed:   item.Completed,
 		Text:        item.Text,
 		SubItems:    make([]*TodoItem, 0, len(item.SubItems)),
 		BulletLines: make([]string, 0, len(item.BulletLines)),
 	}
 
-	// Copy bullet lines efficiently
-	if len(item.BulletLines) > 0 {
-		copy.BulletLines = append(copy.BulletLines, item.BulletLines...)
-	}
+	dst.BulletLines = append(dst.BulletLines, item.BulletLines...)
 
 	// Copy subitems recursively
 	for _, subItem := range item.SubItems {
 		if copiedSubItem := DeepCopyItem(subItem); copiedSubItem != nil {
-			copy.SubItems = append(copy.SubItems, copiedSubItem)
+			dst.SubItems = append(dst.SubItems, copiedSubItem)
 		}
 	}
 
-	return copy
+	return dst
 }
 
 // IsCompleted checks if a todo item and all its subitems are completed.
@@ -112,7 +109,7 @@ func CountTotalItems(items []*TodoItem) int {
 		return 0
 	}
 
-	count := len(items) // Count top-level items
+	count := len(items)
 	for _, item := range items {
 		if item != nil && len(item.SubItems) > 0 {
 			count += CountTotalItems(item.SubItems) // Add nested items recursively
@@ -150,25 +147,6 @@ func CountUncompletedTopLevelItems(items []*TodoItem) int {
 		}
 	}
 	return count
-}
-
-// GetMaxIndentLevel finds the maximum indentation level in a slice of todo items.
-// This can be useful for formatting or layout calculations.
-func GetMaxIndentLevel(items []*TodoItem, currentLevel int) int {
-	if len(items) == 0 {
-		return currentLevel
-	}
-
-	maxLevel := currentLevel
-	for _, item := range items {
-		if item != nil && len(item.SubItems) > 0 {
-			subMaxLevel := GetMaxIndentLevel(item.SubItems, currentLevel+1)
-			if subMaxLevel > maxLevel {
-				maxLevel = subMaxLevel
-			}
-		}
-	}
-	return maxLevel
 }
 
 // DateVariables holds formatted date variants for template usage

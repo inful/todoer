@@ -94,7 +94,7 @@ title: 2025-06-19
 
 Some notes here.`
 
-	if err := os.WriteFile(sourceFile, []byte(sourceContent), 0644); err != nil {
+	if err := os.WriteFile(sourceFile, []byte(sourceContent), 0o644); err != nil {
 		t.Fatalf("Failed to create source file: %v", err)
 	}
 
@@ -159,7 +159,7 @@ func testNewCommand(t *testing.T, binaryPath string) {
 	month := yesterday.Format("01")
 
 	journalDir := filepath.Join(tempDir, year, month)
-	if err := os.MkdirAll(journalDir, 0755); err != nil {
+	if err := os.MkdirAll(journalDir, 0o755); err != nil {
 		t.Fatalf("Failed to create journal directory: %v", err)
 	}
 
@@ -180,7 +180,7 @@ title: ` + yesterday.Format("2006-01-02") + `
 
 Previous day notes.`
 
-	if err := os.WriteFile(yesterdayFile, []byte(yesterdayContent), 0644); err != nil {
+	if err := os.WriteFile(yesterdayFile, []byte(yesterdayContent), 0o644); err != nil {
 		t.Fatalf("Failed to create yesterday's journal: %v", err)
 	}
 
@@ -281,7 +281,7 @@ func testErrorHandling(t *testing.T, binaryPath string) {
 	// Test same source and target file
 	tempDir := t.TempDir()
 	sameFile := filepath.Join(tempDir, "same.md")
-	if err := os.WriteFile(sameFile, []byte("test"), 0644); err != nil {
+	if err := os.WriteFile(sameFile, []byte("test"), 0o644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
@@ -315,7 +315,7 @@ func testConfigFile(t *testing.T, binaryPath string) {
 
 	// Create a config file in the correct location
 	configDir := filepath.Join(tempDir, "todoer")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
 
@@ -327,7 +327,7 @@ author = "Test Author"
 project = "Test Project"`
 
 	configFile := filepath.Join(configDir, "config.toml")
-	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configFile, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
@@ -347,7 +347,7 @@ project: {{.Custom.project}}
 Author: {{.Custom.author}}`
 
 	templateFile := filepath.Join(tempDir, "custom_template.md")
-	if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
+	if err := os.WriteFile(templateFile, []byte(templateContent), 0o644); err != nil {
 		t.Fatalf("Failed to create template file: %v", err)
 	}
 
@@ -366,7 +366,7 @@ title: 2025-06-19
 
 ## Notes`
 
-	if err := os.WriteFile(sourceFile, []byte(sourceContent), 0644); err != nil {
+	if err := os.WriteFile(sourceFile, []byte(sourceContent), 0o644); err != nil {
 		t.Fatalf("Failed to create source file: %v", err)
 	}
 
@@ -441,7 +441,7 @@ title: {{.Date}}
 {{title "test string"}}`
 
 	templateFile := filepath.Join(tempDir, "advanced_template.md")
-	if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
+	if err := os.WriteFile(templateFile, []byte(templateContent), 0o644); err != nil {
 		t.Fatalf("Failed to create template file: %v", err)
 	}
 
@@ -462,7 +462,7 @@ title: 2025-06-19
 
 ## Notes`
 
-	if err := os.WriteFile(sourceFile, []byte(sourceContent), 0644); err != nil {
+	if err := os.WriteFile(sourceFile, []byte(sourceContent), 0o644); err != nil {
 		t.Fatalf("Failed to create source file: %v", err)
 	}
 
@@ -549,7 +549,7 @@ title: {{.Date}}
 ## Notes from ENV`
 
 	templateFile := filepath.Join(tempDir, "env_template.md")
-	if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
+	if err := os.WriteFile(templateFile, []byte(templateContent), 0o644); err != nil {
 		t.Fatalf("Failed to create template file: %v", err)
 	}
 
@@ -568,7 +568,7 @@ title: 2025-06-19
 
 ## Notes`
 
-	if err := os.WriteFile(sourceFile, []byte(sourceContent), 0644); err != nil {
+	if err := os.WriteFile(sourceFile, []byte(sourceContent), 0o644); err != nil {
 		t.Fatalf("Failed to create source file: %v", err)
 	}
 
@@ -624,7 +624,7 @@ title: 2025-06-19
 
 ## Notes`, i, i)
 
-		if err := os.WriteFile(sourceFile, []byte(sourceContent), 0644); err != nil {
+		if err := os.WriteFile(sourceFile, []byte(sourceContent), 0o644); err != nil {
 			t.Fatalf("Failed to create source file %d: %v", i, err)
 		}
 
@@ -690,7 +690,7 @@ title: 2025-06-19
 
 	sourceContent.WriteString("\n## Notes\n\nLarge journal with many todos.\n")
 
-	if err := os.WriteFile(sourceFile, []byte(sourceContent.String()), 0644); err != nil {
+	if err := os.WriteFile(sourceFile, []byte(sourceContent.String()), 0o644); err != nil {
 		t.Fatalf("Failed to create large source file: %v", err)
 	}
 
@@ -736,7 +736,7 @@ func testEdgeCases(t *testing.T, binaryPath string) {
 
 	t.Run("EmptySourceFile", func(t *testing.T) {
 		sourceFile := filepath.Join(tempDir, "empty.md")
-		if err := os.WriteFile(sourceFile, []byte(""), 0644); err != nil {
+		if err := os.WriteFile(sourceFile, []byte(""), 0o644); err != nil {
 			t.Fatalf("Failed to create empty file: %v", err)
 		}
 
@@ -766,7 +766,7 @@ title: 2025-06-19
 
 Just notes, no todos section.`
 
-		if err := os.WriteFile(sourceFile, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(sourceFile, []byte(content), 0o644); err != nil {
 			t.Fatalf("Failed to create no todos file: %v", err)
 		}
 
@@ -807,7 +807,7 @@ title: 2025-06-19
 
 Testing Unicode: ñáéíóú, العربية, 日本語`
 
-		if err := os.WriteFile(sourceFile, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(sourceFile, []byte(content), 0o644); err != nil {
 			t.Fatalf("Failed to create unicode file: %v", err)
 		}
 

@@ -33,9 +33,6 @@ func createStringFunctions() template.FuncMap {
 			return strings.ReplaceAll(str, old, new)
 		},
 		"repeat": strings.Repeat,
-		"len": func(s string) int {
-			return len(s)
-		},
 
 		// String searching
 		"contains":  strings.Contains,

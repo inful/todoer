@@ -28,10 +28,10 @@ func tUnsetenv(t *testing.T, key string) {
 // Helper function to create a test file
 func createTestFile(t *testing.T, path, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("Failed to create directory: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 }
@@ -115,20 +115,20 @@ func TestResolveTemplate(t *testing.T) {
 				tt.setupFunc()
 			}
 
-			result := resolveTemplate(tt.templateFile)
+			content, name, err := resolveTemplate(tt.templateFile)
 
 			if tt.expectError {
-				if result.err == nil {
+				if err == nil {
 					t.Errorf("resolveTemplate() expected error, got none")
 				}
 			} else {
-				if result.err != nil {
-					t.Errorf("resolveTemplate() unexpected error: %v", result.err)
+				if err != nil {
+					t.Errorf("resolveTemplate() unexpected error: %v", err)
 				}
-				if result.name != tt.expectName {
-					t.Errorf("resolveTemplate() name = %v, want %v", result.name, tt.expectName)
+				if name != tt.expectName {
+					t.Errorf("resolveTemplate() name = %v, want %v", name, tt.expectName)
 				}
-				if result.content == "" {
+				if content == "" {
 					t.Errorf("resolveTemplate() content is empty")
 				}
 			}
@@ -230,13 +230,13 @@ func TestLoadConfigWithXDG(t *testing.T) {
 			name: "XDG_CONFIG_HOME set with valid config",
 			setupFunc: func(tempDir string) string {
 				configDir := filepath.Join(tempDir, "todoer")
-				if err := os.MkdirAll(configDir, 0755); err != nil {
+				if err := os.MkdirAll(configDir, 0o755); err != nil {
 					t.Fatal(err)
 				}
 				configPath := filepath.Join(configDir, "config.toml")
 				customRoot := filepath.Join(tempDir, "custom_root")
 				configContent := fmt.Sprintf(`root_dir = "%s"`, customRoot)
-				if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+				if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 					t.Fatal(err)
 				}
 				return configPath
@@ -249,7 +249,7 @@ func TestLoadConfigWithXDG(t *testing.T) {
 			setupFunc: func(tempDir string) string {
 				// Create the config directory but no config file
 				configDir := filepath.Join(tempDir, "todoer")
-				if err := os.MkdirAll(configDir, 0755); err != nil {
+				if err := os.MkdirAll(configDir, 0o755); err != nil {
 					t.Fatal(err)
 				}
 				return filepath.Join(configDir, "config.toml")
@@ -262,7 +262,7 @@ func TestLoadConfigWithXDG(t *testing.T) {
 			setupFunc: func(tempDir string) string {
 				// Create isolated HOME directory to avoid interference
 				isolatedHome := filepath.Join(tempDir, "isolated_home")
-				if err := os.MkdirAll(isolatedHome, 0755); err != nil {
+				if err := os.MkdirAll(isolatedHome, 0o755); err != nil {
 					t.Fatal(err)
 				}
 				t.Setenv("HOME", isolatedHome)
@@ -355,12 +355,12 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 			name: "XDG_CONFIG_HOME with template file",
 			setupFunc: func(tempDir string) {
 				configDir := filepath.Join(tempDir, "todoer")
-				if err := os.MkdirAll(configDir, 0755); err != nil {
+				if err := os.MkdirAll(configDir, 0o755); err != nil {
 					t.Fatal(err)
 				}
 				templatePath := filepath.Join(configDir, "template.md")
 				templateContent := "# Custom Template\n## Todos\n{{.TODOS}}"
-				if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+				if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			},
@@ -371,7 +371,7 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 			setupFunc: func(tempDir string) {
 				// Don't create template file, but ensure config dir exists
 				configDir := filepath.Join(tempDir, "todoer")
-				if err := os.MkdirAll(configDir, 0755); err != nil {
+				if err := os.MkdirAll(configDir, 0o755); err != nil {
 					t.Fatal(err)
 				}
 			},
@@ -382,11 +382,11 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 			setupFunc: func(tempDir string) {
 				// Create both XDG template and explicit template
 				configDir := filepath.Join(tempDir, "todoer")
-				if err := os.MkdirAll(configDir, 0755); err != nil {
+				if err := os.MkdirAll(configDir, 0o755); err != nil {
 					t.Fatal(err)
 				}
 				xdgTemplate := filepath.Join(configDir, "template.md")
-				if err := os.WriteFile(xdgTemplate, []byte("XDG Template"), 0644); err != nil {
+				if err := os.WriteFile(xdgTemplate, []byte("XDG Template"), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			},
@@ -428,25 +428,25 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 			}
 
 			// Resolve template
-			result := resolveTemplate(templateFile)
+			content, name, err := resolveTemplate(templateFile)
 
 			if tt.expectError {
-				if result.err == nil {
+				if err == nil {
 					t.Error("Expected error but got none")
 				}
 				return
 			}
 
-			if result.err != nil {
-				t.Errorf("Unexpected error: %v", result.err)
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
 				return
 			}
 
-			if result.name != expectedName {
-				t.Errorf("Expected template name %q, got %q", expectedName, result.name)
+			if name != expectedName {
+				t.Errorf("Expected template name %q, got %q", expectedName, name)
 			}
 
-			if result.content == "" {
+			if content == "" {
 				t.Error("Template content should not be empty")
 			}
 		})
@@ -1059,69 +1059,6 @@ func TestValidateCustomVariables(t *testing.T) {
 	}
 }
 
-func TestIsValidVariableName(t *testing.T) {
-	tests := []struct {
-		name     string
-		varName  string
-		expected bool
-	}{
-		{"empty string", "", false},
-		{"valid simple name", "test", true},
-		{"valid with underscore", "test_var", true},
-		{"valid starting with underscore", "_private", true},
-		{"valid with numbers", "var123", true},
-		{"invalid starting with number", "123var", false},
-		{"invalid with dash", "test-var", false},
-		{"invalid with space", "test var", false},
-		{"invalid with special chars", "test@var", false},
-		{"valid camelCase", "camelCase", true},
-		{"valid PascalCase", "PascalCase", true},
-		{"valid UPPERCASE", "UPPERCASE", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isValidVariableName(tt.varName)
-			if result != tt.expected {
-				t.Errorf("isValidVariableName(%q) = %v, expected %v", tt.varName, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestIsValidVariableType(t *testing.T) {
-	tests := []struct {
-		name     string
-		value    any
-		expected bool
-	}{
-		{"string", "test", true},
-		{"int", 42, true},
-		{"int32", int32(42), true},
-		{"int64", int64(42), true},
-		{"float32", float32(3.14), true},
-		{"float64", 3.14, true},
-		{"bool", true, true},
-		{"string slice", []string{"a", "b"}, true},
-		{"int slice", []int{1, 2, 3}, true},
-		{"interface slice with valid types", []any{"string", 42, true}, true},
-		{"interface slice with invalid type", []any{"string", complex(1, 2)}, false},
-		{"complex number", complex(1, 2), false},
-		{"map", map[string]string{"key": "value"}, false},
-		{"struct", struct{ Name string }{Name: "test"}, false},
-		{"nil", nil, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isValidVariableType(tt.value)
-			if result != tt.expected {
-				t.Errorf("isValidVariableType(%v) = %v, expected %v", tt.value, result, tt.expected)
-			}
-		})
-	}
-}
-
 // Benchmark tests
 func BenchmarkExpandPath(b *testing.B) {
 	paths := []string{
@@ -1143,12 +1080,12 @@ func BenchmarkResolveTemplate(b *testing.B) {
 	tempDir := b.TempDir()
 
 	templateFile := filepath.Join(tempDir, "template.md")
-	if err := os.WriteFile(templateFile, []byte("Test template content"), 0644); err != nil {
+	if err := os.WriteFile(templateFile, []byte("Test template content"), 0o644); err != nil {
 		b.Fatalf("Failed to create template file: %v", err)
 	}
 
 	b.ResetTimer()
 	for b.Loop() {
-		resolveTemplate(templateFile)
+		_, _, _ = resolveTemplate(templateFile)
 	}
 }

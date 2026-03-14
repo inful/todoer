@@ -218,6 +218,9 @@ func MoveUndatedTodosToCurrentDate(journal *TodoJournal, currentDate string) *To
 		if day.Date == "" {
 			// This is an undated section - collect incomplete todos
 			for _, item := range day.Items {
+				if item == nil {
+					continue
+				}
 				if !item.Completed {
 					undatedIncompleteTodos = append(undatedIncompleteTodos, item)
 				}

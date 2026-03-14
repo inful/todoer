@@ -16,7 +16,7 @@ func safeWriteFile(filename string, data []byte, perm os.FileMode) error {
 
 	defer func() {
 		_ = tmpFile.Close()
-		_ = os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name()) // no-op after successful Rename; removes the tmp file on any earlier failure
 	}()
 
 	if _, err := tmpFile.Write(data); err != nil {
@@ -48,10 +48,4 @@ func getConfigValue(cliValue, configValue string) string {
 		return cliValue
 	}
 	return configValue
-}
-
-// fatalError logs an error and exits with code 1.
-func fatalError(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "ERROR: "+format+"\n", args...)
-	os.Exit(1)
 }

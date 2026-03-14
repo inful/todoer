@@ -19,10 +19,6 @@ const (
 
 // Compiled regex patterns for better performance
 var (
-	// FrontmatterDateRegex matches dates in YAML frontmatter title fields
-	// Pattern: ---...title: YYYY-MM-DD...--- (supports multiline frontmatter)
-	FrontmatterDateRegex = regexp.MustCompile(`(?s)---.*?title:\s*(\d{4}-\d{2}-\d{2}).*?---`)
-
 	// NextSectionRegex matches the start of the next markdown section (## Header)
 	// Used to find the end of the TODOS section
 	NextSectionRegex = regexp.MustCompile(`\n\n## `)
@@ -60,7 +56,7 @@ func (t *TodoItem) IsEmpty() bool {
 	return t == nil || (t.Text == "" && len(t.SubItems) == 0 && len(t.BulletLines) == 0)
 }
 
-// HasSubItems returns true if the todo item has any nested subitems
+// HasSubItems reports whether the item has any nested subitems.
 func (t *TodoItem) HasSubItems() bool {
 	return t != nil && len(t.SubItems) > 0
 }
@@ -70,8 +66,7 @@ func (t *TodoItem) HasBulletLines() bool {
 	return t != nil && len(t.BulletLines) > 0
 }
 
-// DaySection represents a day's todo items with a specific date.
-// Each day section contains all todos scheduled for that particular date.
+// DaySection represents a day's todo items grouped under a specific date.
 type DaySection struct {
 	Date  string      // Date in YYYY-MM-DD format
 	Items []*TodoItem // All todo items for this day
@@ -82,7 +77,7 @@ func (d *DaySection) IsEmpty() bool {
 	return d == nil || len(d.Items) == 0
 }
 
-// ItemCount returns the total number of top-level items in this day section
+// ItemCount returns the number of top-level todo items in this day section.
 func (d *DaySection) ItemCount() int {
 	if d == nil {
 		return 0
@@ -90,8 +85,7 @@ func (d *DaySection) ItemCount() int {
 	return len(d.Items)
 }
 
-// TodoJournal represents the entire journal containing multiple days of todo items.
-// It provides the top-level structure for organizing todos by date.
+// TodoJournal is the top-level structure holding all day sections in chronological order.
 type TodoJournal struct {
 	Days []*DaySection // All day sections in chronological order
 }
@@ -101,7 +95,7 @@ func (j *TodoJournal) IsEmpty() bool {
 	return j == nil || len(j.Days) == 0
 }
 
-// DayCount returns the number of day sections in the journal
+// DayCount returns the number of day sections in the journal.
 func (j *TodoJournal) DayCount() int {
 	if j == nil {
 		return 0

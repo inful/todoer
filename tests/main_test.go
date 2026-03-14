@@ -428,7 +428,7 @@ title: 2024-01-14
 		// Use afero in-memory filesystem
 		fs := afero.NewMemMapFs()
 		templateFile := "/template-inmem.md"
-		if err := afero.WriteFile(fs, templateFile, []byte(templateContent), 0644); err != nil {
+		if err := afero.WriteFile(fs, templateFile, []byte(templateContent), 0o644); err != nil {
 			t.Fatalf("Failed to write template: %v", err)
 		}
 

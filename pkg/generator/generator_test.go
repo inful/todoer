@@ -109,7 +109,7 @@ func TestNewGeneratorFromFile(t *testing.T) {
 	templateFile := filepath.Join(tmpDir, "test_template.md")
 	templateContent := "# {{.Date}}\n\n## Todos\n\n{{.TODOS}}\n"
 
-	err := os.WriteFile(templateFile, []byte(templateContent), 0644)
+	err := os.WriteFile(templateFile, []byte(templateContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create test template file: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestNewGeneratorFromFileWithOptions(t *testing.T) {
 	templateFile := filepath.Join(tmpDir, "test_template.md")
 	templateContent := "# {{.Date}}\n{{if .PreviousDate}}Previous: {{.PreviousDate}}{{end}}\n{{.TODOS}}\n"
 
-	err := os.WriteFile(templateFile, []byte(templateContent), 0644)
+	err := os.WriteFile(templateFile, []byte(templateContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create test template file: %v", err)
 	}
@@ -259,7 +259,7 @@ title: 2024-01-15
 - [ ] Task 1
 - [x] Task 2`
 
-	err = os.WriteFile(inputFile, []byte(content), 0644)
+	err = os.WriteFile(inputFile, []byte(content), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
@@ -444,12 +444,12 @@ title: 2024-01-15
 ---
 
 # Test`
-		date, err := ExtractDateFromFrontmatter(content, "title")
+		date, err := core.ExtractDateFromFrontmatter(content, "title")
 		if err != nil {
-			t.Errorf("ExtractDateFromFrontmatter() error = %v", err)
+			t.Errorf("core.ExtractDateFromFrontmatter() error = %v", err)
 		}
 		if date != "2024-01-15" {
-			t.Errorf("ExtractDateFromFrontmatter() = %v, want %v", date, "2024-01-15")
+			t.Errorf("core.ExtractDateFromFrontmatter() = %v, want %v", date, "2024-01-15")
 		}
 	})
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 )
 
@@ -43,10 +42,10 @@ func (l *Logger) Debug(format string, args ...any) {
 	if l.mode != ModeDebug {
 		return
 	}
-	log.Printf("DEBUG: "+format, args...)
+	fmt.Fprintf(os.Stderr, "DEBUG: "+format+"\n", args...)
 }
 
 // Error always logs errors.
 func (l *Logger) Error(format string, args ...any) {
-	log.Printf("ERROR: "+format, args...)
+	fmt.Fprintf(os.Stderr, "ERROR: "+format+"\n", args...)
 }

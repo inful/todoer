@@ -83,8 +83,9 @@ type ProcessResult struct {
 	NewFile          io.Reader
 }
 
-// Process processes journal content and returns a ProcessResult.
-// It returns an error if parsing or processing fails.
+// Process handles the journal content, moving completed todos into the original
+// and uncompleted todos into a freshly rendered template. Returns an error if
+// parsing or processing fails.
 func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	// Empty content is invalid; require at least some frontmatter/body
 	if strings.TrimSpace(originalContent) == "" {
@@ -99,7 +100,11 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	// Extract TODOS section
 	beforeTodos, todosSection, afterTodos, err := core.ExtractTodosSectionWithHeader(originalContent, g.todosHeader)
 	if err != nil {
-		// If no TODOS section exists, treat it as having an empty section
+		// Tolerate a missing TODOS section; treat it as empty.
+		// Any other error (malformed content) is surfaced to the caller.
+		if !strings.Contains(err.Error(), "could not find") {
+			return nil, fmt.Errorf("failed to extract TODOS section: %w", err)
+		}
 		beforeTodos = originalContent
 		todosSection = ""
 		afterTodos = ""
@@ -126,8 +131,8 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	}, nil
 }
 
-// ProcessFile processes a journal file and returns a ProcessResult.
-// It returns an error if the file cannot be read or processing fails.
+// ProcessFile reads a journal file from disk and calls Process.
+// Returns an error if the file cannot be read or processing fails.
 func (g *Generator) ProcessFile(filename string) (*ProcessResult, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -149,11 +154,6 @@ func (g *Generator) createFromTemplateWithCustom(todosContent string, dateToUse 
 	})
 }
 
-// ExtractDateFromFrontmatter extracts the date from frontmatter using the given key.
-func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) {
-	return core.ExtractDateFromFrontmatter(content, dateKey)
-}
-
 // validateTemplate validates the template syntax to catch errors early
 func (g *Generator) validateTemplate() error {
 	// Try parsing the template with the same functions used during execution
@@ -164,10 +164,10 @@ func (g *Generator) validateTemplate() error {
 	return nil
 }
 
-// Option represents a configuration option for Generator creation
+// Option is a functional option for configuring a Generator.
 type Option func(*options)
 
-// options holds configuration for Generator creation
+// options is the internal config struct populated by Option functions.
 type options struct {
 	previousDate       string
 	customVars         map[string]any
@@ -204,12 +204,14 @@ func WithTodosHeader(header string) Option {
 }
 
 // WithOptions creates a new Generator based on the current one but with modified options.
-// This allows reconfiguring an existing generator without rebuilding from scratch.
+// Fields not covered by the supplied opts retain the current generator's values.
 func (g *Generator) WithOptions(opts ...Option) (*Generator, error) {
-	// Set up configuration with current values
+	// Seed config with all current values so callers only need to supply changes.
 	config := &options{
-		previousDate: g.previousDate,
-		customVars:   g.customVars,
+		previousDate:       g.previousDate,
+		customVars:         g.customVars,
+		frontmatterDateKey: g.frontmatterDateKey,
+		todosHeader:        g.todosHeader,
 	}
 
 	// Apply new options
