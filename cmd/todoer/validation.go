@@ -28,32 +28,40 @@ func validateFilePath(path string) error {
 		return fmt.Errorf("%w: path cannot be empty", ErrInvalidPath)
 	}
 
-	// Clean the path to resolve any .. or . components
-	cleanPath := filepath.Clean(path)
-
-	// Check for potentially dangerous paths
-	if strings.Contains(cleanPath, "..") {
+	// Check the raw input for directory traversal BEFORE filepath.Clean resolves it.
+	// filepath.Clean("/foo/../../etc/passwd") → "/etc/passwd", removing all ".." traces,
+	// so the check must happen on the original string.
+	if strings.Contains(path, "..") {
 		return fmt.Errorf("%w: path contains directory traversal", ErrInvalidPath)
 	}
 
-	// Check if the directory portion exists or can be created
+	// Clean the path to normalize it after the traversal check.
+	cleanPath := filepath.Clean(path)
+
+	// Walk up the directory tree iteratively (bounded) to find the first existing
+	// ancestor, ensuring the path is rooted in a real directory.
+	const maxDepth = 50
 	dir := filepath.Dir(cleanPath)
-	if dir != "." && dir != "/" {
-		if info, err := os.Stat(dir); err != nil {
-			if os.IsNotExist(err) {
-				// Check if we can potentially create the directory
-				parent := filepath.Dir(dir)
-				if parent != dir { // Avoid infinite recursion
-					if err := validateFilePath(parent); err != nil {
-						return fmt.Errorf("%w: cannot access parent directory", ErrInvalidPath)
-					}
-				}
-			} else {
-				return fmt.Errorf("%w: cannot access directory: %v", ErrInvalidPath, err)
-			}
-		} else if !info.IsDir() {
-			return fmt.Errorf("%w: parent path is not a directory", ErrInvalidPath)
+	for range maxDepth {
+		if dir == "." || dir == "/" {
+			break
 		}
+		info, err := os.Stat(dir)
+		if err == nil {
+			if !info.IsDir() {
+				return fmt.Errorf("%w: parent path is not a directory", ErrInvalidPath)
+			}
+			break // found an existing valid directory ancestor
+		}
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("%w: cannot access directory: %v", ErrInvalidPath, err)
+		}
+		// Directory does not exist yet; check one level up.
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break // reached filesystem root
+		}
+		dir = parent
 	}
 
 	return nil

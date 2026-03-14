@@ -182,7 +182,7 @@ func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger
 	if err != nil {
 		logger.Info("No previous journal found, creating a new one from template.")
 
-		tmpFile, err := os.CreateTemp("", "empty-journal-*.md")
+		tmpFile, err := os.CreateTemp(filepath.Dir(journalPath), "empty-journal-*.md")
 		if err != nil {
 			return fmt.Errorf("failed to create temp file: %w", err)
 		}
