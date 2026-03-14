@@ -17,9 +17,9 @@ template_file = "~/.config/todoer/my_template.md"
 3. Optionally override these values per run using CLI flags:
 
 ```bash
-todoer new --root-dir "./my-journals" --template-file "custom.md"
+todoer --root-dir "./my-journals" --template-file "custom.md" new
 
-todoer process source.md target.md --template-file "template.md"
+todoer --template-file "template.md" process source.md target.md
 ```
 
 4. Or via environment variables:
@@ -47,8 +47,27 @@ To create todays journal file and carry over incomplete todos from the most rece
 todoer new
 
 # Use an explicit root directory
-todoer new --root-dir "./journals"
+todoer --root-dir "./journals" new
 ```
+
+### Add a todo directly from the CLI
+
+To add a new todo to today's journal:
+
+```bash
+todoer add review PR notes
+
+# With an explicit journals root directory
+todoer --root-dir "./journals" add write test plan
+```
+
+Behavior:
+
+- If today's journal does not exist yet, todoer creates it first using
+  the same transfer behavior as `new`.
+- The new todo is appended as an unchecked item under today's date
+  section.
+- Multi-word todo text can be passed without quotes.
 
 Behavior:
 
@@ -93,7 +112,7 @@ template_file = "~/.config/todoer/template.md"
 
 ```bash
 # Override for a single run
-todoer new --template-file "./template.md"
+todoer --template-file "./template.md" new
 ```
 
 Template selection order:
@@ -176,7 +195,7 @@ Notes:
 Use the `preview` command to see how a template renders with a sample todos section and optional custom variables:
 
 ```bash
-todoer preview --template-file "template.md" --date "2025-06-20"
+todoer --template-file "template.md" preview --date "2025-06-20"
 
 # Provide a specific todos section file
 todoer preview --todos-file "todos_sample.md"
@@ -205,17 +224,17 @@ Examples:
 
 ```bash
 # Create a new journal and open it in an editor
-vim $(todoer new --print-path)
+vim $(todoer --print-path new)
 
-nvim $(todoer new --print-path)
+nvim $(todoer --print-path new)
 
-code $(todoer new --print-path)
+code $(todoer --print-path new)
 
 # Process a journal and view the output
-cat $(todoer process source.md target.md --print-path)
+cat $(todoer --print-path process source.md target.md)
 
 # Store the path in a variable
-NEW_JOURNAL=$(todoer new --print-path)
+NEW_JOURNAL=$(todoer --print-path new)
 echo "Created: $NEW_JOURNAL"
 ```
 

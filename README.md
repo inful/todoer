@@ -17,6 +17,9 @@ go build -o todoer ./cmd/todoer
 # Create today’s journal (uses defaults or config)
 ./todoer new
 
+# Add a todo directly from the CLI (quotes optional)
+./todoer add review PR notes
+
 # Or process an existing journal into a new file
 ./todoer process source.md target.md
 ```
@@ -37,7 +40,7 @@ By default, journals are stored under `ROOT/YYYY/MM/YYYY-MM-DD.md` and only the 
 3. **Create today’s journal**:
 
 ```bash
-./todoer new --root-dir "~/Documents/journals"
+./todoer --root-dir "~/Documents/journals" new
 ```
 
 This creates `YYYY/MM/YYYY-MM-DD.md`, finds the most recent previous journal, moves incomplete todos to today, and tags completed todos in the previous file.

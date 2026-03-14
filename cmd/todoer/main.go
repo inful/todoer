@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/alecthomas/kong"
 )
@@ -42,28 +43,28 @@ func resolveTemplate(templateFile string) (string, string, error) {
 
 // CLI defines the command-line arguments structure for kong
 var CLI struct {
-	Debug bool `help:"Enable debug logging"`
+	Debug        bool   `help:"Enable debug logging"`
+	RootDir      string `help:"Root directory for journals (overrides config/env)"`
+	TemplateFile string `help:"Template file override (applies to commands that render/create journals)"`
+	PrintPath    bool   `help:"Print resulting journal path to stdout (for composability, where applicable)"`
 
 	Process struct {
 		SourceFile   string `arg:"" help:"Input journal file"`
 		TargetFile   string `arg:"" help:"Output file for uncompleted tasks"`
-		TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
 		TemplateDate string `help:"Optional date for template rendering (YYYY-MM-DD)"`
-		PrintPath    bool   `help:"Print the target file path to stdout (for composability)"`
 	} `cmd:"" help:"Process a journal file"`
 
-	New struct {
-		RootDir      string `help:"Root directory for journals (overrides config/env)"`
-		TemplateFile string `help:"Template for creating the target file (optional, overrides config/env)"`
-		PrintPath    bool   `help:"Print the created file path to stdout (for composability)"`
-	} `cmd:"new" help:"Create a new daily journal file"`
+	New struct{} `cmd:"new" help:"Create a new daily journal file"`
+
+	Add struct {
+		TodoWords []string `arg:"" name:"todo-text" help:"Todo text to add to today's journal"`
+	} `cmd:"add <todo-text>..." help:"Add a todo item to today's journal (creates today's file first if needed)"`
 
 	Preview struct {
-		TemplateFile string `help:"Template file to preview (optional, overrides config/env)"`
-		Date         string `help:"Date for template rendering (YYYY-MM-DD, optional, defaults to today)"`
-		TodosFile    string `help:"File containing a sample TODOS section to use for preview (optional)"`
-		TodosString  string `help:"String containing a sample TODOS section to use for preview (optional, overrides --todos-file)"`
-		CustomVars   string `help:"Custom variables as JSON string (optional)"`
+		Date        string `help:"Date for template rendering (YYYY-MM-DD, optional, defaults to today)"`
+		TodosFile   string `help:"File containing a sample TODOS section to use for preview (optional)"`
+		TodosString string `help:"String containing a sample TODOS section to use for preview (optional, overrides --todos-file)"`
+		CustomVars  string `help:"Custom variables as JSON string (optional)"`
 	} `cmd:"preview" help:"Preview rendering of a template file with a sample TODOS section"`
 }
 
@@ -104,33 +105,49 @@ func main() {
 	switch ctx.Command() {
 	case "new":
 		logger := baseLogger
-		if CLI.New.PrintPath {
+		if CLI.PrintPath {
 			logger = logger.WithMode(ModeQuiet)
 		}
 		logger.Debug("Executing new command")
-		rootDir := getConfigValue(CLI.New.RootDir, config.RootDir)
-		templateFile := getConfigValue(CLI.New.TemplateFile, config.TemplateFile)
+		rootDir := getConfigValue(CLI.RootDir, config.RootDir)
+		templateFile := getConfigValue(CLI.TemplateFile, config.TemplateFile)
 
-		err := cmdNew(rootDir, templateFile, CLI.New.PrintPath, config, logger)
+		err := cmdNew(rootDir, templateFile, CLI.PrintPath, config, logger)
 		if err != nil {
 			fatalError("Failed to create new journal: %v", err)
 		}
+	case "add", "add <todo-text>", "add <todo-text>...":
+		rootDir := getConfigValue(CLI.RootDir, config.RootDir)
+		templateFile := getConfigValue(CLI.TemplateFile, config.TemplateFile)
+		todoText := strings.Join(CLI.Add.TodoWords, " ")
+
+		logger := baseLogger
+		if CLI.PrintPath {
+			logger = logger.WithMode(ModeQuiet)
+		}
+		logger.Debug("Executing add command")
+
+		err := cmdAdd(rootDir, templateFile, todoText, CLI.PrintPath, config, logger)
+		if err != nil {
+			fatalError("Failed to add todo: %v", err)
+		}
 	case cmdProcess:
 		logger := baseLogger
-		if CLI.Process.PrintPath {
+		if CLI.PrintPath {
 			logger = logger.WithMode(ModeQuiet)
 		}
 		logger.Debug("Executing process command")
-		templateFile := getConfigValue(CLI.Process.TemplateFile, config.TemplateFile)
+		templateFile := getConfigValue(CLI.TemplateFile, config.TemplateFile)
 
-		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, templateFile, CLI.Process.TemplateDate, false, CLI.Process.PrintPath, config, logger)
+		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, templateFile, CLI.Process.TemplateDate, false, CLI.PrintPath, config, logger)
 		if err != nil {
 			fatalError("Processing failed: %v", err)
 		}
 	case "preview":
 		logger := baseLogger
 		logger.Debug("Executing preview command")
-		err := cmdPreview(CLI.Preview.TemplateFile, CLI.Preview.Date, CLI.Preview.TodosFile, CLI.Preview.TodosString, CLI.Preview.CustomVars, config)
+		templateFile := getConfigValue(CLI.TemplateFile, config.TemplateFile)
+		err := cmdPreview(templateFile, CLI.Preview.Date, CLI.Preview.TodosFile, CLI.Preview.TodosString, CLI.Preview.CustomVars, config)
 		if err != nil {
 			fatalError("Preview failed: %v", err)
 		}

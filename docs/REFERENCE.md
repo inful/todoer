@@ -5,6 +5,16 @@ templates, and public APIs.
 
 ## CLI reference
 
+### Global flags
+
+These flags are shared by relevant commands and should be placed before
+the subcommand.
+
+- `--root-dir PATH` - override the journals root directory.
+- `--template-file PATH` - override the template file for this run.
+- `--print-path` - print only the resulting file path to standard
+  output (where applicable).
+
 ### `todoer new`
 
 Create a new daily journal file and carry over incomplete todos from the
@@ -13,14 +23,26 @@ most recent previous journal.
 Synopsis:
 
 ```bash
-todoer new [--root-dir PATH] [--template-file PATH] [--print-path]
+todoer [--root-dir PATH] [--template-file PATH] [--print-path] new
+```
+
+### `todoer add`
+
+Add a todo item directly to today's journal.
+
+If today's journal does not exist yet, todoer first creates it using the
+same transfer behavior as `new`, then appends the todo item.
+
+Synopsis:
+
+```bash
+todoer [--root-dir PATH] [--template-file PATH] [--print-path] add TODO_TEXT...
 ```
 
 Options:
 
-- `--root-dir PATH` - override the journals root directory.
-- `--template-file PATH` - override the template file for this run.
-- `--print-path` - print the created file path to standard output.
+- `TODO_TEXT...` - todo text to append (multi-word text can be passed
+  without quotes).
 
 ### `todoer process`
 
@@ -29,16 +51,14 @@ Process a journal file into a new target file using a template.
 Synopsis:
 
 ```bash
-todoer process SOURCE TARGET [--template-file PATH] [--template-date YYYY-MM-DD] [--print-path]
+todoer [--template-file PATH] [--print-path] process SOURCE TARGET [--template-date YYYY-MM-DD]
 ```
 
 Options:
 
 - `SOURCE` - input journal file.
 - `TARGET` - output file for uncompleted tasks.
-- `--template-file PATH` - template file used for the target file.
 - `--template-date YYYY-MM-DD` - logical date used for template variables.
-- `--print-path` - print the target file path to standard output.
 
 ### `todoer preview`
 
@@ -48,13 +68,12 @@ variables.
 Synopsis:
 
 ```bash
-todoer preview [--template-file PATH] [--date YYYY-MM-DD] \
+todoer [--template-file PATH] preview [--date YYYY-MM-DD] \
   [--todos-file PATH | --todos-string STRING] [--custom-vars JSON]
 ```
 
 Options:
 
-- `--template-file PATH` - template file to render.
 - `--date YYYY-MM-DD` - date used for date-related template variables.
 - `--todos-file PATH` - file containing a todos section.
 - `--todos-string STRING` - inline todos section string.

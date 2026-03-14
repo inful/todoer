@@ -36,6 +36,10 @@ func TestCLICommands(t *testing.T) {
 		testNewCommand(t, binaryPath)
 	})
 
+	t.Run("AddCommand", func(t *testing.T) {
+		testAddCommand(t, binaryPath)
+	})
+
 	t.Run("HelpCommand", func(t *testing.T) {
 		testHelpCommand(t, binaryPath)
 	})
@@ -185,7 +189,7 @@ Previous day notes.`
 	}
 
 	// Run the new command
-	cmd := exec.Command(binaryPath, "new", "--root-dir", tempDir)
+	cmd := exec.Command(binaryPath, "--root-dir", tempDir, "new")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("New command failed: %v\nOutput: %s", err, output)
@@ -248,6 +252,9 @@ func testHelpCommand(t *testing.T, binaryPath string) {
 	if !strings.Contains(outputStr, "new") {
 		t.Error("Help should contain new command")
 	}
+	if !strings.Contains(outputStr, "add") {
+		t.Error("Help should contain add command")
+	}
 
 	// Test subcommand help
 	cmd = exec.Command(binaryPath, "process", "--help")
@@ -262,6 +269,66 @@ func testHelpCommand(t *testing.T, binaryPath string) {
 	}
 	if !strings.Contains(outputStr, "target-file") {
 		t.Error("Process help should contain target-file argument")
+	}
+}
+
+func testAddCommand(t *testing.T, binaryPath string) {
+	tempDir := t.TempDir()
+
+	// Create yesterday's journal so add can trigger transfer when today's file is missing.
+	today := time.Now()
+	yesterday := today.AddDate(0, 0, -1)
+	year := yesterday.Format("2006")
+	month := yesterday.Format("01")
+
+	journalDir := filepath.Join(tempDir, year, month)
+	if err := os.MkdirAll(journalDir, 0o755); err != nil {
+		t.Fatalf("Failed to create journal directory: %v", err)
+	}
+
+	yesterdayFile := filepath.Join(journalDir, yesterday.Format("2006-01-02")+".md")
+	yesterdayContent := `---
+title: ` + yesterday.Format("2006-01-02") + `
+---
+
+# Daily Journal
+
+## Todos
+
+- [[` + yesterday.Format("2006-01-02") + `]]
+  - [ ] Carry forward item
+
+## Notes
+`
+
+	if err := os.WriteFile(yesterdayFile, []byte(yesterdayContent), 0o644); err != nil {
+		t.Fatalf("Failed to create yesterday's journal: %v", err)
+	}
+
+	newTodo := "Directly added from CLI"
+	cmd := exec.Command(binaryPath, "--root-dir", tempDir, "add", "Directly", "added", "from", "CLI")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+	}
+
+	todayFile := filepath.Join(tempDir, today.Format("2006"), today.Format("01"), today.Format("2006-01-02")+".md")
+	content, err := os.ReadFile(todayFile)
+	if err != nil {
+		t.Fatalf("Failed to read today's journal: %v", err)
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "Carry forward item") {
+		t.Error("Today's journal should contain carried-over todo before new add")
+	}
+	if !strings.Contains(contentStr, "- [ ] "+newTodo) {
+		t.Error("Today's journal should contain the newly added todo")
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "Added todo") {
+		t.Errorf("Expected add success message, got: %s", outputStr)
 	}
 }
 
@@ -469,7 +536,7 @@ title: 2025-06-19
 	targetFile := filepath.Join(tempDir, "target.md")
 
 	// Run with advanced template
-	cmd := exec.Command(binaryPath, "process", sourceFile, targetFile, "--template-file", templateFile, "--template-date", "2025-06-19")
+	cmd := exec.Command(binaryPath, "--template-file", templateFile, "process", sourceFile, targetFile, "--template-date", "2025-06-19")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Process with advanced template failed: %v\nOutput: %s", err, output)
