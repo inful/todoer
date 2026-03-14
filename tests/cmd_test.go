@@ -10,15 +10,12 @@ import (
 	"time"
 )
 
-func mustSetEnv(t *testing.T, key, value string) {
-	t.Helper()
-	t.Setenv(key, value)
-}
-
-func mustUnsetEnv(t *testing.T, key string) {
+// tUnsetenv unsets an environment variable for the duration of the test,
+// mirroring the t.Setenv naming convention.
+func tUnsetenv(t *testing.T, key string) {
 	t.Helper()
 	if err := os.Unsetenv(key); err != nil {
-		t.Fatalf("Failed to unset env %s: %v", key, err)
+		t.Fatalf("cannot unset environment variable %s: %v", key, err)
 	}
 }
 
@@ -377,12 +374,12 @@ title: 2025-06-19
 
 	// Set config file environment variable
 	oldConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	mustSetEnv(t, "XDG_CONFIG_HOME", tempDir)
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
 	defer func() {
 		if oldConfigHome != "" {
-			mustSetEnv(t, "XDG_CONFIG_HOME", oldConfigHome)
+			t.Setenv("XDG_CONFIG_HOME", oldConfigHome)
 		} else {
-			mustUnsetEnv(t, "XDG_CONFIG_HOME")
+			tUnsetenv(t, "XDG_CONFIG_HOME")
 		}
 	}()
 

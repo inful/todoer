@@ -16,6 +16,15 @@ func setupTempDir(t *testing.T) string {
 	return t.TempDir()
 }
 
+// tUnsetenv unsets an environment variable for the duration of the test,
+// mirroring the t.Setenv naming convention.
+func tUnsetenv(t *testing.T, key string) {
+	t.Helper()
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("cannot unset environment variable %s: %v", key, err)
+	}
+}
+
 // Helper function to create a test file
 func createTestFile(t *testing.T, path, content string) {
 	t.Helper()
@@ -24,18 +33,6 @@ func createTestFile(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
-	}
-}
-
-func mustSetEnv(t *testing.T, key, value string) {
-	t.Helper()
-	t.Setenv(key, value)
-}
-
-func mustUnsetEnv(t *testing.T, key string) {
-	t.Helper()
-	if err := os.Unsetenv(key); err != nil {
-		t.Fatalf("Failed to unset env %s: %v", key, err)
 	}
 }
 
@@ -152,32 +149,32 @@ func TestLoadConfig(t *testing.T) {
 	defer func() {
 		// Restore original environment
 		if originalXDG != "" {
-			mustSetEnv(t, "XDG_CONFIG_HOME", originalXDG)
+			t.Setenv("XDG_CONFIG_HOME", originalXDG)
 		} else {
-			mustUnsetEnv(t, "XDG_CONFIG_HOME")
+			tUnsetenv(t, "XDG_CONFIG_HOME")
 		}
 		if originalHome != "" {
-			mustSetEnv(t, "HOME", originalHome)
+			t.Setenv("HOME", originalHome)
 		} else {
-			mustUnsetEnv(t, "HOME")
+			tUnsetenv(t, "HOME")
 		}
 		if originalRootDir != "" {
-			mustSetEnv(t, "TODOER_ROOT_DIR", originalRootDir)
+			t.Setenv("TODOER_ROOT_DIR", originalRootDir)
 		} else {
-			mustUnsetEnv(t, "TODOER_ROOT_DIR")
+			tUnsetenv(t, "TODOER_ROOT_DIR")
 		}
 		if originalTemplateFile != "" {
-			mustSetEnv(t, "TODOER_TEMPLATE_FILE", originalTemplateFile)
+			t.Setenv("TODOER_TEMPLATE_FILE", originalTemplateFile)
 		} else {
-			mustUnsetEnv(t, "TODOER_TEMPLATE_FILE")
+			tUnsetenv(t, "TODOER_TEMPLATE_FILE")
 		}
 	}()
 
 	// Set isolated environment
-	mustSetEnv(t, "XDG_CONFIG_HOME", tempDir)
-	mustSetEnv(t, "HOME", tempDir)
-	mustUnsetEnv(t, "TODOER_ROOT_DIR")
-	mustUnsetEnv(t, "TODOER_TEMPLATE_FILE")
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+	t.Setenv("HOME", tempDir)
+	tUnsetenv(t, "TODOER_ROOT_DIR")
+	tUnsetenv(t, "TODOER_TEMPLATE_FILE")
 
 	// Test loading config with no config file (should succeed with defaults)
 	config, err := loadConfig()
@@ -201,24 +198,24 @@ func TestLoadConfigWithXDG(t *testing.T) {
 	originalTemplateFile := os.Getenv("TODOER_TEMPLATE_FILE")
 	defer func() {
 		if originalXDG != "" {
-			mustSetEnv(t, "XDG_CONFIG_HOME", originalXDG)
+			t.Setenv("XDG_CONFIG_HOME", originalXDG)
 		} else {
-			mustUnsetEnv(t, "XDG_CONFIG_HOME")
+			tUnsetenv(t, "XDG_CONFIG_HOME")
 		}
 		if originalHome != "" {
-			mustSetEnv(t, "HOME", originalHome)
+			t.Setenv("HOME", originalHome)
 		} else {
-			mustUnsetEnv(t, "HOME")
+			tUnsetenv(t, "HOME")
 		}
 		if originalRootDir != "" {
-			mustSetEnv(t, "TODOER_ROOT_DIR", originalRootDir)
+			t.Setenv("TODOER_ROOT_DIR", originalRootDir)
 		} else {
-			mustUnsetEnv(t, "TODOER_ROOT_DIR")
+			tUnsetenv(t, "TODOER_ROOT_DIR")
 		}
 		if originalTemplateFile != "" {
-			mustSetEnv(t, "TODOER_TEMPLATE_FILE", originalTemplateFile)
+			t.Setenv("TODOER_TEMPLATE_FILE", originalTemplateFile)
 		} else {
-			mustUnsetEnv(t, "TODOER_TEMPLATE_FILE")
+			tUnsetenv(t, "TODOER_TEMPLATE_FILE")
 		}
 	}()
 
@@ -268,7 +265,7 @@ func TestLoadConfigWithXDG(t *testing.T) {
 				if err := os.MkdirAll(isolatedHome, 0755); err != nil {
 					t.Fatal(err)
 				}
-				mustSetEnv(t, "HOME", isolatedHome)
+				t.Setenv("HOME", isolatedHome)
 				return "" // No config file setup
 			},
 			expectedRootDir: ".", // default
@@ -281,16 +278,16 @@ func TestLoadConfigWithXDG(t *testing.T) {
 			testTempDir := setupTempDir(t)
 
 			// Clear environment variables first
-			mustUnsetEnv(t, "TODOER_ROOT_DIR")
-			mustUnsetEnv(t, "TODOER_TEMPLATE_FILE")
+			tUnsetenv(t, "TODOER_ROOT_DIR")
+			tUnsetenv(t, "TODOER_TEMPLATE_FILE")
 
 			// Set XDG_CONFIG_HOME to point to this test's tempDir
 			if tt.xdgConfigHome == "SET_TO_TEMP_DIR" {
-				mustSetEnv(t, "XDG_CONFIG_HOME", testTempDir)
+				t.Setenv("XDG_CONFIG_HOME", testTempDir)
 			} else if tt.xdgConfigHome != "" {
-				mustSetEnv(t, "XDG_CONFIG_HOME", tt.xdgConfigHome)
+				t.Setenv("XDG_CONFIG_HOME", tt.xdgConfigHome)
 			} else {
-				mustUnsetEnv(t, "XDG_CONFIG_HOME")
+				tUnsetenv(t, "XDG_CONFIG_HOME")
 			}
 
 			// Setup test environment with the test's tempDir
@@ -341,9 +338,9 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 	originalXDG := os.Getenv("XDG_CONFIG_HOME")
 	defer func() {
 		if originalXDG != "" {
-			mustSetEnv(t, "XDG_CONFIG_HOME", originalXDG)
+			t.Setenv("XDG_CONFIG_HOME", originalXDG)
 		} else {
-			mustUnsetEnv(t, "XDG_CONFIG_HOME")
+			tUnsetenv(t, "XDG_CONFIG_HOME")
 		}
 	}()
 
@@ -404,7 +401,7 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 			testTempDir := setupTempDir(t)
 
 			// Set XDG_CONFIG_HOME to this test's tempDir
-			mustSetEnv(t, "XDG_CONFIG_HOME", testTempDir)
+			t.Setenv("XDG_CONFIG_HOME", testTempDir)
 
 			// Setup test environment with the test's tempDir
 			tt.setupFunc(testTempDir)
