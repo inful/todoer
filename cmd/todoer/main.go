@@ -10,6 +10,78 @@ import (
 	"github.com/alecthomas/kong"
 )
 
+type cliOptions struct {
+	Debug        bool   `help:"Enable debug logging"`
+	RootDir      string `help:"Root directory for journals (overrides config/env)"`
+	TemplateFile string `help:"Template file override (applies to commands that render/create journals)"`
+	PrintPath    bool   `help:"Print resulting journal path to stdout (for composability, where applicable)"`
+
+	Process processCmd `cmd:"" help:"Process a journal file"`
+	New     newCmd     `cmd:"new" help:"Create a new daily journal file"`
+	Add     addCmd     `cmd:"add <todo-text>..." help:"Add a todo item to today's journal (creates today's file first if needed)"`
+	Preview previewCmd `cmd:"preview" help:"Preview rendering of a template file with a sample TODOS section"`
+}
+
+type processCmd struct {
+	SourceFile   string `arg:"" help:"Input journal file"`
+	TargetFile   string `arg:"" help:"Output file for uncompleted tasks"`
+	TemplateDate string `help:"Optional date for template rendering (YYYY-MM-DD)"`
+}
+
+type newCmd struct{}
+
+type addCmd struct {
+	TodoWords []string `arg:"" name:"todo-text" help:"Todo text to add to today's journal"`
+}
+
+type previewCmd struct {
+	Date        string `help:"Date for template rendering (YYYY-MM-DD, optional, defaults to today)"`
+	TodosFile   string `help:"File containing a sample TODOS section to use for preview (optional)"`
+	TodosString string `help:"String containing a sample TODOS section to use for preview (optional, overrides --todos-file)"`
+	CustomVars  string `help:"Custom variables as JSON string (optional)"`
+}
+
+func loggerForCommand(baseLogger *Logger, printPath bool) *Logger {
+	if printPath {
+		return baseLogger.WithMode(ModeQuiet)
+	}
+	return baseLogger
+}
+
+func sharedPaths(cli *cliOptions, config *Config) (string, string) {
+	rootDir := getConfigValue(cli.RootDir, config.RootDir)
+	templateFile := getConfigValue(cli.TemplateFile, config.TemplateFile)
+	return rootDir, templateFile
+}
+
+func (cmd *newCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
+	logger := loggerForCommand(baseLogger, cli.PrintPath)
+	logger.Debug("Executing new command")
+	rootDir, templateFile := sharedPaths(cli, config)
+	return cmdNew(rootDir, templateFile, cli.PrintPath, config, logger)
+}
+
+func (cmd *addCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
+	logger := loggerForCommand(baseLogger, cli.PrintPath)
+	logger.Debug("Executing add command")
+	rootDir, templateFile := sharedPaths(cli, config)
+	todoText := strings.Join(cmd.TodoWords, " ")
+	return cmdAdd(rootDir, templateFile, todoText, cli.PrintPath, config, logger)
+}
+
+func (cmd *processCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
+	logger := loggerForCommand(baseLogger, cli.PrintPath)
+	logger.Debug("Executing process command")
+	_, templateFile := sharedPaths(cli, config)
+	return processJournal(cmd.SourceFile, cmd.TargetFile, templateFile, cmd.TemplateDate, false, cli.PrintPath, config, logger)
+}
+
+func (cmd *previewCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
+	baseLogger.Debug("Executing preview command")
+	_, templateFile := sharedPaths(cli, config)
+	return cmdPreview(templateFile, cmd.Date, cmd.TodosFile, cmd.TodosString, cmd.CustomVars, config)
+}
+
 // resolveTemplate determines the template content and source based on configuration.
 // Returns (content, name, error).
 func resolveTemplate(templateFile string) (string, string, error) {
@@ -41,33 +113,6 @@ func resolveTemplate(templateFile string) (string, string, error) {
 	return defaultTemplate, "embedded default template", nil
 }
 
-// CLI defines the command-line arguments structure for kong
-var CLI struct {
-	Debug        bool   `help:"Enable debug logging"`
-	RootDir      string `help:"Root directory for journals (overrides config/env)"`
-	TemplateFile string `help:"Template file override (applies to commands that render/create journals)"`
-	PrintPath    bool   `help:"Print resulting journal path to stdout (for composability, where applicable)"`
-
-	Process struct {
-		SourceFile   string `arg:"" help:"Input journal file"`
-		TargetFile   string `arg:"" help:"Output file for uncompleted tasks"`
-		TemplateDate string `help:"Optional date for template rendering (YYYY-MM-DD)"`
-	} `cmd:"" help:"Process a journal file"`
-
-	New struct{} `cmd:"new" help:"Create a new daily journal file"`
-
-	Add struct {
-		TodoWords []string `arg:"" name:"todo-text" help:"Todo text to add to today's journal"`
-	} `cmd:"add <todo-text>..." help:"Add a todo item to today's journal (creates today's file first if needed)"`
-
-	Preview struct {
-		Date        string `help:"Date for template rendering (YYYY-MM-DD, optional, defaults to today)"`
-		TodosFile   string `help:"File containing a sample TODOS section to use for preview (optional)"`
-		TodosString string `help:"String containing a sample TODOS section to use for preview (optional, overrides --todos-file)"`
-		CustomVars  string `help:"Custom variables as JSON string (optional)"`
-	} `cmd:"preview" help:"Preview rendering of a template file with a sample TODOS section"`
-}
-
 // fatalError logs an error message to stderr and exits with code 1.
 func fatalError(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "ERROR: "+format+"\n", args...)
@@ -78,12 +123,19 @@ func fatalError(format string, args ...any) {
 var defaultTemplate string
 
 func main() {
+	cli := &cliOptions{}
+
+	ctx := kong.Parse(cli,
+		kong.Name("todoer"),
+		kong.Description("Process daily journal files, carrying over unfinished tasks in the TODO section."),
+		kong.UsageOnError(),
+	)
+
 	// Determine output mode and construct logger
 	mode := ModeNormal
-	if CLI.Debug {
+	if cli.Debug {
 		mode = ModeDebug
 	}
-	// Logger will be further adjusted per-command for quiet mode
 	baseLogger := NewLogger(mode)
 
 	// Load configuration from file, environment, and defaults
@@ -92,66 +144,12 @@ func main() {
 		fatalError("Failed to load configuration: %v", err)
 	}
 
-	ctx := kong.Parse(&CLI,
-		kong.Name("todoer"),
-		kong.Description("Process daily journal files, carrying over unfinished tasks in the TODO section."),
-		kong.UsageOnError(),
-	)
-
-	if CLI.Debug {
+	if cli.Debug {
 		baseLogger.Debug("Debug logging enabled")
 	}
 
-	switch ctx.Command() {
-	case "new":
-		logger := baseLogger
-		if CLI.PrintPath {
-			logger = logger.WithMode(ModeQuiet)
-		}
-		logger.Debug("Executing new command")
-		rootDir := getConfigValue(CLI.RootDir, config.RootDir)
-		templateFile := getConfigValue(CLI.TemplateFile, config.TemplateFile)
-
-		err := cmdNew(rootDir, templateFile, CLI.PrintPath, config, logger)
-		if err != nil {
-			fatalError("Failed to create new journal: %v", err)
-		}
-	case "add", "add <todo-text>", "add <todo-text>...":
-		rootDir := getConfigValue(CLI.RootDir, config.RootDir)
-		templateFile := getConfigValue(CLI.TemplateFile, config.TemplateFile)
-		todoText := strings.Join(CLI.Add.TodoWords, " ")
-
-		logger := baseLogger
-		if CLI.PrintPath {
-			logger = logger.WithMode(ModeQuiet)
-		}
-		logger.Debug("Executing add command")
-
-		err := cmdAdd(rootDir, templateFile, todoText, CLI.PrintPath, config, logger)
-		if err != nil {
-			fatalError("Failed to add todo: %v", err)
-		}
-	case cmdProcess:
-		logger := baseLogger
-		if CLI.PrintPath {
-			logger = logger.WithMode(ModeQuiet)
-		}
-		logger.Debug("Executing process command")
-		templateFile := getConfigValue(CLI.TemplateFile, config.TemplateFile)
-
-		err := processJournal(CLI.Process.SourceFile, CLI.Process.TargetFile, templateFile, CLI.Process.TemplateDate, false, CLI.PrintPath, config, logger)
-		if err != nil {
-			fatalError("Processing failed: %v", err)
-		}
-	case "preview":
-		logger := baseLogger
-		logger.Debug("Executing preview command")
-		templateFile := getConfigValue(CLI.TemplateFile, config.TemplateFile)
-		err := cmdPreview(templateFile, CLI.Preview.Date, CLI.Preview.TodosFile, CLI.Preview.TodosString, CLI.Preview.CustomVars, config)
-		if err != nil {
-			fatalError("Preview failed: %v", err)
-		}
-		// Removed: case "completion <shell>":
-		// Shell completion is not supported at runtime. See documentation for integration instructions.
+	ctx.Bind(cli, config, baseLogger)
+	if err := ctx.Run(); err != nil {
+		fatalError("%v", err)
 	}
 }
