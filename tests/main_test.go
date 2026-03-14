@@ -396,7 +396,7 @@ title: 2024-01-14
 	})
 
 	t.Run("Options with Previous Date and Custom Variables", func(t *testing.T) {
-		customVars := map[string]interface{}{
+		customVars := map[string]any{
 			"author":  "Test Author",
 			"project": "Test Project",
 		}

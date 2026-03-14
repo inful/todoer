@@ -51,7 +51,7 @@ func getConfigValue(cliValue, configValue string) string {
 }
 
 // fatalError logs an error and exits with code 1.
-func fatalError(format string, args ...interface{}) {
+func fatalError(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "ERROR: "+format+"\n", args...)
 	os.Exit(1)
 }

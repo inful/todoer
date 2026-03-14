@@ -31,7 +31,7 @@ func (l *Logger) WithMode(mode OutputMode) *Logger {
 }
 
 // Info logs informational messages unless in quiet mode.
-func (l *Logger) Info(format string, args ...interface{}) {
+func (l *Logger) Info(format string, args ...any) {
 	if l.mode == ModeQuiet {
 		return
 	}
@@ -39,7 +39,7 @@ func (l *Logger) Info(format string, args ...interface{}) {
 }
 
 // Debug logs debug messages only in debug mode.
-func (l *Logger) Debug(format string, args ...interface{}) {
+func (l *Logger) Debug(format string, args ...any) {
 	if l.mode != ModeDebug {
 		return
 	}
@@ -47,6 +47,6 @@ func (l *Logger) Debug(format string, args ...interface{}) {
 }
 
 // Error always logs errors.
-func (l *Logger) Error(format string, args ...interface{}) {
+func (l *Logger) Error(format string, args ...any) {
 	log.Printf("ERROR: "+format, args...)
 }

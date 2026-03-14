@@ -16,10 +16,10 @@ import (
 type Generator struct {
 	templateContent    string
 	templateDate       string
-	previousDate       string                 // Date of previous journal (empty if none)
-	customVars         map[string]interface{} // Custom template variables
-	frontmatterDateKey string                 // Frontmatter date key
-	todosHeader        string                 // TODOS section header
+	previousDate       string         // Date of previous journal (empty if none)
+	customVars         map[string]any // Custom template variables
+	frontmatterDateKey string         // Frontmatter date key
+	todosHeader        string         // TODOS section header
 }
 
 // NewGeneratorWithOptions creates a new Generator with flexible configuration options.
@@ -170,7 +170,7 @@ type Option func(*options)
 // options holds configuration for Generator creation
 type options struct {
 	previousDate       string
-	customVars         map[string]interface{}
+	customVars         map[string]any
 	frontmatterDateKey string
 	todosHeader        string
 }
@@ -183,7 +183,7 @@ func WithPreviousDate(date string) Option {
 }
 
 // WithCustomVariables sets custom template variables for the generator
-func WithCustomVariables(vars map[string]interface{}) Option {
+func WithCustomVariables(vars map[string]any) Option {
 	return func(config *options) {
 		config.customVars = vars
 	}

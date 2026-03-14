@@ -164,7 +164,7 @@ func validateConfig(config *Config) error {
 }
 
 // validateCustomVariables validates the custom variables configuration
-func validateCustomVariables(custom map[string]interface{}) error {
+func validateCustomVariables(custom map[string]any) error {
 	if custom == nil {
 		return nil // No custom variables is valid
 	}
@@ -206,13 +206,13 @@ func isValidVariableName(name string) bool {
 
 	// Must start with letter or underscore
 	first := name[0]
-	if !((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || first == '_') {
+	if (first < 'a' || first > 'z') && (first < 'A' || first > 'Z') && first != '_' {
 		return false
 	}
 
 	// Rest must be letters, numbers, or underscores
 	for _, r := range name[1:] {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_' {
 			return false
 		}
 	}
@@ -221,11 +221,11 @@ func isValidVariableName(name string) bool {
 }
 
 // isValidVariableType checks if a variable type is supported in templates
-func isValidVariableType(value interface{}) bool {
+func isValidVariableType(value any) bool {
 	switch v := value.(type) {
 	case string, int, int32, int64, float32, float64, bool:
 		return true
-	case []interface{}:
+	case []any:
 		// Arrays are supported if all elements are valid types
 		for _, item := range v {
 			if !isValidVariableType(item) {

@@ -60,6 +60,7 @@ func TestNewParserState(t *testing.T) {
 
 		if state == nil {
 			t.Fatal("Expected non-nil parser state")
+			return
 		}
 		if state.currentDay != nil {
 			t.Error("Expected currentDay to be nil")
@@ -635,6 +636,7 @@ func TestCreateNewDaySection(t *testing.T) {
 
 		if newDay == nil {
 			t.Fatal("Expected non-nil day section")
+			return
 		}
 		if newDay.Date != "2023-01-01" {
 			t.Errorf("Expected date '2023-01-01', got '%s'", newDay.Date)
@@ -683,6 +685,7 @@ func TestCreateTodoItem(t *testing.T) {
 
 		if item == nil {
 			t.Fatal("Expected non-nil todo item")
+			return
 		}
 		if item.Completed {
 			t.Error("Expected item to be uncompleted")

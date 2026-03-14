@@ -13,16 +13,9 @@ import (
 // Helper function to create a temporary directory and clean it up
 func setupTempDir(t *testing.T) (string, func()) {
 	t.Helper()
-	tmpDir, err := os.MkdirTemp("", "todoer-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
+	tmpDir := t.TempDir()
 
-	cleanup := func() {
-		if err := os.RemoveAll(tmpDir); err != nil {
-			t.Errorf("Failed to cleanup temp dir: %v", err)
-		}
-	}
+	cleanup := func() {}
 
 	return tmpDir, cleanup
 }
@@ -35,6 +28,18 @@ func createTestFile(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
+	}
+}
+
+func mustSetEnv(t *testing.T, key, value string) {
+	t.Helper()
+	t.Setenv(key, value)
+}
+
+func mustUnsetEnv(t *testing.T, key string) {
+	t.Helper()
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("Failed to unset env %s: %v", key, err)
 	}
 }
 
@@ -153,32 +158,32 @@ func TestLoadConfig(t *testing.T) {
 	defer func() {
 		// Restore original environment
 		if originalXDG != "" {
-			os.Setenv("XDG_CONFIG_HOME", originalXDG)
+			mustSetEnv(t, "XDG_CONFIG_HOME", originalXDG)
 		} else {
-			os.Unsetenv("XDG_CONFIG_HOME")
+			mustUnsetEnv(t, "XDG_CONFIG_HOME")
 		}
 		if originalHome != "" {
-			os.Setenv("HOME", originalHome)
+			mustSetEnv(t, "HOME", originalHome)
 		} else {
-			os.Unsetenv("HOME")
+			mustUnsetEnv(t, "HOME")
 		}
 		if originalRootDir != "" {
-			os.Setenv("TODOER_ROOT_DIR", originalRootDir)
+			mustSetEnv(t, "TODOER_ROOT_DIR", originalRootDir)
 		} else {
-			os.Unsetenv("TODOER_ROOT_DIR")
+			mustUnsetEnv(t, "TODOER_ROOT_DIR")
 		}
 		if originalTemplateFile != "" {
-			os.Setenv("TODOER_TEMPLATE_FILE", originalTemplateFile)
+			mustSetEnv(t, "TODOER_TEMPLATE_FILE", originalTemplateFile)
 		} else {
-			os.Unsetenv("TODOER_TEMPLATE_FILE")
+			mustUnsetEnv(t, "TODOER_TEMPLATE_FILE")
 		}
 	}()
 
 	// Set isolated environment
-	os.Setenv("XDG_CONFIG_HOME", tempDir)
-	os.Setenv("HOME", tempDir)
-	os.Unsetenv("TODOER_ROOT_DIR")
-	os.Unsetenv("TODOER_TEMPLATE_FILE")
+	mustSetEnv(t, "XDG_CONFIG_HOME", tempDir)
+	mustSetEnv(t, "HOME", tempDir)
+	mustUnsetEnv(t, "TODOER_ROOT_DIR")
+	mustUnsetEnv(t, "TODOER_TEMPLATE_FILE")
 
 	// Test loading config with no config file (should succeed with defaults)
 	config, err := loadConfig()
@@ -187,6 +192,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if config == nil {
 		t.Fatalf("loadConfig() returned nil config")
+		return
 	}
 	if config.RootDir == "" {
 		t.Errorf("loadConfig() RootDir is empty, expected default")
@@ -201,24 +207,24 @@ func TestLoadConfigWithXDG(t *testing.T) {
 	originalTemplateFile := os.Getenv("TODOER_TEMPLATE_FILE")
 	defer func() {
 		if originalXDG != "" {
-			os.Setenv("XDG_CONFIG_HOME", originalXDG)
+			mustSetEnv(t, "XDG_CONFIG_HOME", originalXDG)
 		} else {
-			os.Unsetenv("XDG_CONFIG_HOME")
+			mustUnsetEnv(t, "XDG_CONFIG_HOME")
 		}
 		if originalHome != "" {
-			os.Setenv("HOME", originalHome)
+			mustSetEnv(t, "HOME", originalHome)
 		} else {
-			os.Unsetenv("HOME")
+			mustUnsetEnv(t, "HOME")
 		}
 		if originalRootDir != "" {
-			os.Setenv("TODOER_ROOT_DIR", originalRootDir)
+			mustSetEnv(t, "TODOER_ROOT_DIR", originalRootDir)
 		} else {
-			os.Unsetenv("TODOER_ROOT_DIR")
+			mustUnsetEnv(t, "TODOER_ROOT_DIR")
 		}
 		if originalTemplateFile != "" {
-			os.Setenv("TODOER_TEMPLATE_FILE", originalTemplateFile)
+			mustSetEnv(t, "TODOER_TEMPLATE_FILE", originalTemplateFile)
 		} else {
-			os.Unsetenv("TODOER_TEMPLATE_FILE")
+			mustUnsetEnv(t, "TODOER_TEMPLATE_FILE")
 		}
 	}()
 
@@ -268,7 +274,7 @@ func TestLoadConfigWithXDG(t *testing.T) {
 				if err := os.MkdirAll(isolatedHome, 0755); err != nil {
 					t.Fatal(err)
 				}
-				os.Setenv("HOME", isolatedHome)
+				mustSetEnv(t, "HOME", isolatedHome)
 				return "" // No config file setup
 			},
 			expectedRootDir: ".", // default
@@ -282,16 +288,16 @@ func TestLoadConfigWithXDG(t *testing.T) {
 			defer testCleanup()
 
 			// Clear environment variables first
-			os.Unsetenv("TODOER_ROOT_DIR")
-			os.Unsetenv("TODOER_TEMPLATE_FILE")
+			mustUnsetEnv(t, "TODOER_ROOT_DIR")
+			mustUnsetEnv(t, "TODOER_TEMPLATE_FILE")
 
 			// Set XDG_CONFIG_HOME to point to this test's tempDir
 			if tt.xdgConfigHome == "SET_TO_TEMP_DIR" {
-				os.Setenv("XDG_CONFIG_HOME", testTempDir)
+				mustSetEnv(t, "XDG_CONFIG_HOME", testTempDir)
 			} else if tt.xdgConfigHome != "" {
-				os.Setenv("XDG_CONFIG_HOME", tt.xdgConfigHome)
+				mustSetEnv(t, "XDG_CONFIG_HOME", tt.xdgConfigHome)
 			} else {
-				os.Unsetenv("XDG_CONFIG_HOME")
+				mustUnsetEnv(t, "XDG_CONFIG_HOME")
 			}
 
 			// Setup test environment with the test's tempDir
@@ -342,9 +348,9 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 	originalXDG := os.Getenv("XDG_CONFIG_HOME")
 	defer func() {
 		if originalXDG != "" {
-			os.Setenv("XDG_CONFIG_HOME", originalXDG)
+			mustSetEnv(t, "XDG_CONFIG_HOME", originalXDG)
 		} else {
-			os.Unsetenv("XDG_CONFIG_HOME")
+			mustUnsetEnv(t, "XDG_CONFIG_HOME")
 		}
 	}()
 
@@ -406,7 +412,7 @@ func TestResolveTemplateWithXDG(t *testing.T) {
 			defer testCleanup()
 
 			// Set XDG_CONFIG_HOME to this test's tempDir
-			os.Setenv("XDG_CONFIG_HOME", testTempDir)
+			mustSetEnv(t, "XDG_CONFIG_HOME", testTempDir)
 
 			// Setup test environment with the test's tempDir
 			tt.setupFunc(testTempDir)
@@ -926,7 +932,7 @@ func TestValidateConfig(t *testing.T) {
 			name: "config with valid custom variables",
 			config: &Config{
 				RootDir: tempDir,
-				Custom: map[string]interface{}{
+				Custom: map[string]any{
 					"author":  "John Doe",
 					"project": "Test Project",
 					"version": 1,
@@ -939,7 +945,7 @@ func TestValidateConfig(t *testing.T) {
 			name: "config with reserved custom variable name",
 			config: &Config{
 				RootDir: tempDir,
-				Custom: map[string]interface{}{
+				Custom: map[string]any{
 					"Date": "invalid", // Reserved name
 				},
 			},
@@ -950,7 +956,7 @@ func TestValidateConfig(t *testing.T) {
 			name: "config with invalid custom variable name",
 			config: &Config{
 				RootDir: tempDir,
-				Custom: map[string]interface{}{
+				Custom: map[string]any{
 					"123invalid": "value", // Invalid name starting with number
 				},
 			},
@@ -961,7 +967,7 @@ func TestValidateConfig(t *testing.T) {
 			name: "config with unsupported custom variable type",
 			config: &Config{
 				RootDir: tempDir,
-				Custom: map[string]interface{}{
+				Custom: map[string]any{
 					"complex": complex(1, 2), // Unsupported type
 				},
 			},
@@ -990,7 +996,7 @@ func TestValidateConfig(t *testing.T) {
 func TestValidateCustomVariables(t *testing.T) {
 	tests := []struct {
 		name        string
-		custom      map[string]interface{}
+		custom      map[string]any
 		expectError bool
 	}{
 		{
@@ -1000,19 +1006,19 @@ func TestValidateCustomVariables(t *testing.T) {
 		},
 		{
 			name:        "empty custom variables",
-			custom:      map[string]interface{}{},
+			custom:      map[string]any{},
 			expectError: false,
 		},
 		{
 			name: "valid custom variables",
-			custom: map[string]interface{}{
+			custom: map[string]any{
 				"author":    "John Doe",
 				"project":   "Test",
 				"version":   1,
 				"active":    true,
 				"tags":      []string{"test", "demo"},
 				"numbers":   []int{1, 2, 3},
-				"mixed":     []interface{}{"string", 42, true},
+				"mixed":     []any{"string", 42, true},
 				"_private":  "value",
 				"CamelCase": "value",
 			},
@@ -1020,43 +1026,43 @@ func TestValidateCustomVariables(t *testing.T) {
 		},
 		{
 			name: "reserved variable name",
-			custom: map[string]interface{}{
+			custom: map[string]any{
 				"TODOS": "invalid",
 			},
 			expectError: true,
 		},
 		{
 			name: "invalid variable name - starts with number",
-			custom: map[string]interface{}{
+			custom: map[string]any{
 				"123invalid": "value",
 			},
 			expectError: true,
 		},
 		{
 			name: "invalid variable name - contains special chars",
-			custom: map[string]interface{}{
+			custom: map[string]any{
 				"test-value": "value",
 			},
 			expectError: true,
 		},
 		{
 			name: "unsupported type - complex number",
-			custom: map[string]interface{}{
+			custom: map[string]any{
 				"complex": complex(1, 2),
 			},
 			expectError: true,
 		},
 		{
 			name: "unsupported type - map",
-			custom: map[string]interface{}{
+			custom: map[string]any{
 				"nested": map[string]string{"key": "value"},
 			},
 			expectError: true,
 		},
 		{
 			name: "unsupported type in array",
-			custom: map[string]interface{}{
-				"mixed": []interface{}{"valid", complex(1, 2)},
+			custom: map[string]any{
+				"mixed": []any{"valid", complex(1, 2)},
 			},
 			expectError: true,
 		},
@@ -1105,7 +1111,7 @@ func TestIsValidVariableName(t *testing.T) {
 func TestIsValidVariableType(t *testing.T) {
 	tests := []struct {
 		name     string
-		value    interface{}
+		value    any
 		expected bool
 	}{
 		{"string", "test", true},
@@ -1117,8 +1123,8 @@ func TestIsValidVariableType(t *testing.T) {
 		{"bool", true, true},
 		{"string slice", []string{"a", "b"}, true},
 		{"int slice", []int{1, 2, 3}, true},
-		{"interface slice with valid types", []interface{}{"string", 42, true}, true},
-		{"interface slice with invalid type", []interface{}{"string", complex(1, 2)}, false},
+		{"interface slice with valid types", []any{"string", 42, true}, true},
+		{"interface slice with invalid type", []any{"string", complex(1, 2)}, false},
 		{"complex number", complex(1, 2), false},
 		{"map", map[string]string{"key": "value"}, false},
 		{"struct", struct{ Name string }{Name: "test"}, false},
@@ -1145,7 +1151,7 @@ func BenchmarkExpandPath(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, path := range paths {
 			expandPath(path)
 		}
@@ -1153,11 +1159,7 @@ func BenchmarkExpandPath(b *testing.B) {
 }
 
 func BenchmarkResolveTemplate(b *testing.B) {
-	tempDir, err := os.MkdirTemp("", "todoer-bench-*")
-	if err != nil {
-		b.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := b.TempDir()
 
 	templateFile := filepath.Join(tempDir, "template.md")
 	if err := os.WriteFile(templateFile, []byte("Test template content"), 0644); err != nil {
@@ -1165,7 +1167,7 @@ func BenchmarkResolveTemplate(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		resolveTemplate(templateFile)
 	}
 }

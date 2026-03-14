@@ -3,6 +3,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"text/template"
@@ -255,9 +256,9 @@ type TemplateOptions struct {
 	CurrentDate  string // Current date in YYYY-MM-DD format
 
 	// Optional fields
-	PreviousDate string                 // Previous journal date (optional)
-	Journal      *TodoJournal           // Journal for statistics calculation (optional)
-	CustomVars   map[string]interface{} // Custom template variables (optional)
+	PreviousDate string         // Previous journal date (optional)
+	Journal      *TodoJournal   // Journal for statistics calculation (optional)
+	CustomVars   map[string]any // Custom template variables (optional)
 }
 
 // CreateFromTemplate creates file content from template using the options pattern.
@@ -401,7 +402,7 @@ func ProcessTodosSectionWithStats(todosSection string, originalDate string, curr
 
 // CreateFromTemplateContentWithCustom creates template output with comprehensive data including custom variables.
 // Deprecated: Use CreateFromTemplate with TemplateOptions instead for better flexibility.
-func CreateFromTemplateContentWithCustom(templateContent, todosContent, currentDate, previousDate string, journal *TodoJournal, customVars map[string]interface{}) (string, error) {
+func CreateFromTemplateContentWithCustom(templateContent, todosContent, currentDate, previousDate string, journal *TodoJournal, customVars map[string]any) (string, error) {
 	return CreateFromTemplate(TemplateOptions{
 		Content:      templateContent,
 		TodosContent: todosContent,
@@ -419,19 +420,13 @@ func CreateTemplateFunctions() template.FuncMap {
 	result := make(template.FuncMap)
 
 	// Merge date functions
-	for k, v := range createDateFunctions() {
-		result[k] = v
-	}
+	maps.Copy(result, createDateFunctions())
 
 	// Merge string functions
-	for k, v := range createStringFunctions() {
-		result[k] = v
-	}
+	maps.Copy(result, createStringFunctions())
 
 	// Merge utility functions
-	for k, v := range createUtilityFunctions() {
-		result[k] = v
-	}
+	maps.Copy(result, createUtilityFunctions())
 
 	return result
 }

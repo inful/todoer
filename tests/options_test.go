@@ -16,7 +16,7 @@ title: {{.Date}}
 
 	templateDate := "2024-01-15"
 	previousDate := "2024-01-14"
-	customVars := map[string]interface{}{
+	customVars := map[string]any{
 		"projectName": "Test Project",
 		"version":     "1.0.0",
 	}
@@ -72,7 +72,7 @@ title: {{.Date}}
 	// Reconfigure with new options
 	gen2, err := gen1.WithOptions(
 		generator.WithPreviousDate("2024-01-14"),
-		generator.WithCustomVariables(map[string]interface{}{
+		generator.WithCustomVariables(map[string]any{
 			"author": "Test User",
 		}),
 	)

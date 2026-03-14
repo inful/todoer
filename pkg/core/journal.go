@@ -172,7 +172,7 @@ func writeItemToString(builder *strings.Builder, item *TodoItem, depth int) {
 	}
 
 	// Add indentation
-	for i := 0; i < depth; i++ {
+	for range depth {
 		builder.WriteString("  ")
 	}
 

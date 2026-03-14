@@ -183,19 +183,19 @@ func TestTemplateFunctions(t *testing.T) {
 		tests := []struct {
 			name     string
 			template string
-			data     interface{}
+			data     any
 			expected string
 		}{
 			{
 				name:     "default with empty value",
 				template: `{{default "fallback" .EmptyVal}}`,
-				data:     map[string]interface{}{"EmptyVal": ""},
+				data:     map[string]any{"EmptyVal": ""},
 				expected: "fallback",
 			},
 			{
 				name:     "default with non-empty value",
 				template: `{{default "fallback" .Value}}`,
-				data:     map[string]interface{}{"Value": "actual"},
+				data:     map[string]any{"Value": "actual"},
 				expected: "actual",
 			},
 			{
@@ -304,7 +304,7 @@ func TestTemplateFunctions(t *testing.T) {
 		tests := []struct {
 			name     string
 			template string
-			data     interface{}
+			data     any
 			validate func(string) bool
 		}{
 			{

@@ -22,7 +22,7 @@ func TestShuffleFunctionality(t *testing.T) {
 		sameOrderCount := 0
 		totalRuns := 20
 
-		for i := 0; i < totalRuns; i++ {
+		for range totalRuns {
 			var result strings.Builder
 			err = tmpl.Execute(&result, nil)
 			if err != nil {

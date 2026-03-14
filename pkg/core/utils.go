@@ -3,6 +3,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -24,12 +25,13 @@ func GetIndentLevel(line string) int {
 
 	indent := 0
 	for _, char := range line {
-		if char == ' ' {
+		switch char {
+		case ' ':
 			indent++
-		} else if char == '\t' {
+		case '\t':
 			indent += TabSpaces
-		} else {
-			break
+		default:
+			return indent
 		}
 	}
 	return indent
@@ -341,25 +343,23 @@ func calculateDaysSpan(startDate, endDate string) int {
 
 // MergeCustomVariables merges custom variables from config into TemplateData.
 // Custom variables can override built-in variables if they have the same name.
-func MergeCustomVariables(data *TemplateData, customVars map[string]interface{}) {
+func MergeCustomVariables(data *TemplateData, customVars map[string]any) {
 	if data == nil || customVars == nil {
 		return
 	}
 
 	// Initialize the Custom map if it's nil
 	if data.Custom == nil {
-		data.Custom = make(map[string]interface{})
+		data.Custom = make(map[string]any)
 	}
 
 	// Copy all custom variables
-	for key, value := range customVars {
-		data.Custom[key] = value
-	}
+	maps.Copy(data.Custom, customVars)
 }
 
 // ValidateCustomVariables checks if custom variables have valid names and types.
 // Returns an error if any variable name or type is invalid.
-func ValidateCustomVariables(customVars map[string]interface{}) error {
+func ValidateCustomVariables(customVars map[string]any) error {
 	if customVars == nil {
 		return nil
 	}
@@ -405,15 +405,15 @@ func isValidVariableName(name string) bool {
 
 	// Must start with letter or underscore
 	first := name[0]
-	if !((first >= 'A' && first <= 'Z') || (first >= 'a' && first <= 'z') || first == '_') {
+	if (first < 'A' || first > 'Z') && (first < 'a' || first > 'z') && first != '_' {
 		return false
 	}
 
 	// Rest must be letters, digits, or underscores
 	for i := 1; i < len(name); i++ {
 		char := name[i]
-		if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') ||
-			(char >= '0' && char <= '9') || char == '_') {
+		if (char < 'A' || char > 'Z') && (char < 'a' || char > 'z') &&
+			(char < '0' || char > '9') && char != '_' {
 			return false
 		}
 	}
@@ -423,11 +423,11 @@ func isValidVariableName(name string) bool {
 
 // isSupportedVariableType checks if the variable type is supported in templates.
 // Supported types: string, int, float64, bool, []string, []int
-func isSupportedVariableType(value interface{}) bool {
+func isSupportedVariableType(value any) bool {
 	switch v := value.(type) {
 	case string, int, int64, float64, bool:
 		return true
-	case []interface{}:
+	case []any:
 		// Check if all elements are of supported types
 		for _, elem := range v {
 			if !isSupportedVariableType(elem) {

@@ -598,7 +598,7 @@ func TestCreateFromTemplateWithCustom(t *testing.T) {
 		currentDate  string
 		previousDate string
 		journal      *TodoJournal
-		customVars   map[string]interface{}
+		customVars   map[string]any
 		expected     []string // strings that should be in the result
 		expectError  bool
 	}{
@@ -620,7 +620,7 @@ Debug: {{.Custom.Debug}}
 			todos:       "- [ ] Test task",
 			currentDate: "2025-06-20",
 			journal:     &TodoJournal{},
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"ProjectName": "MyProject",
 				"Version":     "1.0.0",
 				"Debug":       true,
@@ -640,7 +640,7 @@ Debug: {{.Custom.Debug}}
 			todos:       "",
 			currentDate: "2025-06-20",
 			journal:     &TodoJournal{},
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"Date": "invalid", // reserved name
 			},
 			expectError: true,
@@ -665,7 +665,7 @@ Todos: {{.TODOS}}`,
 			todos:       "",
 			currentDate: "2025-06-20",
 			journal:     &TodoJournal{},
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"Tags": []string{"work", "personal", "urgent"},
 			},
 			expected: []string{

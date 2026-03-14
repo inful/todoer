@@ -165,10 +165,7 @@ func processAssociatedLine(state *parserState, line string, matches []string) er
 //   - Sub bullet (indent 6) -> attaches to sub todo above
 func findTargetItemForBullet(currentItemStack []*TodoItem, currentIndentStack []int, bulletIndent int) *TodoItem {
 	// Use the minimum length to avoid out-of-bounds access
-	minLen := len(currentItemStack)
-	if len(currentIndentStack) < minLen {
-		minLen = len(currentIndentStack)
-	}
+	minLen := min(len(currentItemStack), len(currentIndentStack))
 	for i := minLen - 1; i >= 0; i-- {
 		if bulletIndent > currentIndentStack[i] {
 			return currentItemStack[i]

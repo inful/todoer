@@ -10,6 +10,18 @@ import (
 	"time"
 )
 
+func mustSetEnv(t *testing.T, key, value string) {
+	t.Helper()
+	t.Setenv(key, value)
+}
+
+func mustUnsetEnv(t *testing.T, key string) {
+	t.Helper()
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("Failed to unset env %s: %v", key, err)
+	}
+}
+
 // TestCLICommands tests the main CLI commands by running the actual binary
 func TestCLICommands(t *testing.T) {
 	// Build the binary for testing
@@ -365,12 +377,12 @@ title: 2025-06-19
 
 	// Set config file environment variable
 	oldConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	os.Setenv("XDG_CONFIG_HOME", tempDir)
+	mustSetEnv(t, "XDG_CONFIG_HOME", tempDir)
 	defer func() {
 		if oldConfigHome != "" {
-			os.Setenv("XDG_CONFIG_HOME", oldConfigHome)
+			mustSetEnv(t, "XDG_CONFIG_HOME", oldConfigHome)
 		} else {
-			os.Unsetenv("XDG_CONFIG_HOME")
+			mustUnsetEnv(t, "XDG_CONFIG_HOME")
 		}
 	}()
 
@@ -598,7 +610,7 @@ func testConcurrency(t *testing.T, binaryPath string) {
 	sourceFiles := make([]string, 5)
 	targetFiles := make([]string, 5)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		sourceFile := filepath.Join(tempDir, fmt.Sprintf("source%d.md", i))
 		targetFile := filepath.Join(tempDir, fmt.Sprintf("target%d.md", i))
 
@@ -631,7 +643,7 @@ title: 2025-06-19
 
 	results := make(chan result, 5)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		go func(index int) {
 			cmd := exec.Command(binaryPath, "process", sourceFiles[index], targetFiles[index])
 			err := cmd.Run()
@@ -640,7 +652,7 @@ title: 2025-06-19
 	}
 
 	// Collect results
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		res := <-results
 		if res.err != nil {
 			t.Errorf("Concurrent process %d failed: %v", res.index, res.err)
@@ -671,7 +683,7 @@ title: 2025-06-19
 `)
 
 	// Add many todo items
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		completed := "[ ]"
 		if i%3 == 0 {
 			completed = "[x]"

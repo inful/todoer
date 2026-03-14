@@ -196,7 +196,11 @@ func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger
 		if err != nil {
 			return fmt.Errorf("failed to create temp file: %w", err)
 		}
-		defer os.Remove(tmpFile.Name())
+		defer func() {
+			if err := os.Remove(tmpFile.Name()); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "warning: failed to remove temp file %s: %v\n", tmpFile.Name(), err)
+			}
+		}()
 
 		if _, err := tmpFile.WriteString(core.TodosHeader + "\n\n"); err != nil {
 			return fmt.Errorf("failed to write to temp file: %w", err)

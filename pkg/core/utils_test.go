@@ -131,6 +131,7 @@ func TestDeepCopyItem(t *testing.T) {
 		copy := DeepCopyItem(original)
 		if copy == nil {
 			t.Fatal("DeepCopyItem returned nil for valid item")
+			return
 		}
 
 		// Check that values are copied
@@ -163,6 +164,7 @@ func TestDeepCopyItem(t *testing.T) {
 		copy := DeepCopyItem(original)
 		if copy == nil {
 			t.Fatal("DeepCopyItem returned nil")
+			return
 		}
 
 		if len(copy.BulletLines) != len(original.BulletLines) {
@@ -194,6 +196,7 @@ func TestDeepCopyItem(t *testing.T) {
 		copy := DeepCopyItem(original)
 		if copy == nil {
 			t.Fatal("DeepCopyItem returned nil")
+			return
 		}
 
 		if len(copy.SubItems) != len(original.SubItems) {
@@ -692,13 +695,13 @@ func TestMergeCustomVariables(t *testing.T) {
 	tests := []struct {
 		name       string
 		data       *TemplateData
-		customVars map[string]interface{}
-		expected   map[string]interface{}
+		customVars map[string]any
+		expected   map[string]any
 	}{
 		{
 			name: "nil data should not panic",
 			data: nil,
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"TestVar": "test_value",
 			},
 			expected: nil,
@@ -712,12 +715,12 @@ func TestMergeCustomVariables(t *testing.T) {
 		{
 			name: "valid custom variables should be merged",
 			data: &TemplateData{Date: "2025-06-20"},
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"ProjectName": "MyProject",
 				"Version":     "1.0.0",
 				"Debug":       true,
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"ProjectName": "MyProject",
 				"Version":     "1.0.0",
 				"Debug":       true,
@@ -726,11 +729,11 @@ func TestMergeCustomVariables(t *testing.T) {
 		{
 			name: "multiple calls should merge correctly",
 			data: &TemplateData{Date: "2025-06-20"},
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"First":  "value1",
 				"Second": "value2",
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"First":  "value1",
 				"Second": "value2",
 			},
@@ -775,7 +778,7 @@ func TestMergeCustomVariables(t *testing.T) {
 func TestValidateCustomVariables(t *testing.T) {
 	tests := []struct {
 		name        string
-		customVars  map[string]interface{}
+		customVars  map[string]any
 		expectError bool
 		errorMsg    string
 	}{
@@ -786,12 +789,12 @@ func TestValidateCustomVariables(t *testing.T) {
 		},
 		{
 			name:        "empty custom vars should be valid",
-			customVars:  map[string]interface{}{},
+			customVars:  map[string]any{},
 			expectError: false,
 		},
 		{
 			name: "valid custom variables should pass",
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"ProjectName": "MyProject",
 				"Version":     "1.0.0",
 				"Debug":       true,
@@ -803,7 +806,7 @@ func TestValidateCustomVariables(t *testing.T) {
 		},
 		{
 			name: "reserved name should fail",
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"Date": "2025-06-20",
 			},
 			expectError: true,
@@ -811,7 +814,7 @@ func TestValidateCustomVariables(t *testing.T) {
 		},
 		{
 			name: "invalid variable name should fail",
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"123Invalid": "value",
 			},
 			expectError: true,
@@ -819,7 +822,7 @@ func TestValidateCustomVariables(t *testing.T) {
 		},
 		{
 			name: "unsupported type should fail",
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"InvalidType": complex(1, 2),
 			},
 			expectError: true,
@@ -827,7 +830,7 @@ func TestValidateCustomVariables(t *testing.T) {
 		},
 		{
 			name: "valid variable names should pass",
-			customVars: map[string]interface{}{
+			customVars: map[string]any{
 				"validName":    "value",
 				"Valid_Name":   "value",
 				"_validName":   "value",
@@ -889,7 +892,7 @@ func TestIsValidVariableName(t *testing.T) {
 func TestIsSupportedVariableType(t *testing.T) {
 	tests := []struct {
 		name     string
-		value    interface{}
+		value    any
 		expected bool
 	}{
 		{"string", "test", true},
@@ -899,9 +902,9 @@ func TestIsSupportedVariableType(t *testing.T) {
 		{"bool", true, true},
 		{"[]string", []string{"a", "b"}, true},
 		{"[]int", []int{1, 2}, true},
-		{"[]interface{} with strings", []interface{}{"a", "b"}, true},
-		{"[]interface{} with mixed valid types", []interface{}{"a", 1, true}, true},
-		{"[]interface{} with invalid type", []interface{}{"a", complex(1, 2)}, false},
+		{"[]any with strings", []any{"a", "b"}, true},
+		{"[]any with mixed valid types", []any{"a", 1, true}, true},
+		{"[]any with invalid type", []any{"a", complex(1, 2)}, false},
 		{"complex number", complex(1, 2), false},
 		{"map", map[string]string{"key": "value"}, false},
 		{"struct", struct{ Name string }{Name: "test"}, false},

@@ -13,13 +13,13 @@ import (
 func createUtilityFunctions() template.FuncMap {
 	return template.FuncMap{
 		// Conditional and default values
-		"default": func(defaultVal interface{}, val interface{}) interface{} {
+		"default": func(defaultVal any, val any) any {
 			if val == nil || val == "" {
 				return defaultVal
 			}
 			return val
 		},
-		"empty": func(val interface{}) bool {
+		"empty": func(val any) bool {
 			if val == nil {
 				return true
 			}
@@ -28,7 +28,7 @@ func createUtilityFunctions() template.FuncMap {
 				return v == ""
 			case []string:
 				return len(v) == 0
-			case map[string]interface{}:
+			case map[string]any:
 				return len(v) == 0
 			case int:
 				return v == 0
@@ -36,7 +36,7 @@ func createUtilityFunctions() template.FuncMap {
 				return false
 			}
 		},
-		"notEmpty": func(val interface{}) bool {
+		"notEmpty": func(val any) bool {
 			if val == nil {
 				return false
 			}
@@ -45,7 +45,7 @@ func createUtilityFunctions() template.FuncMap {
 				return v != ""
 			case []string:
 				return len(v) > 0
-			case map[string]interface{}:
+			case map[string]any:
 				return len(v) > 0
 			case int:
 				return v != 0
@@ -60,16 +60,16 @@ func createUtilityFunctions() template.FuncMap {
 				return []int{}
 			}
 			result := make([]int, end-start+1)
-			for i := 0; i < len(result); i++ {
+			for i := range result {
 				result[i] = start + i
 			}
 			return result
 		},
-		"dict": func(values ...interface{}) map[string]interface{} {
+		"dict": func(values ...any) map[string]any {
 			if len(values)%2 != 0 {
 				return nil
 			}
-			dict := make(map[string]interface{})
+			dict := make(map[string]any)
 			for i := 0; i < len(values); i += 2 {
 				key, ok := values[i].(string)
 				if !ok {

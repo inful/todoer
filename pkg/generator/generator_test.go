@@ -78,7 +78,7 @@ func TestNewGeneratorWithOptions(t *testing.T) {
 	})
 
 	t.Run("with custom variables", func(t *testing.T) {
-		customVars := map[string]interface{}{
+		customVars := map[string]any{
 			"projectName": "TodoApp",
 			"version":     "1.0.0",
 		}
@@ -92,7 +92,7 @@ func TestNewGeneratorWithOptions(t *testing.T) {
 	})
 
 	t.Run("invalid custom variables", func(t *testing.T) {
-		invalidVars := map[string]interface{}{
+		invalidVars := map[string]any{
 			"Date": "reserved name", // Date is reserved
 		}
 		_, err := NewGeneratorWithOptions(template, templateDate, WithCustomVariables(invalidVars))
@@ -143,7 +143,7 @@ func TestNewGeneratorFromFileWithOptions(t *testing.T) {
 		t.Fatalf("Failed to create test template file: %v", err)
 	}
 
-	customVars := map[string]interface{}{
+	customVars := map[string]any{
 		"author": "Test User",
 	}
 
@@ -271,6 +271,7 @@ title: 2024-01-15
 
 	if result == nil {
 		t.Fatal("ProcessFile() returned nil result")
+		return
 	}
 
 	// Verify we can read both results
@@ -297,7 +298,7 @@ func TestGeneratorWithOptions(t *testing.T) {
 	// Reconfigure with new options
 	newGen, err := gen.WithOptions(
 		WithPreviousDate("2024-01-14"),
-		WithCustomVariables(map[string]interface{}{
+		WithCustomVariables(map[string]any{
 			"author": "Test User",
 		}))
 
@@ -491,7 +492,7 @@ title: {{.Date}}
 Notes for the day.`
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := NewGeneratorWithOptions(template, "2024-01-15")
 		if err != nil {
 			b.Fatalf("Generator creation failed: %v", err)
@@ -519,7 +520,7 @@ title: 2024-01-15
 - [x] Task 4`
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err := gen.Process(content)
 		if err != nil {
 			b.Fatalf("Processing failed: %v", err)

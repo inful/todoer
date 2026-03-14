@@ -74,12 +74,12 @@ func cmdPreview(templateFile, date, todosFile, todosString, customVars string, c
 	return nil
 }
 
-func parseCustomVarsJSON(jsonStr string) (map[string]interface{}, error) {
+func parseCustomVarsJSON(jsonStr string) (map[string]any, error) {
 	if jsonStr == "" {
 		return nil, nil
 	}
 
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
 		return nil, err
 	}

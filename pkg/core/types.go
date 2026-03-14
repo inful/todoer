@@ -146,5 +146,5 @@ type TemplateData struct {
 	TodoDaysSpan             int      // Number of days spanned by todos (from oldest to current date)
 
 	// Custom variables (user-defined via config)
-	Custom map[string]interface{} // Custom template variables from configuration
+	Custom map[string]any // Custom template variables from configuration
 }

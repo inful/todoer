@@ -11,11 +11,11 @@ import (
 
 // Config represents the configuration file structure
 type Config struct {
-	RootDir            string                 `toml:"root_dir"`
-	TemplateFile       string                 `toml:"template_file"`
-	Custom             map[string]interface{} `toml:"custom_variables"`
-	FrontmatterDateKey string                 `toml:"frontmatter_date_key"`
-	TodosHeader        string                 `toml:"todos_header"`
+	RootDir            string         `toml:"root_dir"`
+	TemplateFile       string         `toml:"template_file"`
+	Custom             map[string]any `toml:"custom_variables"`
+	FrontmatterDateKey string         `toml:"frontmatter_date_key"`
+	TodosHeader        string         `toml:"todos_header"`
 }
 
 // loadConfig loads configuration from file, environment variables, and CLI flags
