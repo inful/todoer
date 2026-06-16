@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/inful/todoer/pkg/core"
 )
 
 // Helper function to create a temporary directory
@@ -554,6 +556,57 @@ Some notes here.
 	}
 }
 
+func TestProcessJournal_SkipBackupStillUpdatesSource(t *testing.T) {
+	tempDir := setupTempDir(t)
+
+	sourceContent := `---
+date: 2024-01-01
+---
+
+# Daily Journal
+
+## Todos
+
+- [ ] Task to carry
+- [x] Already done
+
+## Notes
+`
+
+	sourceFile := filepath.Join(tempDir, "source.md")
+	targetFile := filepath.Join(tempDir, "target.md")
+	createTestFile(t, sourceFile, sourceContent)
+
+	config := &Config{RootDir: tempDir}
+	logger := NewLogger(ModeQuiet)
+
+	if err := processJournal(sourceFile, targetFile, "", "", true, false, config, logger); err != nil {
+		t.Fatalf("processJournal() unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(sourceFile + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file when skipBackup=true, got err=%v", err)
+	}
+
+	sourceAfter, err := os.ReadFile(sourceFile)
+	if err != nil {
+		t.Fatalf("failed to read updated source file: %v", err)
+	}
+
+	sourceAfterStr := string(sourceAfter)
+	if sourceAfterStr == sourceContent {
+		t.Fatalf("expected source file to be updated when skipBackup=true")
+	}
+
+	if !strings.Contains(sourceAfterStr, "Moved to [[") {
+		t.Fatalf("expected source file to include moved marker after update, got:\n%s", sourceAfterStr)
+	}
+
+	if _, err := os.Stat(targetFile); err != nil {
+		t.Fatalf("expected target file to be created: %v", err)
+	}
+}
+
 func TestFindClosestJournalFile(t *testing.T) {
 	tempDir := setupTempDir(t)
 
@@ -693,6 +746,207 @@ func TestCmdNew_AlreadyExists(t *testing.T) {
 	err := cmdNew(tempDir, "", false, config, logger)
 	if err != nil {
 		t.Errorf("cmdNew() unexpected error when file exists: %v", err)
+	}
+}
+
+func TestCmdNewWithOptions_DisableSourceBackup(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [[`+yesterday+`]]
+  - [ ] Carryover item
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+		t.Fatalf("cmdNewWithOptions() unexpected error: %v", err)
+	}
+
+	target := buildJournalPath(tempDir, today)
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("expected today's journal to be created: %v", err)
+	}
+
+	if _, err := os.Stat(source + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file when preserveSourceBackup=false, got err=%v", err)
+	}
+}
+
+func TestCmdNewWithOptions_DisableSourceBackup_PreservesCompletedAndCarriesUnfinished(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [x] Done task
+- [ ] Carry task
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+		t.Fatalf("cmdNewWithOptions() unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(source + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file when preserveSourceBackup=false, got err=%v", err)
+	}
+
+	sourceAfter, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatalf("failed to read source after carryover: %v", err)
+	}
+
+	sourceAfterStr := string(sourceAfter)
+	if !strings.Contains(sourceAfterStr, "Done task") {
+		t.Fatalf("expected source to preserve completed task, got:\n%s", sourceAfterStr)
+	}
+	if strings.Contains(sourceAfterStr, "Carry task") {
+		t.Fatalf("expected source to remove carried unfinished task, got:\n%s", sourceAfterStr)
+	}
+
+	target := buildJournalPath(tempDir, today)
+	targetAfter, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("failed to read target after carryover: %v", err)
+	}
+
+	targetAfterStr := string(targetAfter)
+	if !strings.Contains(targetAfterStr, "Carry task") {
+		t.Fatalf("expected target to contain carried unfinished task, got:\n%s", targetAfterStr)
+	}
+	if strings.Contains(targetAfterStr, "Done task") {
+		t.Fatalf("expected target to exclude completed task, got:\n%s", targetAfterStr)
+	}
+}
+
+func TestCmdNew_DoesNotCreateBackupByDefault(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [[`+yesterday+`]]
+  - [ ] Carryover item
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdNew(tempDir, "", false, config, logger); err != nil {
+		t.Fatalf("cmdNew() unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(source + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file from cmdNew by default, got err=%v", err)
+	}
+}
+
+func TestCmdAdd_DoesNotCreateBackupByDefault(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [[`+yesterday+`]]
+  - [ ] Carryover item
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "new todo", false, false, config, logger); err != nil {
+		t.Fatalf("cmdAdd() unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(source + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file from cmdAdd by default, got err=%v", err)
+	}
+
+	target := buildJournalPath(tempDir, today)
+	targetAfter, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("failed to read target: %v", err)
+	}
+	if !strings.Contains(string(targetAfter), "new todo") {
+		t.Fatalf("expected target to contain the new todo, got:\n%s", string(targetAfter))
+	}
+}
+
+func TestCmdAdd_WithBackupCreatesBackup(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [[`+yesterday+`]]
+  - [ ] Carryover item
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "new todo", false, true, config, logger); err != nil {
+		t.Fatalf("cmdAdd() unexpected error: %v", err)
+	}
+
+	backupPath := source + ".bak"
+	if _, err := os.Stat(backupPath); err != nil {
+		t.Fatalf("expected backup file when backup=true, got err=%v", err)
+	}
+
+	target := buildJournalPath(tempDir, today)
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("expected target file to be created, got err=%v", err)
 	}
 }
 

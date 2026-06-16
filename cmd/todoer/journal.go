@@ -86,23 +86,29 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 		fmt.Println(targetFile)
 	}
 
-	if len(modifiedContentBytes) > 0 && !skipBackup {
-		backupFile := sourceFile + ".bak"
-		originalContentBytes, err := os.ReadFile(sourceFile)
-		if err != nil {
-			return fmt.Errorf("error reading original file for backup: %w", err)
-		}
-		if err := safeWriteFile(backupFile, originalContentBytes, FilePermissions); err != nil {
-			return fmt.Errorf("error creating backup file %s: %w", backupFile, err)
+	if len(modifiedContentBytes) > 0 {
+		if !skipBackup {
+			backupFile := sourceFile + ".bak"
+			originalContentBytes, err := os.ReadFile(sourceFile)
+			if err != nil {
+				return fmt.Errorf("error reading original file for backup: %w", err)
+			}
+			if err := safeWriteFile(backupFile, originalContentBytes, FilePermissions); err != nil {
+				return fmt.Errorf("error creating backup file %s: %w", backupFile, err)
+			}
+
+			logger.Info("Backup of original file created: %s", backupFile)
 		}
 
 		if err := safeWriteFile(sourceFile, modifiedContentBytes, FilePermissions); err != nil {
 			return fmt.Errorf("error updating source file %s: %w", sourceFile, err)
 		}
 
-		logger.Info("Backup of original file created: %s", backupFile)
+		if skipBackup {
+			logger.Info("Source file updated without backup: %s", sourceFile)
+		}
 	} else {
-		logger.Info("No modifications found in the original file, backup not created.")
+		logger.Info("No modifications found in the original file.")
 	}
 
 	return nil
@@ -160,7 +166,15 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 }
 
 // cmdNew creates today's journal using the closest previous journal or a blank template.
+// It does not preserve a .bak of the source journal by default; callers that want a
+// backup should call cmdNewWithOptions with preserveSourceBackup=true or invoke
+// the `new --backup` flag.
 func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger *Logger) error {
+	return cmdNewWithOptions(rootDir, templateFile, printPath, false, config, logger)
+}
+
+// cmdNewWithOptions creates today's journal and optionally preserves a backup of the source journal.
+func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBackup bool, config *Config, logger *Logger) error {
 	today := time.Now().Format(core.DateFormat)
 	journalPath := buildJournalPath(rootDir, today)
 
@@ -178,7 +192,7 @@ func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger
 	}
 
 	closest, err := findClosestJournalFile(rootDir, today)
-	skipBackup := false
+	skipBackup := !preserveSourceBackup
 	if err != nil {
 		logger.Info("No previous journal found, creating a new one from template.")
 
