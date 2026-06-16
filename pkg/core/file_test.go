@@ -154,6 +154,51 @@ Body`
 			t.Fatalf("expected original malformed content retained, got:\n%s", updated)
 		}
 	})
+
+	t.Run("CRLF line endings are preserved on roundtrip", func(t *testing.T) {
+		content := "---\r\ntitle: 2026-03-17\r\n---\r\n# Body\r\n\r\nSome CRLF body text.\r\n"
+
+		updated, err := UpsertFrontmatterMetadata(content, map[string]string{
+			"todoer_carryover_to": "2026-03-18",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Every line break in the result should be CRLF. Specifically,
+		// the new key we just inserted and the body separator should be
+		// CRLF rather than LF.
+		if !strings.Contains(updated, "\r\n") {
+			t.Fatalf("expected CRLF to be preserved, got:\n%q", updated)
+		}
+		if strings.Contains(updated, "title: 2026-03-17\ntodoer_carryover_to") {
+			t.Fatalf("expected new key line break to be CRLF, got:\n%q", updated)
+		}
+		if !strings.Contains(updated, "todoer_carryover_to: 2026-03-18\r\n") {
+			t.Fatalf("expected CRLF after new key, got:\n%q", updated)
+		}
+		if !strings.Contains(updated, "---\r\n# Body\r\n") {
+			t.Fatalf("expected CRLF around body, got:\n%q", updated)
+		}
+		if !strings.Contains(updated, "Some CRLF body text.\r\n") {
+			t.Fatalf("expected CRLF at end of body, got:\n%q", updated)
+		}
+
+		// And the metadata should still be readable.
+		metadata, hasFrontmatter, err := ExtractFrontmatterMetadata(updated)
+		if err != nil {
+			t.Fatalf("extract failed: %v", err)
+		}
+		if !hasFrontmatter {
+			t.Fatalf("expected frontmatter to be detectable after upsert")
+		}
+		if metadata["todoer_carryover_to"] != "2026-03-18" {
+			t.Fatalf("expected new key in metadata, got %v", metadata)
+		}
+		if metadata["title"] != "2026-03-17" {
+			t.Fatalf("expected title preserved, got %v", metadata)
+		}
+	})
 }
 
 // Test ExtractDateFromFrontmatter function

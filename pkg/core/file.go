@@ -52,7 +52,7 @@ func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) 
 // ExtractFrontmatterMetadata reads simple "key: value" pairs from the document frontmatter.
 // It returns metadata, whether a frontmatter block exists, and an error for malformed frontmatter.
 func ExtractFrontmatterMetadata(content string) (map[string]string, bool, error) {
-	fmLines, _, hasFrontmatter, malformed := splitFrontmatter(content)
+	fmLines, _, _, hasFrontmatter, malformed := splitFrontmatter(content)
 	if malformed {
 		return map[string]string{}, true, fmt.Errorf("malformed frontmatter: missing closing delimiter")
 	}
@@ -73,14 +73,15 @@ func ExtractFrontmatterMetadata(content string) (map[string]string, bool, error)
 
 // UpsertFrontmatterMetadata updates or inserts simple metadata in a document frontmatter block.
 // If the document has malformed frontmatter, a new metadata block is prepended as a safe fallback.
+// The document's original line ending style (LF or CRLF) is preserved.
 func UpsertFrontmatterMetadata(content string, updates map[string]string) (string, error) {
 	if len(updates) == 0 {
 		return content, nil
 	}
 
-	fmLines, body, hasFrontmatter, malformed := splitFrontmatter(content)
+	fmLines, body, sep, hasFrontmatter, malformed := splitFrontmatter(content)
 	if malformed || !hasFrontmatter {
-		return prependFrontmatterBlock(content, updates), nil
+		return prependFrontmatterBlock(content, updates, sep), nil
 	}
 
 	lineByKey := make(map[string]int)
@@ -93,7 +94,7 @@ func UpsertFrontmatterMetadata(content string, updates map[string]string) (strin
 
 	keys := sortedMetadataKeys(updates)
 	for _, key := range keys {
-		line := fmt.Sprintf("%s: %s", key, updates[key])
+		line := key + ": " + updates[key]
 		if idx, exists := lineByKey[key]; exists {
 			fmLines[idx] = line
 		} else {
@@ -101,26 +102,36 @@ func UpsertFrontmatterMetadata(content string, updates map[string]string) (strin
 		}
 	}
 
-	return joinFrontmatterAndBody(fmLines, body), nil
+	return joinFrontmatterAndBody(fmLines, body, sep), nil
 }
 
-func splitFrontmatter(content string) ([]string, string, bool, bool) {
+// splitFrontmatter splits a document into its frontmatter lines and the
+// body, preserving the line ending style. The returned separator is the
+// one detected in the input (LF or CRLF); it is used by the re-emit
+// helpers so a roundtrip on a CRLF file does not silently rewrite line
+// endings.
+func splitFrontmatter(content string) ([]string, string, string, bool, bool) {
 	if content == "" {
-		return nil, "", false, false
+		return nil, "", "\n", false, false
 	}
 
-	lines := strings.Split(content, "\n")
+	sep := "\n"
+	if strings.Contains(content, "\r\n") {
+		sep = "\r\n"
+	}
+
+	lines := strings.Split(content, sep)
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
-		return nil, content, false, false
+		return nil, content, sep, false, false
 	}
 
 	for i := 1; i < len(lines); i++ {
 		if strings.TrimSpace(lines[i]) == "---" {
-			return lines[1:i], strings.Join(lines[i+1:], "\n"), true, false
+			return lines[1:i], strings.Join(lines[i+1:], sep), sep, true, false
 		}
 	}
 
-	return nil, content, true, true
+	return nil, content, sep, true, true
 }
 
 func parseFrontmatterLine(line string) (string, string, bool) {
@@ -143,31 +154,36 @@ func parseFrontmatterLine(line string) (string, string, bool) {
 	return key, value, true
 }
 
-func prependFrontmatterBlock(content string, updates map[string]string) string {
+func prependFrontmatterBlock(content string, updates map[string]string, sep string) string {
 	keys := sortedMetadataKeys(updates)
 	var builder strings.Builder
-	builder.WriteString("---\n")
+	builder.WriteString("---")
+	builder.WriteString(sep)
 	for _, key := range keys {
-		fmt.Fprintf(&builder, "%s: %s\n", key, updates[key])
+		builder.WriteString(key)
+		builder.WriteString(": ")
+		builder.WriteString(updates[key])
+		builder.WriteString(sep)
 	}
 	builder.WriteString("---")
 	if content != "" {
-		builder.WriteString("\n")
+		builder.WriteString(sep)
 		builder.WriteString(content)
 	}
 	return builder.String()
 }
 
-func joinFrontmatterAndBody(fmLines []string, body string) string {
+func joinFrontmatterAndBody(fmLines []string, body string, sep string) string {
 	var builder strings.Builder
-	builder.WriteString("---\n")
+	builder.WriteString("---")
+	builder.WriteString(sep)
 	for _, line := range fmLines {
 		builder.WriteString(line)
-		builder.WriteString("\n")
+		builder.WriteString(sep)
 	}
 	builder.WriteString("---")
 	if body != "" {
-		builder.WriteString("\n")
+		builder.WriteString(sep)
 		builder.WriteString(body)
 	}
 	return builder.String()
