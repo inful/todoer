@@ -172,6 +172,7 @@ func TestTUIToggleBlockedOnCarryoverDay(t *testing.T) {
 		journal:  &core.TodoJournal{Days: []*core.DaySection{carryoverDay}},
 		todayDay: nil,
 	}
+	m.displayDay = m.pickInitialDisplayDay()
 	m.refreshItems()
 
 	if len(m.items) != 1 {
@@ -203,6 +204,7 @@ func TestTUIDeleteBlockedOnCarryoverDay(t *testing.T) {
 		journal:  &core.TodoJournal{Days: []*core.DaySection{carryoverDay}},
 		todayDay: nil,
 	}
+	m.displayDay = m.pickInitialDisplayDay()
 	m.refreshItems()
 
 	if len(m.items) != 1 {
@@ -231,6 +233,7 @@ func TestTUIToggleWorksOnTodayDay(t *testing.T) {
 		journal:  &core.TodoJournal{Days: []*core.DaySection{todayDay}},
 		todayDay: todayDay,
 	}
+	m.displayDay = m.pickInitialDisplayDay()
 	m.refreshItems()
 
 	if len(m.items) != 1 {
@@ -262,6 +265,7 @@ func TestTUIDeleteWorksOnTodayDay(t *testing.T) {
 		journal:  &core.TodoJournal{Days: []*core.DaySection{todayDay}},
 		todayDay: todayDay,
 	}
+	m.displayDay = m.pickInitialDisplayDay()
 	m.refreshItems()
 
 	if len(m.items) != 1 {
@@ -279,5 +283,91 @@ func TestTUIDeleteWorksOnTodayDay(t *testing.T) {
 	}
 	if !m2.dirty {
 		t.Fatalf("model should be dirty after delete")
+	}
+}
+
+func TestTUIAddInCarryoverViewKeepsCarryoverVisible(t *testing.T) {
+	carryoverItem := &core.TodoItem{Text: "carryover item", Completed: false}
+	carryoverDay := &core.DaySection{Date: "2026-03-15", Items: []*core.TodoItem{carryoverItem}}
+	m := tuiModel{
+		today:    "2026-03-16",
+		journal:  &core.TodoJournal{Days: []*core.DaySection{carryoverDay}},
+		todayDay: nil,
+	}
+	m.displayDay = m.pickInitialDisplayDay()
+	m.refreshItems()
+
+	if len(m.items) != 1 {
+		t.Fatalf("expected one visible carryover item, got %d", len(m.items))
+	}
+	if !m.isReadOnlyView() {
+		t.Fatalf("expected initial view to be the carryover fallback")
+	}
+
+	// Enter input mode and add a new todo for today.
+	m.inputMode = true
+	m.inputText = "new today todo"
+	updated, _ := m.updateInputMode(tea.KeyMsg{Type: tea.KeyEnter})
+	m2 := updated.(tuiModel)
+
+	// The carryover item must still be visible: the new todo is in
+	// today's section, the view stays on the carryover day.
+	if len(m2.items) != 1 {
+		t.Fatalf("expected the carryover item to remain visible after add, got %d items", len(m2.items))
+	}
+	if m2.items[0].item.Text != "carryover item" {
+		t.Fatalf("expected the carryover item to be the visible one, got %q", m2.items[0].item.Text)
+	}
+
+	// todayDay is set and has the new item, but displayDay is still the carryover.
+	if m2.todayDay == nil {
+		t.Fatalf("expected todayDay to be created for the new item")
+	}
+	if len(m2.todayDay.Items) != 1 || m2.todayDay.Items[0].Text != "new today todo" {
+		t.Fatalf("expected today's section to contain the new todo, got %+v", m2.todayDay.Items)
+	}
+	if m2.displayDay != carryoverDay {
+		t.Fatalf("expected displayDay to remain the carryover day after add, got %p (want %p)", m2.displayDay, carryoverDay)
+	}
+	if !m2.dirty {
+		t.Fatalf("model should be dirty after add")
+	}
+	if !strings.HasPrefix(m2.status, "Added to today") {
+		t.Fatalf("expected add status to explain the view, got %q", m2.status)
+	}
+}
+
+func TestTUIAddInTodayViewShowsNewTodo(t *testing.T) {
+	existing := &core.TodoItem{Text: "existing today item", Completed: false}
+	todayDay := &core.DaySection{Date: "2026-03-16", Items: []*core.TodoItem{existing}}
+	m := tuiModel{
+		today:    "2026-03-16",
+		journal:  &core.TodoJournal{Days: []*core.DaySection{todayDay}},
+		todayDay: todayDay,
+	}
+	m.displayDay = m.pickInitialDisplayDay()
+	m.refreshItems()
+
+	if len(m.items) != 1 {
+		t.Fatalf("expected one existing item, got %d", len(m.items))
+	}
+
+	// Add a new todo in today view.
+	m.inputMode = true
+	m.inputText = "second today item"
+	updated, _ := m.updateInputMode(tea.KeyMsg{Type: tea.KeyEnter})
+	m2 := updated.(tuiModel)
+
+	if len(m2.items) != 2 {
+		t.Fatalf("expected the new todo to be visible in today view, got %d items", len(m2.items))
+	}
+	if m2.items[1].item.Text != "second today item" {
+		t.Fatalf("expected the new item to be the second one, got %q", m2.items[1].item.Text)
+	}
+	if m2.displayDay != todayDay {
+		t.Fatalf("expected displayDay to stay on today, got %p (want %p)", m2.displayDay, todayDay)
+	}
+	if m2.status != "Todo added" {
+		t.Fatalf("expected plain 'Todo added' status, got %q", m2.status)
 	}
 }

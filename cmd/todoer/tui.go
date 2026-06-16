@@ -33,6 +33,7 @@ type tuiModel struct {
 	afterTodos  string
 	journal     *core.TodoJournal
 	todayDay    *core.DaySection
+	displayDay  *core.DaySection // the day currently shown in the view; sticky after first set
 
 	items    []tuiItem
 	selected int
@@ -178,6 +179,7 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.status = "Cannot add empty todo"
 			return m, nil
 		}
+		wasCarryoverView := m.isReadOnlyView()
 		if m.todayDay == nil {
 			m.todayDay = findOrCreateDaySection(m.journal, m.today)
 		}
@@ -187,6 +189,14 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			SubItems:    []*core.TodoItem{},
 			BulletLines: []string{},
 		})
+		// Keep the display day sticky. If the user was in a carryover view
+		// they should still see the carryover items; the new todo is in
+		// today's section and will appear after the next save+reload.
+		// If the user was already on today, the new todo is appended to
+		// the displayed day and is visible immediately.
+		if !wasCarryoverView {
+			m.displayDay = m.todayDay
+		}
 		m.refreshItems()
 		if len(m.items) > 0 {
 			m.selected = len(m.items) - 1
@@ -194,7 +204,11 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.dirty = true
 		m.inputMode = false
 		m.inputText = ""
-		m.status = "Todo added"
+		if wasCarryoverView {
+			m.status = "Added to today (carryover still shown); press r after save to see today"
+		} else {
+			m.status = "Todo added"
+		}
 	case "backspace":
 		if len(m.inputText) > 0 {
 			m.inputText = m.inputText[:len(m.inputText)-1]
@@ -388,28 +402,30 @@ func (m tuiModel) View() string {
 
 func (m *tuiModel) refreshItems() {
 	m.items = make([]tuiItem, 0)
-	displayDay := m.displayDaySection()
-	if displayDay == nil {
+	if m.displayDay == nil {
 		return
 	}
-	flattenTodoItems(displayDay.Items, 0, &m.items)
+	flattenTodoItems(m.displayDay.Items, 0, &m.items)
 	filtered := m.filteredItems()
 	if m.selected >= len(filtered) {
 		m.selected = max(0, len(filtered)-1)
 	}
 }
 
-func (m *tuiModel) displayDaySection() *core.DaySection {
+// pickInitialDisplayDay chooses which day the model should show on first
+// load: today's section when it has items, otherwise the most recent
+// non-empty day. The result is sticky for the lifetime of the model until
+// the next reload, which is what keeps the carryover view visible after
+// the user adds an item to today's section.
+func (m *tuiModel) pickInitialDisplayDay() *core.DaySection {
 	if m.todayDay != nil && len(m.todayDay.Items) > 0 {
 		return m.todayDay
 	}
-
 	for _, day := range slices.Backward(m.journal.Days) {
 		if day != nil && len(day.Items) > 0 {
 			return day
 		}
 	}
-
 	return nil
 }
 
@@ -418,7 +434,7 @@ func (m *tuiModel) displayDaySection() *core.DaySection {
 // items would silently mutate a different journal; the carryover view is
 // read-only and the user is asked to run `new` to bring items into today.
 func (m *tuiModel) isReadOnlyView() bool {
-	return m.displayDaySection() != m.todayDay
+	return m.displayDay != m.todayDay
 }
 
 func (m tuiModel) filteredItems() []tuiItem {
@@ -467,6 +483,7 @@ func (m *tuiModel) reloadFromDisk() error {
 	m.afterTodos = afterTodos
 	m.journal = journal
 	m.todayDay = findDaySection(journal, m.today)
+	m.displayDay = m.pickInitialDisplayDay()
 	m.refreshItems()
 	if m.selected >= len(m.items) {
 		m.selected = max(0, len(m.items)-1)
