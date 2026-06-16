@@ -120,6 +120,52 @@ title: 2026-03-16
 	}
 }
 
+func TestTUIModelPicksLatestCarryoverRegardlessOfFileOrder(t *testing.T) {
+	tempDir := t.TempDir()
+	journalPath := filepath.Join(tempDir, "2026-03-20.md")
+
+	// Today's section is missing. Two carryover days appear in
+	// REVERSE chronological order in the file, so the most recent
+	// is not the last entry. reloadFromDisk sorts the day
+	// sections, so the carryover fallback picks the latest by date,
+	// not the last in file order.
+	content := `---
+title: 2026-03-20
+---
+
+# Daily Journal
+
+## Todos
+
+- [[2026-03-19]]
+  - [ ] yesterday
+- [[2026-03-18]]
+  - [ ] day before yesterday
+- [[2026-03-15]]
+  - [ ] last week
+
+## Notes
+`
+
+	if err := os.WriteFile(journalPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write journal file: %v", err)
+	}
+
+	model, err := newTUIModel(journalPath, "2026-03-20", &Config{TodosHeader: core.TodosHeader})
+	if err != nil {
+		t.Fatalf("failed to init tui model: %v", err)
+	}
+
+	// The carryover fallback should show the latest day by date,
+	// which is 2026-03-19.
+	if model.displayDay == nil || model.displayDay.Date != "2026-03-19" {
+		t.Fatalf("expected displayDay to be 2026-03-19, got %+v", model.displayDay)
+	}
+	if len(model.items) != 1 || model.items[0].item.Text != "yesterday" {
+		t.Fatalf("expected the 2026-03-19 item to be shown, got %+v", model.items)
+	}
+}
+
 func TestTUIModelDisplaysCarryoverWhenTodaySectionEmpty(t *testing.T) {
 	tempDir := t.TempDir()
 	journalPath := filepath.Join(tempDir, "2026-03-16.md")

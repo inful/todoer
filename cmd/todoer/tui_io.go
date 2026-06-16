@@ -27,6 +27,9 @@ func (m *tuiModel) reloadFromDisk() error {
 	m.beforeTodos = beforeTodos
 	m.afterTodos = afterTodos
 	m.journal = journal
+	// Sort the day sections so the carryover fallback (which walks
+	// slices.Backward) is independent of the on-disk file order.
+	core.SortJournalDays(journal)
 	m.todayDay = core.FindDaySection(journal, m.today)
 	m.displayDay = m.pickInitialDisplayDay()
 	m.refreshItems()

@@ -137,9 +137,11 @@ func mergeDayInto(srcDay *DaySection, target *TodoJournal, existing map[string]b
 	return targetDay
 }
 
-// sortDays sorts the journal's day sections by their date in
-// ascending order. Days with empty date strings sort last.
-func sortDays(journal *TodoJournal) {
+// SortJournalDays sorts the journal's day sections by their date in
+// ascending order. Days with empty date strings sort last. The
+// function is safe on a nil journal and on a journal with nil day
+// entries. The sort is in place.
+func SortJournalDays(journal *TodoJournal) {
 	if journal == nil {
 		return
 	}
@@ -158,4 +160,11 @@ func sortDays(journal *TodoJournal) {
 		}
 		return journal.Days[i].Date < journal.Days[j].Date
 	})
+}
+
+// sortDays is a private alias used by MergeCarryover so the
+// sort helper is callable from the same package without
+// touching the exported name.
+func sortDays(journal *TodoJournal) {
+	SortJournalDays(journal)
 }

@@ -245,3 +245,24 @@ func TestSortDays_EmptyAndNil(_ *testing.T) {
 		{Date: "2026-03-15", Items: []*TodoItem{}},
 	}})
 }
+
+func TestSortJournalDays_OutOfOrderInput(t *testing.T) {
+	j := &TodoJournal{Days: []*DaySection{
+		{Date: "2026-03-18", Items: []*TodoItem{{Text: "later"}}},
+		{Date: "2026-03-14", Items: []*TodoItem{{Text: "earlier"}}},
+		{Date: "2026-03-16", Items: []*TodoItem{{Text: "middle"}}},
+	}}
+	SortJournalDays(j)
+	want := []string{"2026-03-14", "2026-03-16", "2026-03-18"}
+	for i, day := range j.Days {
+		if day.Date != want[i] {
+			t.Fatalf("expected day[%d] = %s, got %s", i, want[i], day.Date)
+		}
+	}
+}
+
+func TestSortJournalDays_NilAndEmpty(_ *testing.T) {
+	SortJournalDays(nil)                                    // no panic
+	SortJournalDays(&TodoJournal{})                         // no panic
+	SortJournalDays(&TodoJournal{Days: []*DaySection{nil}}) // no panic
+}
