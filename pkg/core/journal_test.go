@@ -379,6 +379,65 @@ func TestTagCompletedSubitems(t *testing.T) {
 	})
 }
 
+func TestMoveUndatedTodosToCurrentDate(t *testing.T) {
+	t.Run("moves both completed and uncompleted undated todos", func(t *testing.T) {
+		undatedCompleted := createTestTodoItem("Done task", true)
+		undatedUncompleted := createTestTodoItem("Carry task", false)
+
+		journal := createTestJournal(
+			createTestDaySection("", undatedCompleted, undatedUncompleted),
+		)
+
+		result := MoveUndatedTodosToCurrentDate(journal, "2026-03-16")
+
+		if len(result.Days) != 1 {
+			t.Fatalf("expected one day section, got %d", len(result.Days))
+		}
+
+		day := result.Days[0]
+		if day.Date != "2026-03-16" {
+			t.Fatalf("expected day date 2026-03-16, got %s", day.Date)
+		}
+
+		if len(day.Items) != 2 {
+			t.Fatalf("expected two items in moved day, got %d", len(day.Items))
+		}
+
+		if !day.Items[0].Completed || day.Items[0].Text != "Done task" {
+			t.Fatalf("expected completed undated todo to be preserved, got %+v", day.Items[0])
+		}
+
+		if day.Items[1].Completed || day.Items[1].Text != "Carry task" {
+			t.Fatalf("expected uncompleted undated todo to be preserved, got %+v", day.Items[1])
+		}
+	})
+
+	t.Run("appends undated todos to existing current-date section", func(t *testing.T) {
+		existing := createTestTodoItem("Existing dated task", false)
+		undatedCompleted := createTestTodoItem("Done task", true)
+
+		journal := createTestJournal(
+			createTestDaySection("2026-03-16", existing),
+			createTestDaySection("", undatedCompleted),
+		)
+
+		result := MoveUndatedTodosToCurrentDate(journal, "2026-03-16")
+
+		if len(result.Days) != 1 {
+			t.Fatalf("expected one merged day section, got %d", len(result.Days))
+		}
+
+		items := result.Days[0].Items
+		if len(items) != 2 {
+			t.Fatalf("expected two merged items, got %d", len(items))
+		}
+
+		if items[0].Text != "Existing dated task" || items[1].Text != "Done task" {
+			t.Fatalf("unexpected merged item order/content: %q, %q", items[0].Text, items[1].Text)
+		}
+	})
+}
+
 func TestJournalToString(t *testing.T) {
 	t.Run("nil journal should return empty string", func(t *testing.T) {
 		result := JournalToString(nil)
