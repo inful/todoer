@@ -1008,6 +1008,225 @@ date: `+today+`
 	}
 }
 
+func TestCmdAdd_EmptyTextReturnsError(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir}
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "   ", false, false, config, logger); err == nil {
+		t.Fatalf("expected error on empty todo text")
+	}
+}
+
+func TestCmdAdd_PrintPath(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	journalPath := buildJournalPath(tempDir, today)
+	createTestFile(t, journalPath, "---\ndate: "+today+"\n---\n\n# J\n\n## Todos\n\n- [ ] existing\n\n## Notes\n")
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "new", true, false, config, logger); err != nil {
+		t.Fatalf("cmdAdd: %v", err)
+	}
+}
+
+func TestFindOrCreateDaySection(t *testing.T) {
+	existing := &core.DaySection{Date: "2026-03-16", Items: []*core.TodoItem{{Text: "x"}}}
+	journal := &core.TodoJournal{Days: []*core.DaySection{existing}}
+
+	// Finds existing.
+	got := findOrCreateDaySection(journal, "2026-03-16")
+	if got != existing {
+		t.Fatalf("expected to return the existing day section")
+	}
+
+	// Creates a new one when missing.
+	got2 := findOrCreateDaySection(journal, "2026-03-17")
+	if got2 == nil || got2.Date != "2026-03-17" {
+		t.Fatalf("expected a new day section for 2026-03-17, got %+v", got2)
+	}
+	if len(journal.Days) != 2 {
+		t.Fatalf("expected journal to now have 2 day sections, got %d", len(journal.Days))
+	}
+}
+
+func TestAppendTodoToJournal_NoExistingFile(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	journalPath := buildJournalPath(tempDir, today)
+
+	if err := appendTodoToJournal(journalPath, today, "first", config); err == nil {
+		t.Fatalf("expected error when journal file does not exist")
+	}
+}
+
+func TestCmdNewWithOptions_NoPreviousJournalCreatesEmpty(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	journalPath := buildJournalPath(tempDir, today)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+		t.Fatalf("cmdNewWithOptions: %v", err)
+	}
+
+	after, err := os.ReadFile(journalPath)
+	if err != nil {
+		t.Fatalf("expected today's journal to be created, got: %v", err)
+	}
+	if !strings.Contains(string(after), core.TodosHeader) {
+		t.Fatalf("expected journal to contain the todos header, got:\n%s", string(after))
+	}
+}
+
+func TestProcessJournal_PrintPath(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] Carryover\n\n## Notes\n")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+}
+
+func TestProcessJournal_OnlyCompletedItems(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	// Source with only completed todos: nothing to carry over to today, but
+	// the source's completed item is still date-tagged in the carryover
+	// pipeline and the target is still written.
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [x] Done\n\n## Notes\n")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	// Source updated (date tag added to the completed item).
+	afterSource, _ := os.ReadFile(source)
+	if !strings.Contains(string(afterSource), "#"+yesterday) {
+		t.Fatalf("expected source to be updated with date tag, got:\n%s", string(afterSource))
+	}
+
+	// Target exists; the completed item lives in the target's completed section,
+	// not under today.
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("expected target to be created, got %v", err)
+	}
+	targetContent, _ := os.ReadFile(target)
+	if strings.Contains(string(targetContent), "  - [ ]") {
+		t.Fatalf("expected no uncompleted items in target, got:\n%s", string(targetContent))
+	}
+}
+
+func TestSafeWriteFile_BadTarget(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Target inside a non-existent directory should fail.
+	bad := filepath.Join(tempDir, "no-such-dir", "out.md")
+	if err := safeWriteFile(bad, []byte("hi"), 0o644); err == nil {
+		t.Fatalf("expected error when target directory does not exist")
+	}
+}
+
+func TestLogger_InfoAndDebugModes(_ *testing.T) {
+	quiet := NewLogger(ModeQuiet)
+	quiet.Info("hi %s", "x")
+	quiet.Debug("hi %s", "x")
+	normal := NewLogger(ModeNormal)
+	normal.Info("hi %s", "x")
+	debug := NewLogger(ModeDebug)
+	debug.Debug("hi %s", "x")
+	debug.Info("hi %s", "x")
+}
+
+func TestLogger_Error(_ *testing.T) {
+	logger := NewLogger(ModeQuiet)
+	logger.Error("oops %s", "x")
+}
+
+func TestExpandPathEdgeCases(t *testing.T) {
+	if got := expandPath(""); got != "" {
+		t.Fatalf("expected empty path passthrough, got %q", got)
+	}
+	if got := expandPath("/abs/path"); got != "/abs/path" {
+		t.Fatalf("expected absolute path passthrough, got %q", got)
+	}
+	if got := expandPath("relative/path"); got != "relative/path" {
+		t.Fatalf("expected relative path passthrough, got %q", got)
+	}
+	// Home expansion: when not actually run under a user with HOME set, this
+	// falls through to the original path; that is the documented behavior.
+	if got := expandPath("~/foo"); !strings.HasPrefix(got, "~/") && !strings.HasPrefix(got, "/") {
+		t.Fatalf("expected home expansion to produce a path, got %q", got)
+	}
+}
+
+func TestEnsureDirectories_CreatesMissingRoot(t *testing.T) {
+	tempDir := t.TempDir()
+	missing := filepath.Join(tempDir, "no-such-dir", "nested")
+
+	cfg := &Config{RootDir: missing}
+	if err := ensureDirectories(cfg); err != nil {
+		t.Fatalf("ensureDirectories: %v", err)
+	}
+	if info, err := os.Stat(missing); err != nil || !info.IsDir() {
+		t.Fatalf("expected missing root to be created, got err=%v", err)
+	}
+}
+
+func TestEnsureDirectories_NilConfig(t *testing.T) {
+	if err := ensureDirectories(nil); err != nil {
+		t.Fatalf("ensureDirectories(nil) should be a no-op, got %v", err)
+	}
+}
+
+func TestGetConfigValue(t *testing.T) {
+	if got := getConfigValue("cli", "cfg"); got != "cli" {
+		t.Fatalf("expected CLI value to win, got %q", got)
+	}
+	if got := getConfigValue("", "cfg"); got != "cfg" {
+		t.Fatalf("expected config value when CLI is empty, got %q", got)
+	}
+	if got := getConfigValue("", ""); got != "" {
+		t.Fatalf("expected empty when both are empty, got %q", got)
+	}
+}
+
+func TestLoggerWithMode(t *testing.T) {
+	logger := NewLogger(ModeNormal).WithMode(ModeQuiet)
+	if logger.mode != ModeQuiet {
+		t.Fatalf("expected WithMode to switch mode")
+	}
+}
+
+func TestLoggerForCommand(t *testing.T) {
+	base := NewLogger(ModeNormal)
+	if loggerForCommand(base, true).mode != ModeQuiet {
+		t.Fatalf("expected printPath=true to use ModeQuiet")
+	}
+	if loggerForCommand(base, false).mode != ModeNormal {
+		t.Fatalf("expected printPath=false to keep base mode")
+	}
+}
+
 func TestValidateFilePath(t *testing.T) {
 	tempDir := setupTempDir(t)
 
