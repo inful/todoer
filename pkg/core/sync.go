@@ -44,11 +44,11 @@ func collectKeysInto(items []*TodoItem, day string, keys map[string]bool) {
 			continue
 		}
 		keys[carryoverItemKey(day, item)] = true
-		// Subitems live under the same day for the purposes of
-		// dedup; they get their own slot in the rendered output
-		// but the matching key still needs to include the
-		// parent's text to disambiguate two parents with the
-		// same subitem text.
+		// Subitems are deduped by their own (day, text) key, not
+		// by a parent-prefixed key. That is a known limit: two
+		// parents in the target with the same subitem text will
+		// collide. The ADR accepts this trade-off for
+		// deterministic, debuggable behaviour.
 		for _, sub := range item.SubItems {
 			if sub == nil {
 				continue
