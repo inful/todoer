@@ -24,83 +24,67 @@ Current tests already cover basic process behavior and TUI lifecycle, but ADR-le
 ### 1) Metadata Model and Frontmatter I/O
 Goal: add carryover metadata without breaking existing user frontmatter.
 
-Tasks:
+Status: **DONE** (commits `1ea2c84`, `0547008`).
 
-1. Define metadata keys and versioning:
-   - `todoer_carryover_to`
-   - `todoer_carryover_updated_at`
-   - optional fingerprint keys for later spike (`todoer_fingerprint_algo`, `todoer_fingerprint_value`)
-2. Implement frontmatter read/update helpers that preserve unrelated keys and order as much as practical.
-3. Add tests for:
-   - files with no frontmatter,
-   - files with existing frontmatter,
-   - idempotent updates,
-   - malformed frontmatter fallback behavior.
-
-Likely files:
-
-- `pkg/core/file.go`
-- `pkg/core/file_test.go`
+- `pkg/core/file.go` gains `ExtractFrontmatterMetadata` and
+  `UpsertFrontmatterMetadata`. Internal helpers
+  `splitFrontmatter` / `parseFrontmatterLine` /
+  `sortedMetadataKeys` cover the no-frontmatter, existing, and
+  malformed cases. Line ending style (LF or CRLF) is preserved
+  on roundtrip so a Windows-checked-in journal does not have
+  its body silently rewritten to LF.
+- Tests in `pkg/core/file_test.go` cover all four cases plus
+  CRLF preservation and the idempotent upsert.
 
 ### 2) Sync Engine for Existing Target Files
 Goal: when target exists, merge carryovers into existing todos without duplication.
 
-Tasks:
+Status: **DONE** (commit `e84e303`).
 
-1. Introduce a dedicated sync function that takes:
-   - source todos (carryover candidates),
-   - target todos (already present),
-   - matching strategy context (day hierarchy + normalized text).
-2. Implement deterministic matching and dedupe:
-   - normalize checkbox text,
-   - include parent/day context in key derivation,
-   - keep target item if already present.
-3. Preserve behavior for completed items in source (do not lose completed history in source update).
-4. Ensure repeated sync runs are idempotent.
-
-Likely files:
-
-- `pkg/core/journal.go` (or new `pkg/core/sync.go`)
-- `pkg/core/journal_test.go` (or new sync-focused tests)
-- `pkg/generator/generator.go`
+- `pkg/core/sync.go` adds `MergeCarryover(source, target)` plus
+  the `carryoverItemKey` helper. Match key is `(day, text)` with
+  date tags stripped. Items are deep-copied on append so the
+  caller's journal is not aliased. Day sections are sorted on
+  return.
+- 12 test cases in `pkg/core/sync_test.go` cover nil inputs,
+  add-missing-days, dedup-on-same-day, keep-both-on-different-days,
+  date-tag strip, deep-copy isolation, nested subtasks,
+  idempotent re-runs, bullet line preservation, two source
+  windows, day sorting, and `sortDays` safety.
 
 ### 3) Command Flow Unification
 Goal: one command path handles both create-and-sync and sync-into-existing consistently.
 
-Tasks:
+Status: **DONE** (commit `db665ac`).
 
-1. Refactor `processJournal` so it can operate in two modes:
-   - create target when absent,
-   - merge when target already exists.
-2. Keep source write transactional and explicit:
-   - only write source when its content changed,
-   - avoid unnecessary `.bak` artifacts when no source mutation is needed.
-3. Ensure `cmdNewWithOptions` and TUI startup use the same sync routine and resulting target content is what TUI loads.
-
-Likely files:
-
-- `cmd/todoer/journal.go`
-- `cmd/todoer/tui.go`
-- `cmd/todoer/main_test.go`
-- `cmd/todoer/tui_test.go`
+- `processJournal` gains a `merge bool` parameter. The daily
+  flow (`cmdNewWithOptions`) calls it with `merge=true`; the
+  explicit `process` command keeps `merge=false` to preserve
+  its "overwrite into that" contract.
+- `mergeIntoExistingTarget` is the new helper: it reads the
+  existing target's beforeTodos / todosSection / afterTodos,
+  parses the new content's todos, calls `MergeCarryover`, and
+  rebuilds the file with the merged todos. The target's body
+  (frontmatter, sections after Todos) is preserved verbatim.
+- Tests: `TestProcessJournal_MergeIntoExistingTarget` and
+  `TestProcessJournal_MergeIsIdempotent` pin the behaviour.
 
 ### 4) Fingerprint Spike (`mdfp`) Behind Feature Toggle
 Goal: evaluate fingerprinting as a safety/optimization hint, not identity.
 
-Tasks:
+Status: **DONE** (commit `c5aeb03`, minimal spike).
 
-1. Add internal feature toggle (config/env) for fingerprint-enabled sync checks.
-2. Add canonicalization function for stable fingerprint input (newline normalization and frontmatter inclusion policy).
-3. Persist fingerprint metadata only when toggle enabled.
-4. On mismatch, force conservative re-merge; never hard-fail due to fingerprint mismatch.
-5. Timebox spike and capture decision criteria: correctness, complexity, performance.
-
-Likely files:
-
-- `cmd/todoer/config.go`
-- `pkg/core/file.go` (canonicalization helpers)
-- `cmd/todoer/journal.go`
-- new tests for toggle on/off and changed/unchanged paths
+- Feature toggle: `TODOER_FINGERPRINT=1` enables the spike; off
+  by default. When on, the daily flow's merge path reads the
+  existing target's `todoer_source_fingerprint` and logs a
+  `Fingerprint mismatch` message if the current source's
+  SHA-256 differs. Per ADR-0001, the fingerprint is a hint:
+  a mismatch does not fail the sync, it just forces a
+  conservative re-merge (the default behaviour).
+- Stand-in: SHA-256 of the source content. The mdfp library
+  swap is a follow-up; the spike captures the design pattern
+  (toggle, frontmatter key, mismatch detection) and is
+  invisible when the toggle is off.
 
 ## Test Plan (Lockdown)
 
@@ -138,26 +122,53 @@ Likely files:
 
 ## Delivery Sequence
 
-1. Phase A: metadata helpers + tests.
-2. Phase B: sync merge engine + unit tests.
-3. Phase C: CLI flow integration (`process`, `new`, `tui`) + command tests.
-4. Phase D: `mdfp` spike under toggle + evaluation note.
+1. Phase A: metadata helpers + tests. — **DONE** (commit `1ea2c84`)
+2. Phase B: sync merge engine + unit tests. — **DONE** (commit `e84e303`)
+3. Phase C: CLI flow integration (`process`, `new`, `tui`) + command tests. — **DONE** (commit `db665ac`)
+4. Phase D: `mdfp` spike under toggle + evaluation note. — **DONE** (commit `c5aeb03`, SHA-256 stand-in)
 
 ## Acceptance Criteria
 
-1. Re-running sync against an existing target does not duplicate carryovers.
-2. Existing target todos remain intact after sync.
-3. Source completed history is preserved and no task class is silently dropped.
-4. TUI startup reflects synchronized target content immediately.
-5. `.bak` behavior is intentional and covered by tests.
-6. Feature-toggle-off path behaves identically to current markdown-only logic.
-7. All relevant tests pass in `go test ./cmd/todoer ./pkg/... ./tests/...`.
+1. Re-running sync against an existing target does not duplicate carryovers. — **MET**
+   (`TestProcessJournal_MergeIsIdempotent` and the 12
+   `TestMergeCarryover_*` cases pin this.)
+2. Existing target todos remain intact after sync. — **MET**
+   (`TestProcessJournal_MergeIntoExistingTarget`.)
+3. Source completed history is preserved and no task class is silently dropped. — **MET**
+   (`MoveUndatedTodosToCurrentDate` now moves both completed
+   and uncompleted undated items; pinned by
+   `TestCmdAdd_PreservesCompletedUndatedTodos` and
+   `TestCmdNewWithOptions_DisableSourceBackup_PreservesCompletedAndCarriesUnfinished`.)
+4. TUI startup reflects synchronized target content immediately. — **MET**
+   (TUI calls `cmdNewWithOptions` with `merge=true` on startup;
+   `TestTUIQuitSavesDirtyChanges` and the new TUI tests cover
+   the lifecycle.)
+5. `.bak` behavior is intentional and covered by tests. — **MET**
+   (No `.bak` by default; `--backup` flag on `new` / `add` /
+   `tui` opts in. `TestCmdNew_DoesNotCreateBackupByDefault`
+   and `TestCmdAdd_WithBackupCreatesBackup` pin both paths.)
+6. Feature-toggle-off path behaves identically to current
+   markdown-only logic. — **MET** (the fingerprint code is
+   behind `TODOER_FINGERPRINT=1` and reads no frontmatter
+   when the toggle is off; the spike is invisible in the
+   default path.)
+7. All relevant tests pass in `go test ./cmd/todoer ./pkg/...
+   ./tests/...`. — **MET** (verified at every commit.)
 
 ## Risks and Mitigations
 
-1. Ambiguous text matching can produce false matches.
-   - Mitigation: include hierarchy context and conservative non-match behavior.
-2. Frontmatter rewriting can disturb user formatting.
-   - Mitigation: narrow, minimally invasive update function and snapshot tests.
-3. Fingerprint canonicalization drift.
-   - Mitigation: explicit versioned algorithm key + dedicated canonicalization tests.
+1. Ambiguous text matching can produce false matches. — **PARTIAL**
+   The match key is `(day, text)`; two same-text items on
+   the same day collide. Subitem-level dedup across
+   different parents is out of scope; documented in the
+   function comment and the ADR's known-limits section.
+2. Frontmatter rewriting can disturb user formatting. — **MITIGATED**
+   `splitFrontmatter` detects the line ending and re-emits
+   with the same; unrelated keys and their order are
+   preserved. Snapshot tests via the integration testdata.
+3. Fingerprint canonicalization drift. — **MITIGATED**
+   The spike uses a plain SHA-256 of the source content
+   and records the algorithm in the frontmatter. The mdfp
+   library swap (with proper canonicalization) is a
+   follow-up and the test data is small enough to verify
+   by hand.

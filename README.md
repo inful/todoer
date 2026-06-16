@@ -46,7 +46,9 @@ By default, journals are stored under `ROOT/YYYY/MM/YYYY-MM-DD.md` and only the 
 ./todoer --root-dir "~/Documents/journals" new
 ```
 
-This creates `YYYY/MM/YYYY-MM-DD.md`, finds the most recent previous journal, moves incomplete todos to today, and tags completed todos in the previous file.
+This creates `YYYY/MM/YYYY-MM-DD.md`, finds the most recent previous journal, moves incomplete todos to today, and tags completed todos in the previous file. Re-running `new` is safe: if today's journal already exists, the new carryover items are merged in instead of duplicated.
+
+The TUI (`./todoer tui`) shows today's todos interactively. If today's section is empty, it falls back to the most recent non-empty day in read-only mode — useful for reviewing carryover before deciding what to bring into today.
 
 4. **Edit your journal** during the day using normal markdown checkboxes:
 
@@ -59,6 +61,19 @@ This creates `YYYY/MM/YYYY-MM-DD.md`, finds the most recent previous journal, mo
 ```
 
 5. **Repeat** `./todoer new` the next day to carry over incomplete tasks.
+
+## Backup policy
+
+The daily flow (`new`, `tui`, `add`) does not create a `.bak` of
+yesterday's journal by default — most users find the
+in-place update cleaner. Pass `--backup` to opt in to a
+`.bak` next to the source file:
+
+```bash
+./todoer new --backup
+./todoer add "review PR notes" --backup
+./todoer tui --backup
+```
 
 ## Configuration and templates
 

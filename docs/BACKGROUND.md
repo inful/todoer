@@ -14,7 +14,11 @@ todos section. The main steps are:
 5. Classify tasks as completed or uncompleted.
 6. Tag completed tasks with the completion date.
 7. Generate a new file containing uncompleted tasks using a template.
-8. Write changes back to disk and create backups where appropriate.
+8. If the target file already exists (e.g. created by hand or by an
+   earlier `new` / `add` / `tui` run), splice the new uncompleted
+   items into the target's existing todos via `MergeCarryover`
+   instead of overwriting. Re-running the command is idempotent.
+9. Write changes back to disk and create backups where appropriate.
 
 The parser maintains the hierarchical structure of tasks and subtasks
 based on indentation and bullets.
@@ -36,9 +40,46 @@ Only the configured todos section is processed.
 - The default section header is `## Todos`.
 - The header can be changed via configuration or options.
 - Content outside this section is preserved unchanged.
+- The file's line ending style (LF or CRLF) is preserved by the
+  frontmatter I/O helpers; editing metadata does not silently
+  rewrite line endings.
 
 If no todos section is found, processing continues without modifying the
 file structure outside the todos area.
+
+## Carryover and idempotency
+
+The daily flow (`new`, `tui`, `add`) all share the same
+`processJournal` path with `merge=true`. The flow is:
+
+- If today's journal does not exist, the source (yesterday's journal
+  or an empty stub) is processed and the target is created.
+- If today's journal already exists, the source's uncompleted items
+  are merged into the target's existing todos via
+  `core.MergeCarryover`. Items already present (matched by `(day,
+  text)` after date-tag stripping) are not duplicated. Day sections
+  are sorted by date.
+
+This means re-running `todoer new` is always safe: the second run
+either creates the file (if it was missing) or merges into the
+existing one (if it was already there). The matching is intentionally
+simple; per ADR-0001, the markdown-only heuristic trades a small
+risk of false-positive merges for deterministic, debuggable
+behaviour.
+
+## TUI carryover view
+
+When the TUI opens on a journal where today's section is missing or
+empty, it falls back to the most recent non-empty day. That fallback
+view is read-only: pressing `space`, `x`, or `d` is blocked with
+the status `Cannot edit carryover items`. To edit a carryover
+item, run `todoer new` first to bring it into today.
+
+The display day is sticky: if the user adds a new todo while in
+the carryover view, the new todo is appended to today's section
+but the view stays on the carryover day. The new todo is visible
+after `s` to save and `r` to reload, or immediately if the user
+was already on today.
 
 ## Date handling
 
