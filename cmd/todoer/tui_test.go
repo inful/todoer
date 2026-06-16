@@ -776,6 +776,60 @@ func TestTUIViewEmptyAndExternalChanged(t *testing.T) {
 	}
 }
 
+func TestTUIEmptyStateMessage(t *testing.T) {
+	// No display day at all -> generic placeholder.
+	m := tuiModel{today: "2026-03-16"}
+	if got := m.emptyStateMessage(); got != "(No todos)" {
+		t.Fatalf("expected generic 'No todos', got %q", got)
+	}
+
+	// Today view (displayDay == todayDay) -> today's section wording.
+	todayDay := &core.DaySection{Date: "2026-03-16", Items: nil}
+	m = tuiModel{
+		today:    "2026-03-16",
+		todayDay: todayDay,
+	}
+	m.displayDay = todayDay
+	if got := m.emptyStateMessage(); got != "(No todos in today's section)" {
+		t.Fatalf("expected today's section wording, got %q", got)
+	}
+
+	// Carryover view (displayDay != todayDay) -> names the carryover
+	// day so the user knows they are not looking at today.
+	carryoverDay := &core.DaySection{Date: "2026-03-15", Items: nil}
+	m = tuiModel{
+		today:    "2026-03-16",
+		todayDay: todayDay,
+	}
+	m.displayDay = carryoverDay
+	if got := m.emptyStateMessage(); got != "(No items in [[2026-03-15]])" {
+		t.Fatalf("expected carryover-day wording, got %q", got)
+	}
+}
+
+func TestTUIViewEmptyInCarryoverView(t *testing.T) {
+	// End-to-end: construct a model where the display day is a
+	// carryover day with no items, render the view, and assert the
+	// view does not claim 'today's section'.
+	todayDay := &core.DaySection{Date: "2026-03-16", Items: nil}
+	carryoverDay := &core.DaySection{Date: "2026-03-15", Items: nil}
+	m := tuiModel{
+		today:    "2026-03-16",
+		journal:  &core.TodoJournal{Days: []*core.DaySection{carryoverDay, todayDay}},
+		todayDay: todayDay,
+	}
+	m.displayDay = carryoverDay
+	m.refreshItems()
+
+	view := m.View()
+	if strings.Contains(view, "today's section") {
+		t.Fatalf("carryover view should not mention 'today's section', got:\n%s", view)
+	}
+	if !strings.Contains(view, "No items in [[2026-03-15]]") {
+		t.Fatalf("expected carryover-day wording in view, got:\n%s", view)
+	}
+}
+
 func TestTUIViewInputAndFilterModes(t *testing.T) {
 	m := tuiModel{
 		inputMode:  true,

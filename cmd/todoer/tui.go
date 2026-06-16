@@ -186,7 +186,7 @@ func (m tuiModel) View() string {
 
 	filtered := m.filteredItems()
 	if len(filtered) == 0 {
-		b.WriteString(tuiTheme.empty.Render("(No todos in today's section)") + "\n")
+		b.WriteString(tuiTheme.empty.Render(m.emptyStateMessage()) + "\n")
 	} else {
 		for i, entry := range filtered {
 			cursor := " "

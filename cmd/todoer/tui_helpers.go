@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -42,6 +43,23 @@ func (m *tuiModel) pickInitialDisplayDay() *core.DaySection {
 // read-only and the user is asked to run `new` to bring items into today.
 func (m *tuiModel) isReadOnlyView() bool {
 	return m.displayDay != m.todayDay
+}
+
+// emptyStateMessage returns the placeholder text shown in the body of
+// the view when the filtered item list is empty. The wording is
+// section-relative: the carryover view names the carryover day
+// (so the user knows they are looking at yesterday, not today),
+// the today view names today's section, and the degenerate
+// no-display-day state falls back to a generic message.
+func (m *tuiModel) emptyStateMessage() string {
+	switch {
+	case m.displayDay == nil:
+		return "(No todos)"
+	case m.isReadOnlyView():
+		return fmt.Sprintf("(No items in [[%s]])", m.displayDay.Date)
+	default:
+		return "(No todos in today's section)"
+	}
 }
 
 func (m tuiModel) filteredItems() []tuiItem {
