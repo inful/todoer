@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inful/todoer/pkg/core"
@@ -52,7 +53,13 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "backspace":
 		if len(m.inputText) > 0 {
-			m.inputText = m.inputText[:len(m.inputText)-1]
+			// Remove the last rune (not the last byte) so multi-byte
+			// characters like accented letters, CJK, and emoji are
+			// dropped cleanly. utf8.DecodeLastRuneInString returns
+			// size=0 only for the empty string; we have already
+			// guarded on len > 0 so size is at least 1.
+			_, size := utf8.DecodeLastRuneInString(m.inputText)
+			m.inputText = m.inputText[:len(m.inputText)-size]
 		}
 	default:
 		if len(msg.Runes) > 0 {
@@ -162,7 +169,10 @@ func (m tuiModel) updateFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "backspace":
 		if len(m.filterQuery) > 0 {
-			m.filterQuery = m.filterQuery[:len(m.filterQuery)-1]
+			// Rune-safe backspace; see updateInputMode for the
+			// reasoning.
+			_, size := utf8.DecodeLastRuneInString(m.filterQuery)
+			m.filterQuery = m.filterQuery[:len(m.filterQuery)-size]
 		}
 		m.selected = 0
 	default:

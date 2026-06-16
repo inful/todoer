@@ -413,6 +413,64 @@ func TestTUIUpdateInputMode_EscCancels(t *testing.T) {
 	}
 }
 
+func TestTUIUpdateInputMode_BackspaceRuneSafe(t *testing.T) {
+	m := tuiModel{inputMode: true}
+
+	// Type a multi-byte rune.
+	updated, _ := m.updateInputMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'é'}})
+	m2 := updated.(tuiModel)
+	if m2.inputText != "é" {
+		t.Fatalf("expected inputText 'é', got %q", m2.inputText)
+	}
+
+	// Backspace should drop the whole rune, not leave a broken
+	// UTF-8 sequence in the string.
+	updated, _ = m2.updateInputMode(tea.KeyMsg{Type: tea.KeyBackspace})
+	m3 := updated.(tuiModel)
+	if m3.inputText != "" {
+		t.Fatalf("expected backspace to drop the whole rune, got %q (% x)", m3.inputText, []byte(m3.inputText))
+	}
+
+	// Multi-byte + ASCII mixed.
+	updated, _ = m3.updateInputMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	updated, _ = updated.(tuiModel).updateInputMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'é'}})
+	updated, _ = updated.(tuiModel).updateInputMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	m4 := updated.(tuiModel)
+	if m4.inputText != "aéb" {
+		t.Fatalf("expected 'aéb', got %q", m4.inputText)
+	}
+
+	// Drop the trailing ASCII 'b'.
+	updated, _ = m4.updateInputMode(tea.KeyMsg{Type: tea.KeyBackspace})
+	m5 := updated.(tuiModel)
+	if m5.inputText != "aé" {
+		t.Fatalf("expected 'aé' after dropping 'b', got %q", m5.inputText)
+	}
+
+	// Drop the multi-byte 'é' cleanly.
+	updated, _ = m5.updateInputMode(tea.KeyMsg{Type: tea.KeyBackspace})
+	m6 := updated.(tuiModel)
+	if m6.inputText != "a" {
+		t.Fatalf("expected 'a' after dropping 'é', got %q (% x)", m6.inputText, []byte(m6.inputText))
+	}
+}
+
+func TestTUIUpdateFilterMode_BackspaceRuneSafe(t *testing.T) {
+	m := tuiModel{filterMode: true}
+
+	updated, _ := m.updateFilterMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'é'}})
+	m2 := updated.(tuiModel)
+	if m2.filterQuery != "é" {
+		t.Fatalf("expected filterQuery 'é', got %q", m2.filterQuery)
+	}
+
+	updated, _ = m2.updateFilterMode(tea.KeyMsg{Type: tea.KeyBackspace})
+	m3 := updated.(tuiModel)
+	if m3.filterQuery != "" {
+		t.Fatalf("expected backspace to drop the whole rune, got %q (% x)", m3.filterQuery, []byte(m3.filterQuery))
+	}
+}
+
 func TestTUIUpdateNormalMode_QuitCleanAndDirty(t *testing.T) {
 	tempDir := t.TempDir()
 	journalPath := filepath.Join(tempDir, "2026-03-16.md")
