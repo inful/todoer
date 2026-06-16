@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -46,6 +47,139 @@ func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) 
 	}
 
 	return extractedDate, nil
+}
+
+// ExtractFrontmatterMetadata reads simple "key: value" pairs from the document frontmatter.
+// It returns metadata, whether a frontmatter block exists, and an error for malformed frontmatter.
+func ExtractFrontmatterMetadata(content string) (map[string]string, bool, error) {
+	fmLines, _, hasFrontmatter, malformed := splitFrontmatter(content)
+	if malformed {
+		return map[string]string{}, true, fmt.Errorf("malformed frontmatter: missing closing delimiter")
+	}
+	if !hasFrontmatter {
+		return map[string]string{}, false, nil
+	}
+
+	metadata := make(map[string]string)
+	for _, line := range fmLines {
+		key, value, ok := parseFrontmatterLine(line)
+		if ok {
+			metadata[key] = value
+		}
+	}
+
+	return metadata, true, nil
+}
+
+// UpsertFrontmatterMetadata updates or inserts simple metadata in a document frontmatter block.
+// If the document has malformed frontmatter, a new metadata block is prepended as a safe fallback.
+func UpsertFrontmatterMetadata(content string, updates map[string]string) (string, error) {
+	if len(updates) == 0 {
+		return content, nil
+	}
+
+	fmLines, body, hasFrontmatter, malformed := splitFrontmatter(content)
+	if malformed || !hasFrontmatter {
+		return prependFrontmatterBlock(content, updates), nil
+	}
+
+	lineByKey := make(map[string]int)
+	for i, line := range fmLines {
+		key, _, ok := parseFrontmatterLine(line)
+		if ok {
+			lineByKey[key] = i
+		}
+	}
+
+	keys := sortedMetadataKeys(updates)
+	for _, key := range keys {
+		line := fmt.Sprintf("%s: %s", key, updates[key])
+		if idx, exists := lineByKey[key]; exists {
+			fmLines[idx] = line
+		} else {
+			fmLines = append(fmLines, line)
+		}
+	}
+
+	return joinFrontmatterAndBody(fmLines, body), nil
+}
+
+func splitFrontmatter(content string) ([]string, string, bool, bool) {
+	if content == "" {
+		return nil, "", false, false
+	}
+
+	lines := strings.Split(content, "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return nil, content, false, false
+	}
+
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			return lines[1:i], strings.Join(lines[i+1:], "\n"), true, false
+		}
+	}
+
+	return nil, content, true, true
+}
+
+func parseFrontmatterLine(line string) (string, string, bool) {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		return "", "", false
+	}
+
+	parts := strings.SplitN(trimmed, ":", 2)
+	if len(parts) != 2 {
+		return "", "", false
+	}
+
+	key := strings.TrimSpace(parts[0])
+	value := strings.TrimSpace(parts[1])
+	if key == "" {
+		return "", "", false
+	}
+
+	return key, value, true
+}
+
+func prependFrontmatterBlock(content string, updates map[string]string) string {
+	keys := sortedMetadataKeys(updates)
+	var builder strings.Builder
+	builder.WriteString("---\n")
+	for _, key := range keys {
+		builder.WriteString(fmt.Sprintf("%s: %s\n", key, updates[key]))
+	}
+	builder.WriteString("---")
+	if content != "" {
+		builder.WriteString("\n")
+		builder.WriteString(content)
+	}
+	return builder.String()
+}
+
+func joinFrontmatterAndBody(fmLines []string, body string) string {
+	var builder strings.Builder
+	builder.WriteString("---\n")
+	for _, line := range fmLines {
+		builder.WriteString(line)
+		builder.WriteString("\n")
+	}
+	builder.WriteString("---")
+	if body != "" {
+		builder.WriteString("\n")
+		builder.WriteString(body)
+	}
+	return builder.String()
+}
+
+func sortedMetadataKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // ExtractTodosSection extracts the TODOS section from the file content.
