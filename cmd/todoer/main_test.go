@@ -950,6 +950,64 @@ date: `+yesterday+`
 	}
 }
 
+func TestCmdAdd_PreservesCompletedUndatedTodos(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	journalPath := buildJournalPath(tempDir, today)
+
+	// Pre-create today's journal with both completed and uncompleted undated
+	// todos. The add path runs MoveUndatedTodosToCurrentDate internally, so
+	// both classes of undated todos should land in today's section rather
+	// than the completed ones being silently dropped.
+	createTestFile(t, journalPath, `---
+date: `+today+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [x] Done last week
+- [ ] Undated carry
+- [x] Done yesterday
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "fresh today item", false, false, config, logger); err != nil {
+		t.Fatalf("cmdAdd() unexpected error: %v", err)
+	}
+
+	after, err := os.ReadFile(journalPath)
+	if err != nil {
+		t.Fatalf("failed to read today's journal: %v", err)
+	}
+	content := string(after)
+
+	// The new todo must be present.
+	if !strings.Contains(content, "fresh today item") {
+		t.Fatalf("expected new todo to be appended, got:\n%s", content)
+	}
+	// The undated completed and uncompleted items must both be preserved.
+	if !strings.Contains(content, "Done last week") {
+		t.Fatalf("expected undated completed todo to be preserved, got:\n%s", content)
+	}
+	if !strings.Contains(content, "Undated carry") {
+		t.Fatalf("expected undated uncompleted todo to be preserved, got:\n%s", content)
+	}
+	if !strings.Contains(content, "Done yesterday") {
+		t.Fatalf("expected second undated completed todo to be preserved, got:\n%s", content)
+	}
+	// All four items must live under today's [[date]] section. The journal
+	// should not have any undated day left at the top of the todos section.
+	if !strings.Contains(content, "[["+today+"]]") {
+		t.Fatalf("expected today's [[date]] section to exist, got:\n%s", content)
+	}
+}
+
 func TestValidateFilePath(t *testing.T) {
 	tempDir := setupTempDir(t)
 
