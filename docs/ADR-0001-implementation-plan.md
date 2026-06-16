@@ -39,7 +39,7 @@ Status: **DONE** (commits `1ea2c84`, `0547008`).
 ### 2) Sync Engine for Existing Target Files
 Goal: when target exists, merge carryovers into existing todos without duplication.
 
-Status: **DONE** (commit `e84e303`).
+Status: **DONE** (commit `43f104d`).
 
 - `pkg/core/sync.go` adds `MergeCarryover(source, target)` plus
   the `carryoverItemKey` helper. Match key is `(day, text)` with
