@@ -16,17 +16,18 @@ import (
 // Fingerprint keys (ADR-0001 spike; off by default).
 //
 // TODOER_FINGERPRINT=1 enables the spike. When on, the daily flow
-// records todoer_source_fingerprint in the target's frontmatter and
-// logs mismatches on the next sync. The fingerprint here is a plain
+// records todoer_source_fingerprint and todoer_source_fingerprint_algo
+// in the target's frontmatter, and on the next sync logs a
+// 'Fingerprint mismatch' message if the stored value does not match
+// the current source's SHA-256. The fingerprint here is a plain
 // SHA-256 of the source content; the ADR calls for swapping in the
 // `mdfp` library once it is integrated. The spike captures the design
 // pattern; the mdfp library integration is a follow-up.
 const (
-	fingerprintEnabledEnv   = "TODOER_FINGERPRINT"
-	fingerprintAlgo         = "sha256"
-	fingerprintKeyValue     = "todoer_source_fingerprint"
-	fingerprintKeyAlgo      = "todoer_source_fingerprint_algo"
-	fingerprintKeyUpdatedAt = "todoer_source_fingerprint_at"
+	fingerprintEnabledEnv = "TODOER_FINGERPRINT"
+	fingerprintAlgo       = "sha256"
+	fingerprintKeyValue   = "todoer_source_fingerprint"
+	fingerprintKeyAlgo    = "todoer_source_fingerprint_algo"
 )
 
 func fingerprintEnabled() bool {
@@ -124,6 +125,20 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 		}
 	}
 
+	// When the fingerprint spike is enabled, record the source's
+	// fingerprint in the target's frontmatter so a future run can
+	// detect external changes to the source. The fingerprint is the
+	// SHA-256 of the post-processed source content (the same bytes
+	// checkFingerprintMismatch compares against), so a re-run on an
+	// unchanged source will match.
+	if merge && fingerprintEnabled() {
+		annotated, err := annotateTargetWithFingerprint(newContentBytes, modifiedContentBytes)
+		if err != nil {
+			return fmt.Errorf("error recording source fingerprint: %w", err)
+		}
+		newContentBytes = annotated
+	}
+
 	logger.Debug("Writing %d bytes to target file: %s", len(newContentBytes), targetFile)
 	if err := safeWriteFile(targetFile, newContentBytes, FilePermissions); err != nil {
 		return fmt.Errorf("error writing to target file %s: %w", targetFile, err)
@@ -194,7 +209,7 @@ func mergeIntoExistingTarget(existingTarget, newContent []byte, config *Config) 
 // checkFingerprintMismatch compares the source content's SHA-256
 // fingerprint to the value recorded in the existing target's
 // frontmatter (todoer_source_fingerprint). If they differ, the
-// source has changed since the last sync and a re-merge is forced.
+// source has changed since the last sync and a mismatch is logged.
 // The function never returns an error or fails the sync; the
 // fingerprint is a hint, per ADR-0001.
 func checkFingerprintMismatch(existingTarget, sourceContent []byte, targetFile string, logger *Logger) {
@@ -209,8 +224,24 @@ func checkFingerprintMismatch(existingTarget, sourceContent []byte, targetFile s
 	}
 	current := computeFingerprint(sourceContent)
 	if stored != current {
-		logger.Info("Fingerprint mismatch on %s (stored=%s..., current=%s...); forcing conservative re-merge", targetFile, shortHash(stored), shortHash(current))
+		logger.Info("Fingerprint mismatch on %s (stored=%s..., current=%s...)", targetFile, shortHash(stored), shortHash(current))
 	}
+}
+
+// annotateTargetWithFingerprint upserts the source's fingerprint and
+// algorithm into the target's frontmatter. The key/value are added
+// (or replaced) and unrelated keys are preserved. Returns the
+// annotated content, or an error if the frontmatter helpers fail.
+func annotateTargetWithFingerprint(targetContent, sourceContent []byte) ([]byte, error) {
+	updates := map[string]string{
+		fingerprintKeyValue: computeFingerprint(sourceContent),
+		fingerprintKeyAlgo:  fingerprintAlgo,
+	}
+	annotated, err := core.UpsertFrontmatterMetadata(string(targetContent), updates)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(annotated), nil
 }
 
 func shortHash(s string) string {

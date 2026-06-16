@@ -1294,6 +1294,104 @@ func TestProcessJournal_FingerprintMismatchForcesReMerge(t *testing.T) {
 	}
 }
 
+func TestProcessJournal_RecordsFingerprintWhenEnabled(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+
+	t.Setenv(fingerprintEnabledEnv, "1")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	content := string(after)
+	if !strings.Contains(content, "todoer_source_fingerprint:") {
+		t.Fatalf("expected fingerprint key in target frontmatter, got:\n%s", content)
+	}
+	if !strings.Contains(content, "todoer_source_fingerprint_algo: sha256") {
+		t.Fatalf("expected fingerprint algo key in target frontmatter, got:\n%s", content)
+	}
+	// The recorded fingerprint should be a 64-char hex SHA-256.
+	before, afterKey, found := strings.Cut(content, "todoer_source_fingerprint: ")
+	if !found {
+		t.Fatalf("expected 'todoer_source_fingerprint: ' key, got:\n%s", content)
+	}
+	_ = before
+	end := strings.IndexByte(afterKey, '\n')
+	if end < 0 {
+		t.Fatalf("expected newline after fingerprint value, got:\n%s", content)
+	}
+	value := strings.TrimSpace(afterKey[:end])
+	if len(value) != 64 {
+		t.Fatalf("expected 64-char hex fingerprint, got %d chars: %q", len(value), value)
+	}
+}
+
+func TestProcessJournal_NoFingerprintWhenDisabled(t *testing.T) {
+	// Without TODOER_FINGERPRINT, the spike is invisible: the target
+	// does not receive a fingerprint key.
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+
+	// Make sure the env var is unset.
+	if err := os.Unsetenv(fingerprintEnabledEnv); err != nil {
+		t.Fatalf("unsetenv: %v", err)
+	}
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	if strings.Contains(string(after), "todoer_source_fingerprint") {
+		t.Fatalf("expected no fingerprint key when toggle is off, got:\n%s", string(after))
+	}
+}
+
+func TestProcessJournal_AnnotateTargetFingerprintHelper(t *testing.T) {
+	// Direct test of the helper: feed it a target without a fingerprint
+	// and confirm both keys are added.
+	target := "---\ndate: 2026-03-16\n---\n\n# J\n\n## Todos\n\n- [[2026-03-16]]\n  - [ ] x\n\n## Notes\n"
+	source := []byte("source content for fingerprinting")
+	out, err := annotateTargetWithFingerprint([]byte(target), source)
+	if err != nil {
+		t.Fatalf("annotateTargetWithFingerprint: %v", err)
+	}
+	got := string(out)
+	if !strings.Contains(got, "todoer_source_fingerprint:") {
+		t.Fatalf("expected fingerprint key, got:\n%s", got)
+	}
+	if !strings.Contains(got, "todoer_source_fingerprint_algo: sha256") {
+		t.Fatalf("expected algo key, got:\n%s", got)
+	}
+	// Calling it again should be idempotent: the value is replaced
+	// (not duplicated).
+	out2, err := annotateTargetWithFingerprint(out, source)
+	if err != nil {
+		t.Fatalf("annotateTargetWithFingerprint (second call): %v", err)
+	}
+	if strings.Count(string(out2), "todoer_source_fingerprint:") != 1 {
+		t.Fatalf("expected exactly one fingerprint key on idempotent call, got:\n%s", string(out2))
+	}
+}
+
 func TestSafeWriteFile_BadTarget(t *testing.T) {
 	tempDir := t.TempDir()
 
