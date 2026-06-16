@@ -1037,13 +1037,13 @@ func TestFindOrCreateDaySection(t *testing.T) {
 	journal := &core.TodoJournal{Days: []*core.DaySection{existing}}
 
 	// Finds existing.
-	got := findOrCreateDaySection(journal, "2026-03-16")
+	got := core.FindOrCreateDaySection(journal, "2026-03-16")
 	if got != existing {
 		t.Fatalf("expected to return the existing day section")
 	}
 
 	// Creates a new one when missing.
-	got2 := findOrCreateDaySection(journal, "2026-03-17")
+	got2 := core.FindOrCreateDaySection(journal, "2026-03-17")
 	if got2 == nil || got2.Date != "2026-03-17" {
 		t.Fatalf("expected a new day section for 2026-03-17, got %+v", got2)
 	}

@@ -201,8 +201,72 @@ func writeItemToString(builder *strings.Builder, item *TodoItem, depth int) {
 	}
 }
 
-// MoveUndatedTodosToCurrentDate moves todos that don't have a date (empty date string)
-// to the specified current date.
+// FindDaySection returns the day section in the journal whose Date matches
+// the given date string, or nil if no such day exists. A nil journal is
+// tolerated.
+func FindDaySection(journal *TodoJournal, date string) *DaySection {
+	if journal == nil {
+		return nil
+	}
+	for _, day := range journal.Days {
+		if day != nil && day.Date == date {
+			return day
+		}
+	}
+	return nil
+}
+
+// FindOrCreateDaySection returns the existing day section for the given
+// date, or appends a new empty one and returns it. The journal is modified
+// in place when a new section is created.
+func FindOrCreateDaySection(journal *TodoJournal, date string) *DaySection {
+	if day := FindDaySection(journal, date); day != nil {
+		return day
+	}
+	newDay := &DaySection{
+		Date:  date,
+		Items: []*TodoItem{},
+	}
+	journal.Days = append(journal.Days, newDay)
+	return newDay
+}
+
+// RemoveItemFromDays removes the target item from every day section in the
+// given slice. Nested subitems are searched recursively. The slice is
+// modified in place; the same slice is returned for convenience.
+func RemoveItemFromDays(days []*DaySection, target *TodoItem) []*DaySection {
+	for _, day := range days {
+		if day == nil {
+			continue
+		}
+		day.Items, _ = RemoveItemRecursive(day.Items, target)
+	}
+	return days
+}
+
+// RemoveItemRecursive removes the target from the items slice, including
+// any nested subitems. The second return value reports whether the target
+// was found and removed.
+func RemoveItemRecursive(items []*TodoItem, target *TodoItem) ([]*TodoItem, bool) {
+	for i, item := range items {
+		if item == nil {
+			continue
+		}
+		if item == target {
+			return append(items[:i], items[i+1:]...), true
+		}
+		updatedSub, removed := RemoveItemRecursive(item.SubItems, target)
+		if removed {
+			item.SubItems = updatedSub
+			return items, true
+		}
+	}
+	return items, false
+}
+
+// MoveUndatedTodosToCurrentDate moves todos that don't have a date (empty
+// date string) to the specified current date, including completed ones.
+// Callers that want only incomplete todos must filter before calling.
 // This handles the case where users add todos without specifying dates.
 func MoveUndatedTodosToCurrentDate(journal *TodoJournal, currentDate string) *TodoJournal {
 	if journal == nil || currentDate == "" {

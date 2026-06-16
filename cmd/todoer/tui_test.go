@@ -583,7 +583,7 @@ func TestTUIRemoveItemFromDays(t *testing.T) {
 	days := []*core.DaySection{day}
 
 	// Remove a nested item.
-	updated := removeItemFromDays(days, sub)
+	updated := core.RemoveItemFromDays(days, sub)
 	if len(updated) != 1 {
 		t.Fatalf("expected one day, got %d", len(updated))
 	}
@@ -595,19 +595,19 @@ func TestTUIRemoveItemFromDays(t *testing.T) {
 	}
 
 	// Remove a top-level item.
-	updated2 := removeItemFromDays(updated, other)
+	updated2 := core.RemoveItemFromDays(updated, other)
 	if len(updated2[0].Items) != 1 {
 		t.Fatalf("expected one item left, got %d", len(updated2[0].Items))
 	}
 
 	// Remove a missing target is a no-op.
-	updated3 := removeItemFromDays(updated2, target)
+	updated3 := core.RemoveItemFromDays(updated2, target)
 	if len(updated3[0].Items) != 1 {
 		t.Fatalf("expected unchanged items, got %d", len(updated3[0].Items))
 	}
 
 	// Nil days and nil items in the slice are tolerated.
-	updated4 := removeItemFromDays([]*core.DaySection{nil, day}, target)
+	updated4 := core.RemoveItemFromDays([]*core.DaySection{nil, day}, target)
 	if len(updated4) != 2 {
 		t.Fatalf("expected nil-day pass-through, got %d", len(updated4))
 	}
@@ -917,15 +917,15 @@ func TestTUITickCmd(t *testing.T) {
 }
 
 func TestTUIFindDaySection(t *testing.T) {
-	if got := findDaySection(nil, "2026-03-16"); got != nil {
+	if got := core.FindDaySection(nil, "2026-03-16"); got != nil {
 		t.Fatalf("expected nil journal to return nil")
 	}
 	day := &core.DaySection{Date: "2026-03-16", Items: []*core.TodoItem{}}
 	journal := &core.TodoJournal{Days: []*core.DaySection{day}}
-	if got := findDaySection(journal, "2099-01-01"); got != nil {
+	if got := core.FindDaySection(journal, "2099-01-01"); got != nil {
 		t.Fatalf("expected no-match to return nil")
 	}
-	if got := findDaySection(journal, "2026-03-16"); got != day {
+	if got := core.FindDaySection(journal, "2026-03-16"); got != day {
 		t.Fatalf("expected match to return the day section")
 	}
 }
@@ -938,7 +938,7 @@ func TestTUIPickInitialDisplayDay_Empty(t *testing.T) {
 }
 
 func TestTUIRemoveItemRecursive_NilSafety(t *testing.T) {
-	items, removed := removeItemRecursive(nil, &core.TodoItem{Text: "x"})
+	items, removed := core.RemoveItemRecursive(nil, &core.TodoItem{Text: "x"})
 	if removed {
 		t.Fatalf("expected no removal on nil items")
 	}
@@ -946,7 +946,7 @@ func TestTUIRemoveItemRecursive_NilSafety(t *testing.T) {
 		t.Fatalf("expected nil items to be returned as-is")
 	}
 
-	items, removed = removeItemRecursive([]*core.TodoItem{nil}, &core.TodoItem{Text: "x"})
+	items, removed = core.RemoveItemRecursive([]*core.TodoItem{nil}, &core.TodoItem{Text: "x"})
 	_ = items
 	if removed {
 		t.Fatalf("expected no removal when only nil items are present")

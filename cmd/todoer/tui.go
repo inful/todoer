@@ -181,7 +181,7 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		wasCarryoverView := m.isReadOnlyView()
 		if m.todayDay == nil {
-			m.todayDay = findOrCreateDaySection(m.journal, m.today)
+			m.todayDay = core.FindOrCreateDaySection(m.journal, m.today)
 		}
 		m.todayDay.Items = append(m.todayDay.Items, &core.TodoItem{
 			Completed:   false,
@@ -269,8 +269,8 @@ func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		target := filtered[m.selected].item
-		m.journal.Days = removeItemFromDays(m.journal.Days, target)
-		m.todayDay = findDaySection(m.journal, m.today)
+		m.journal.Days = core.RemoveItemFromDays(m.journal.Days, target)
+		m.todayDay = core.FindDaySection(m.journal, m.today)
 		m.refreshItems()
 		filtered = m.filteredItems()
 		if m.selected >= len(filtered) && len(filtered) > 0 {
@@ -482,7 +482,7 @@ func (m *tuiModel) reloadFromDisk() error {
 	m.beforeTodos = beforeTodos
 	m.afterTodos = afterTodos
 	m.journal = journal
-	m.todayDay = findDaySection(journal, m.today)
+	m.todayDay = core.FindDaySection(journal, m.today)
 	m.displayDay = m.pickInitialDisplayDay()
 	m.refreshItems()
 	if m.selected >= len(m.items) {
@@ -545,46 +545,6 @@ func (m *tuiModel) checkExternalChanges() {
 	if err := m.reloadFromDisk(); err == nil {
 		m.status = "External change detected and reloaded"
 	}
-}
-
-func findDaySection(journal *core.TodoJournal, date string) *core.DaySection {
-	if journal == nil {
-		return nil
-	}
-	for _, day := range journal.Days {
-		if day != nil && day.Date == date {
-			return day
-		}
-	}
-	return nil
-}
-
-func removeItemFromDays(days []*core.DaySection, target *core.TodoItem) []*core.DaySection {
-	for _, day := range days {
-		if day == nil {
-			continue
-		}
-		day.Items, _ = removeItemRecursive(day.Items, target)
-	}
-	return days
-}
-
-func removeItemRecursive(items []*core.TodoItem, target *core.TodoItem) ([]*core.TodoItem, bool) {
-	for i, item := range items {
-		if item == nil {
-			continue
-		}
-		if item == target {
-			return append(items[:i], items[i+1:]...), true
-		}
-
-		updatedSub, removed := removeItemRecursive(item.SubItems, target)
-		if removed {
-			item.SubItems = updatedSub
-			return items, true
-		}
-	}
-	return items, false
 }
 
 func hashBytes(data []byte) string {

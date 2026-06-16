@@ -61,7 +61,7 @@ func appendTodoToJournal(journalPath, today, todoText string, config *Config) er
 		journal = &core.TodoJournal{Days: []*core.DaySection{}}
 	}
 
-	todaySection := findOrCreateDaySection(journal, today)
+	todaySection := core.FindOrCreateDaySection(journal, today)
 	todaySection.Items = append(todaySection.Items, &core.TodoItem{
 		Completed:   false,
 		Text:        todoText,
@@ -77,19 +77,4 @@ func appendTodoToJournal(journalPath, today, todoText string, config *Config) er
 	}
 
 	return nil
-}
-
-func findOrCreateDaySection(journal *core.TodoJournal, date string) *core.DaySection {
-	for _, day := range journal.Days {
-		if day != nil && day.Date == date {
-			return day
-		}
-	}
-
-	newDay := &core.DaySection{
-		Date:  date,
-		Items: []*core.TodoItem{},
-	}
-	journal.Days = append(journal.Days, newDay)
-	return newDay
 }
