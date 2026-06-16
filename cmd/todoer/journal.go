@@ -45,8 +45,12 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 	return gen, tmplName, nil
 }
 
-// processJournal processes a journal file, writing the target and optionally updating source with backup.
-func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup, printPath bool, config *Config, logger *Logger) error {
+// processJournal processes a journal file, writing the target and optionally
+// updating the source with a backup. When merge is true and the target
+// file already exists, the source's uncompleted items are merged into the
+// target's existing todos via core.MergeCarryover instead of overwriting
+// the target. When merge is false, the target is overwritten in full.
+func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup, printPath, merge bool, config *Config, logger *Logger) error {
 	logger.Debug("Processing journal: source=%s, target=%s, template=%s, date=%s", sourceFile, targetFile, templateFile, templateDate)
 
 	if err := validateProcessArgs(sourceFile, targetFile, templateDate); err != nil {
@@ -73,6 +77,22 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 	newContentBytes, err := io.ReadAll(result.NewFile)
 	if err != nil {
 		return fmt.Errorf("error reading new file content: %w", err)
+	}
+
+	// If the target exists and the caller asked for a merge, splice
+	// the source's uncompleted items into the target's existing todos
+	// instead of overwriting. The merge preserves the target's body
+	// (frontmatter, sections after Todos) and uses the source's
+	// items for the carryover.
+	if merge {
+		if existing, err := os.ReadFile(targetFile); err == nil {
+			merged, mergeErr := mergeIntoExistingTarget(existing, newContentBytes, config)
+			if mergeErr != nil {
+				return fmt.Errorf("error merging into existing target %s: %w", targetFile, mergeErr)
+			}
+			newContentBytes = merged
+			logger.Info("Merged carryover into existing target: %s", targetFile)
+		}
 	}
 
 	logger.Debug("Writing %d bytes to target file: %s", len(newContentBytes), targetFile)
@@ -112,6 +132,34 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 	}
 
 	return nil
+}
+
+// mergeIntoExistingTarget merges the uncompleted todos from newContent
+// into the existing target file's todos section. The target's body
+// (everything before and after the todos section) is preserved verbatim;
+// only the todos are replaced with the merge of the two journals.
+func mergeIntoExistingTarget(existingTarget, newContent []byte, config *Config) ([]byte, error) {
+	beforeTodos, existingTodosSection, afterTodos, err := core.ExtractTodosSectionWithHeader(string(existingTarget), config.TodosHeader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract existing todos: %w", err)
+	}
+	existingJournal, err := core.ParseTodosSection(existingTodosSection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse existing todos: %w", err)
+	}
+
+	_, newTodosSection, _, err := core.ExtractTodosSectionWithHeader(string(newContent), config.TodosHeader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract new todos: %w", err)
+	}
+	newJournal, err := core.ParseTodosSection(newTodosSection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse new todos: %w", err)
+	}
+
+	merged := core.MergeCarryover(newJournal, existingJournal)
+	newTodos := core.JournalToString(merged)
+	return []byte(beforeTodos + newTodos + afterTodos), nil
 }
 
 // findClosestJournalFile returns the most recent journal before the given date.
@@ -219,7 +267,11 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 
 	logger.Info("Using '%s' as source to create new journal for today.", closest)
 
-	if err := processJournal(closest, journalPath, templateFile, today, skipBackup, printPath, config, logger); err != nil {
+	// merge=true: the daily flow must be idempotent and merge-into-existing
+	// per ADR-0001. If today's journal already exists (e.g. created by
+	// hand or by an earlier run), the source's uncompleted items are
+	// merged in instead of overwriting the target.
+	if err := processJournal(closest, journalPath, templateFile, today, skipBackup, printPath, true, config, logger); err != nil {
 		return err
 	}
 

@@ -77,7 +77,7 @@ func (cmd *processCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) 
 	logger := loggerForCommand(baseLogger, cli.PrintPath)
 	logger.Debug("Executing process command")
 	_, templateFile := sharedPaths(cli, config)
-	return processJournal(cmd.SourceFile, cmd.TargetFile, templateFile, cmd.TemplateDate, false, cli.PrintPath, config, logger)
+	return processJournal(cmd.SourceFile, cmd.TargetFile, templateFile, cmd.TemplateDate, false, cli.PrintPath, false, config, logger)
 }
 
 func (cmd *previewCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {

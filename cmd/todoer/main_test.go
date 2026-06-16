@@ -494,7 +494,7 @@ func TestProcessJournal_ValidationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := NewLogger(ModeQuiet)
-			err := processJournal(tt.sourceFile, tt.targetFile, "", tt.templateDate, false, false, config, logger)
+			err := processJournal(tt.sourceFile, tt.targetFile, "", tt.templateDate, false, false, false, config, logger)
 
 			if tt.expectError {
 				if err == nil {
@@ -539,7 +539,7 @@ Some notes here.
 	config := &Config{RootDir: tempDir}
 
 	logger := NewLogger(ModeQuiet)
-	err := processJournal(sourceFile, targetFile, "", "", false, false, config, logger)
+	err := processJournal(sourceFile, targetFile, "", "", false, false, false, config, logger)
 	if err != nil {
 		t.Fatalf("processJournal() unexpected error: %v", err)
 	}
@@ -580,7 +580,7 @@ date: 2024-01-01
 	config := &Config{RootDir: tempDir}
 	logger := NewLogger(ModeQuiet)
 
-	if err := processJournal(sourceFile, targetFile, "", "", true, false, config, logger); err != nil {
+	if err := processJournal(sourceFile, targetFile, "", "", true, false, false, config, logger); err != nil {
 		t.Fatalf("processJournal() unexpected error: %v", err)
 	}
 
@@ -1096,7 +1096,7 @@ func TestProcessJournal_PrintPath(t *testing.T) {
 	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] Carryover\n\n## Notes\n")
 
 	logger := NewLogger(ModeQuiet)
-	if err := processJournal(source, target, "", today, false, true, config, logger); err != nil {
+	if err := processJournal(source, target, "", today, false, true, false, config, logger); err != nil {
 		t.Fatalf("processJournal: %v", err)
 	}
 }
@@ -1115,7 +1115,7 @@ func TestProcessJournal_OnlyCompletedItems(t *testing.T) {
 	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [x] Done\n\n## Notes\n")
 
 	logger := NewLogger(ModeQuiet)
-	if err := processJournal(source, target, "", today, false, false, config, logger); err != nil {
+	if err := processJournal(source, target, "", today, false, false, false, config, logger); err != nil {
 		t.Fatalf("processJournal: %v", err)
 	}
 
@@ -1133,6 +1133,70 @@ func TestProcessJournal_OnlyCompletedItems(t *testing.T) {
 	targetContent, _ := os.ReadFile(target)
 	if strings.Contains(string(targetContent), "  - [ ]") {
 		t.Fatalf("expected no uncompleted items in target, got:\n%s", string(targetContent))
+	}
+}
+
+func TestProcessJournal_MergeIntoExistingTarget(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	// Source has one carryover item.
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+
+	// Target already exists with a pre-existing today item.
+	createTestFile(t, target, "---\ndate: "+today+"\n---\n\n# J\n\n## Todos\n\n- [["+today+"]]\n  - [ ] already in today\n\n## Notes\n")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	content := string(after)
+	if !strings.Contains(content, "carry me") {
+		t.Fatalf("expected the carryover item to be merged in, got:\n%s", content)
+	}
+	if !strings.Contains(content, "already in today") {
+		t.Fatalf("expected the pre-existing today item to be preserved, got:\n%s", content)
+	}
+}
+
+func TestProcessJournal_MergeIsIdempotent(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+	// First run: target doesn't exist; created with the carryover.
+	// Second run: target exists; should merge but not duplicate.
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("first processJournal: %v", err)
+	}
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("second processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	content := string(after)
+	// The item should appear exactly once under the carryover day.
+	day := "- [[" + yesterday + "]]"
+	if _, afterDay, found := strings.Cut(content, day); found {
+		if strings.Count(afterDay, "  - [ ] carry me") != 1 {
+			t.Fatalf("expected exactly one 'carry me' after day header, got:\n%s", afterDay)
+		}
+	} else {
+		t.Fatalf("expected carryover day %q in target, got:\n%s", day, content)
 	}
 }
 
