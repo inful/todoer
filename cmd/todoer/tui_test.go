@@ -120,6 +120,50 @@ title: 2026-03-16
 	}
 }
 
+func TestTUIModelDisplaysCarryoverWhenTodaySectionEmpty(t *testing.T) {
+	tempDir := t.TempDir()
+	journalPath := filepath.Join(tempDir, "2026-03-16.md")
+
+	// Today has a section but it is empty; carryover has items. The view
+	// should fall back to the carryover day rather than render an empty list.
+	content := `---
+title: 2026-03-16
+---
+
+# Daily Journal
+
+## Todos
+
+- [[2026-03-15]]
+  - [ ] carryover item
+
+- [[2026-03-16]]
+
+## Notes
+`
+
+	if err := os.WriteFile(journalPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write journal file: %v", err)
+	}
+
+	model, err := newTUIModel(journalPath, "2026-03-16", &Config{TodosHeader: core.TodosHeader})
+	if err != nil {
+		t.Fatalf("failed to init tui model: %v", err)
+	}
+
+	if len(model.items) != 1 {
+		t.Fatalf("expected one visible carryover item, got %d", len(model.items))
+	}
+
+	if model.items[0].item.Text != "carryover item" {
+		t.Fatalf("unexpected todo text: %s", model.items[0].item.Text)
+	}
+
+	if !model.isReadOnlyView() {
+		t.Fatalf("expected read-only view when today section is empty and carryover has items")
+	}
+}
+
 func TestTUIToggleBlockedOnCarryoverDay(t *testing.T) {
 	item := &core.TodoItem{Text: "carryover item", Completed: false}
 	carryoverDay := &core.DaySection{Date: "2026-03-15", Items: []*core.TodoItem{item}}

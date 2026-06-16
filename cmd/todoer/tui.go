@@ -400,7 +400,7 @@ func (m *tuiModel) refreshItems() {
 }
 
 func (m *tuiModel) displayDaySection() *core.DaySection {
-	if m.todayDay != nil {
+	if m.todayDay != nil && len(m.todayDay.Items) > 0 {
 		return m.todayDay
 	}
 
