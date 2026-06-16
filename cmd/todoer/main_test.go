@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/inful/todoer/pkg/core"
 )
 
 // Helper function to create a temporary directory
@@ -492,7 +494,7 @@ func TestProcessJournal_ValidationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := NewLogger(ModeQuiet)
-			err := processJournal(tt.sourceFile, tt.targetFile, "", tt.templateDate, false, false, config, logger)
+			err := processJournal(tt.sourceFile, tt.targetFile, "", tt.templateDate, false, false, false, config, logger)
 
 			if tt.expectError {
 				if err == nil {
@@ -537,7 +539,7 @@ Some notes here.
 	config := &Config{RootDir: tempDir}
 
 	logger := NewLogger(ModeQuiet)
-	err := processJournal(sourceFile, targetFile, "", "", false, false, config, logger)
+	err := processJournal(sourceFile, targetFile, "", "", false, false, false, config, logger)
 	if err != nil {
 		t.Fatalf("processJournal() unexpected error: %v", err)
 	}
@@ -551,6 +553,57 @@ Some notes here.
 	backupFile := sourceFile + ".bak"
 	if _, err := os.Stat(backupFile); err != nil {
 		t.Errorf("Backup file was not created: %v", err)
+	}
+}
+
+func TestProcessJournal_SkipBackupStillUpdatesSource(t *testing.T) {
+	tempDir := setupTempDir(t)
+
+	sourceContent := `---
+date: 2024-01-01
+---
+
+# Daily Journal
+
+## Todos
+
+- [ ] Task to carry
+- [x] Already done
+
+## Notes
+`
+
+	sourceFile := filepath.Join(tempDir, "source.md")
+	targetFile := filepath.Join(tempDir, "target.md")
+	createTestFile(t, sourceFile, sourceContent)
+
+	config := &Config{RootDir: tempDir}
+	logger := NewLogger(ModeQuiet)
+
+	if err := processJournal(sourceFile, targetFile, "", "", true, false, false, config, logger); err != nil {
+		t.Fatalf("processJournal() unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(sourceFile + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file when skipBackup=true, got err=%v", err)
+	}
+
+	sourceAfter, err := os.ReadFile(sourceFile)
+	if err != nil {
+		t.Fatalf("failed to read updated source file: %v", err)
+	}
+
+	sourceAfterStr := string(sourceAfter)
+	if sourceAfterStr == sourceContent {
+		t.Fatalf("expected source file to be updated when skipBackup=true")
+	}
+
+	if !strings.Contains(sourceAfterStr, "Moved to [[") {
+		t.Fatalf("expected source file to include moved marker after update, got:\n%s", sourceAfterStr)
+	}
+
+	if _, err := os.Stat(targetFile); err != nil {
+		t.Fatalf("expected target file to be created: %v", err)
 	}
 }
 
@@ -693,6 +746,755 @@ func TestCmdNew_AlreadyExists(t *testing.T) {
 	err := cmdNew(tempDir, "", false, config, logger)
 	if err != nil {
 		t.Errorf("cmdNew() unexpected error when file exists: %v", err)
+	}
+}
+
+func TestCmdNewWithOptions_DisableSourceBackup(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [[`+yesterday+`]]
+  - [ ] Carryover item
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+		t.Fatalf("cmdNewWithOptions() unexpected error: %v", err)
+	}
+
+	target := buildJournalPath(tempDir, today)
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("expected today's journal to be created: %v", err)
+	}
+
+	if _, err := os.Stat(source + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file when preserveSourceBackup=false, got err=%v", err)
+	}
+}
+
+func TestCmdNewWithOptions_DisableSourceBackup_PreservesCompletedAndCarriesUnfinished(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [x] Done task
+- [ ] Carry task
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+		t.Fatalf("cmdNewWithOptions() unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(source + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file when preserveSourceBackup=false, got err=%v", err)
+	}
+
+	sourceAfter, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatalf("failed to read source after carryover: %v", err)
+	}
+
+	sourceAfterStr := string(sourceAfter)
+	if !strings.Contains(sourceAfterStr, "Done task") {
+		t.Fatalf("expected source to preserve completed task, got:\n%s", sourceAfterStr)
+	}
+	if strings.Contains(sourceAfterStr, "Carry task") {
+		t.Fatalf("expected source to remove carried unfinished task, got:\n%s", sourceAfterStr)
+	}
+
+	target := buildJournalPath(tempDir, today)
+	targetAfter, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("failed to read target after carryover: %v", err)
+	}
+
+	targetAfterStr := string(targetAfter)
+	if !strings.Contains(targetAfterStr, "Carry task") {
+		t.Fatalf("expected target to contain carried unfinished task, got:\n%s", targetAfterStr)
+	}
+	if strings.Contains(targetAfterStr, "Done task") {
+		t.Fatalf("expected target to exclude completed task, got:\n%s", targetAfterStr)
+	}
+}
+
+func TestCmdNew_DoesNotCreateBackupByDefault(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [[`+yesterday+`]]
+  - [ ] Carryover item
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdNew(tempDir, "", false, config, logger); err != nil {
+		t.Fatalf("cmdNew() unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(source + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file from cmdNew by default, got err=%v", err)
+	}
+}
+
+func TestCmdAdd_DoesNotCreateBackupByDefault(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [[`+yesterday+`]]
+  - [ ] Carryover item
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "new todo", false, false, config, logger); err != nil {
+		t.Fatalf("cmdAdd() unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(source + ".bak"); !os.IsNotExist(err) {
+		t.Fatalf("expected no backup file from cmdAdd by default, got err=%v", err)
+	}
+
+	target := buildJournalPath(tempDir, today)
+	targetAfter, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("failed to read target: %v", err)
+	}
+	if !strings.Contains(string(targetAfter), "new todo") {
+		t.Fatalf("expected target to contain the new todo, got:\n%s", string(targetAfter))
+	}
+}
+
+func TestCmdAdd_WithBackupCreatesBackup(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	createTestFile(t, source, `---
+date: `+yesterday+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [[`+yesterday+`]]
+  - [ ] Carryover item
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "new todo", false, true, config, logger); err != nil {
+		t.Fatalf("cmdAdd() unexpected error: %v", err)
+	}
+
+	backupPath := source + ".bak"
+	if _, err := os.Stat(backupPath); err != nil {
+		t.Fatalf("expected backup file when backup=true, got err=%v", err)
+	}
+
+	target := buildJournalPath(tempDir, today)
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("expected target file to be created, got err=%v", err)
+	}
+}
+
+func TestCmdAdd_PreservesCompletedUndatedTodos(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	journalPath := buildJournalPath(tempDir, today)
+
+	// Pre-create today's journal with both completed and uncompleted undated
+	// todos. The add path runs MoveUndatedTodosToCurrentDate internally, so
+	// both classes of undated todos should land in today's section rather
+	// than the completed ones being silently dropped.
+	createTestFile(t, journalPath, `---
+date: `+today+`
+---
+
+# Daily Journal
+
+## Todos
+
+- [x] Done last week
+- [ ] Undated carry
+- [x] Done yesterday
+
+## Notes
+`)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "fresh today item", false, false, config, logger); err != nil {
+		t.Fatalf("cmdAdd() unexpected error: %v", err)
+	}
+
+	after, err := os.ReadFile(journalPath)
+	if err != nil {
+		t.Fatalf("failed to read today's journal: %v", err)
+	}
+	content := string(after)
+
+	// The new todo must be present.
+	if !strings.Contains(content, "fresh today item") {
+		t.Fatalf("expected new todo to be appended, got:\n%s", content)
+	}
+	// The undated completed and uncompleted items must both be preserved.
+	if !strings.Contains(content, "Done last week") {
+		t.Fatalf("expected undated completed todo to be preserved, got:\n%s", content)
+	}
+	if !strings.Contains(content, "Undated carry") {
+		t.Fatalf("expected undated uncompleted todo to be preserved, got:\n%s", content)
+	}
+	if !strings.Contains(content, "Done yesterday") {
+		t.Fatalf("expected second undated completed todo to be preserved, got:\n%s", content)
+	}
+	// All four items must live under today's [[date]] section. The journal
+	// should not have any undated day left at the top of the todos section.
+	if !strings.Contains(content, "[["+today+"]]") {
+		t.Fatalf("expected today's [[date]] section to exist, got:\n%s", content)
+	}
+}
+
+func TestCmdAdd_EmptyTextReturnsError(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir}
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "   ", false, false, config, logger); err == nil {
+		t.Fatalf("expected error on empty todo text")
+	}
+}
+
+func TestCmdAdd_PrintPath(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	journalPath := buildJournalPath(tempDir, today)
+	createTestFile(t, journalPath, "---\ndate: "+today+"\n---\n\n# J\n\n## Todos\n\n- [ ] existing\n\n## Notes\n")
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdAdd(tempDir, "", "new", true, false, config, logger); err != nil {
+		t.Fatalf("cmdAdd: %v", err)
+	}
+}
+
+func TestFindOrCreateDaySection(t *testing.T) {
+	existing := &core.DaySection{Date: "2026-03-16", Items: []*core.TodoItem{{Text: "x"}}}
+	journal := &core.TodoJournal{Days: []*core.DaySection{existing}}
+
+	// Finds existing.
+	got := core.FindOrCreateDaySection(journal, "2026-03-16")
+	if got != existing {
+		t.Fatalf("expected to return the existing day section")
+	}
+
+	// Creates a new one when missing.
+	got2 := core.FindOrCreateDaySection(journal, "2026-03-17")
+	if got2 == nil || got2.Date != "2026-03-17" {
+		t.Fatalf("expected a new day section for 2026-03-17, got %+v", got2)
+	}
+	if len(journal.Days) != 2 {
+		t.Fatalf("expected journal to now have 2 day sections, got %d", len(journal.Days))
+	}
+}
+
+func TestAppendTodoToJournal_NoExistingFile(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	journalPath := buildJournalPath(tempDir, today)
+
+	if err := appendTodoToJournal(journalPath, today, "first", config); err == nil {
+		t.Fatalf("expected error when journal file does not exist")
+	}
+}
+
+func TestCmdNewWithOptions_NoPreviousJournalCreatesEmpty(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	journalPath := buildJournalPath(tempDir, today)
+
+	logger := NewLogger(ModeQuiet)
+	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+		t.Fatalf("cmdNewWithOptions: %v", err)
+	}
+
+	after, err := os.ReadFile(journalPath)
+	if err != nil {
+		t.Fatalf("expected today's journal to be created, got: %v", err)
+	}
+	if !strings.Contains(string(after), core.TodosHeader) {
+		t.Fatalf("expected journal to contain the todos header, got:\n%s", string(after))
+	}
+}
+
+func TestProcessJournal_PrintPath(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] Carryover\n\n## Notes\n")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, true, false, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+}
+
+func TestProcessJournal_OnlyCompletedItems(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	// Source with only completed todos: nothing to carry over to today, but
+	// the source's completed item is still date-tagged in the carryover
+	// pipeline and the target is still written.
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [x] Done\n\n## Notes\n")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, false, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	// Source updated (date tag added to the completed item).
+	afterSource, _ := os.ReadFile(source)
+	if !strings.Contains(string(afterSource), "#"+yesterday) {
+		t.Fatalf("expected source to be updated with date tag, got:\n%s", string(afterSource))
+	}
+
+	// Target exists; the completed item lives in the target's completed section,
+	// not under today.
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("expected target to be created, got %v", err)
+	}
+	targetContent, _ := os.ReadFile(target)
+	if strings.Contains(string(targetContent), "  - [ ]") {
+		t.Fatalf("expected no uncompleted items in target, got:\n%s", string(targetContent))
+	}
+}
+
+func TestProcessJournal_MergeIntoExistingTarget(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	// Source has one carryover item.
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+
+	// Target already exists with a pre-existing today item.
+	createTestFile(t, target, "---\ndate: "+today+"\n---\n\n# J\n\n## Todos\n\n- [["+today+"]]\n  - [ ] already in today\n\n## Notes\n")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	content := string(after)
+	if !strings.Contains(content, "carry me") {
+		t.Fatalf("expected the carryover item to be merged in, got:\n%s", content)
+	}
+	if !strings.Contains(content, "already in today") {
+		t.Fatalf("expected the pre-existing today item to be preserved, got:\n%s", content)
+	}
+}
+
+func TestProcessJournal_MergeIsIdempotent(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+	// First run: target doesn't exist; created with the carryover.
+	// Second run: target exists; should merge but not duplicate.
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("first processJournal: %v", err)
+	}
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("second processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	content := string(after)
+	// The item should appear exactly once under the carryover day.
+	day := "- [[" + yesterday + "]]"
+	if _, afterDay, found := strings.Cut(content, day); found {
+		if strings.Count(afterDay, "  - [ ] carry me") != 1 {
+			t.Fatalf("expected exactly one 'carry me' after day header, got:\n%s", afterDay)
+		}
+	} else {
+		t.Fatalf("expected carryover day %q in target, got:\n%s", day, content)
+	}
+}
+
+func TestFingerprintEnabled_Default(t *testing.T) {
+	// TODOER_FINGERPRINT is unset by default in tests; the helper
+	// should report false.
+	if err := os.Unsetenv(fingerprintEnabledEnv); err != nil {
+		t.Fatalf("unsetenv: %v", err)
+	}
+	if fingerprintEnabled() {
+		t.Fatalf("expected fingerprintEnabled to be false by default")
+	}
+}
+
+func TestFingerprintEnabled_TruthyValues(t *testing.T) {
+	// strconv.ParseBool accepts: 1, t, T, TRUE, true, True,
+	// 0, f, F, FALSE, false, False. We expect the spike to
+	// turn on for any of the truthy spellings and to stay
+	// off for the falsy ones and for garbage.
+	for _, value := range []string{"1", "t", "T", "true", "TRUE", "True"} {
+		t.Setenv(fingerprintEnabledEnv, value)
+		if !fingerprintEnabled() {
+			t.Fatalf("expected fingerprintEnabled to be true for %q", value)
+		}
+	}
+	for _, value := range []string{"0", "f", "F", "false", "FALSE", "no", "", "yes-please"} {
+		t.Setenv(fingerprintEnabledEnv, value)
+		if fingerprintEnabled() {
+			t.Fatalf("expected fingerprintEnabled to be false for %q", value)
+		}
+	}
+}
+
+func TestComputeFingerprint_Deterministic(t *testing.T) {
+	content := []byte("hello world")
+	got := computeFingerprint(content)
+	if len(got) != 64 {
+		t.Fatalf("expected 64-char hex SHA-256, got %d chars: %s", len(got), got)
+	}
+	if got != computeFingerprint(content) {
+		t.Fatalf("expected deterministic fingerprint")
+	}
+	// Different content should yield a different fingerprint.
+	if got == computeFingerprint([]byte("hello world!")) {
+		t.Fatalf("expected different content to yield different fingerprint")
+	}
+}
+
+func TestCheckFingerprintMismatch_NoPriorFingerprint(_ *testing.T) {
+	// Existing target has no frontmatter fingerprint yet. The check
+	// should be a silent no-op (treat as fresh sync).
+	logger := NewLogger(ModeQuiet)
+	existing := []byte("# Just a heading\n\nNo frontmatter.\n")
+	checkFingerprintMismatch(existing, []byte("source content"), "/tmp/whatever", logger)
+}
+
+func TestCheckFingerprintMismatch_Matching(_ *testing.T) {
+	source := []byte("the source")
+	fp := computeFingerprint(source)
+	existing := []byte("---\ntitle: x\ntodoer_source_fingerprint: " + fp + "\n---\n\n# Body\n")
+	logger := NewLogger(ModeQuiet)
+	// Same source -> no mismatch log; we just check it does not panic.
+	checkFingerprintMismatch(existing, source, "/tmp/whatever", logger)
+}
+
+func TestCheckFingerprintMismatch_Differing(_ *testing.T) {
+	// Existing target records a fingerprint for some other source
+	// content. The current source differs; the check should log a
+	// mismatch and not fail.
+	existing := []byte("---\ntitle: x\ntodoer_source_fingerprint: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n---\n\n# Body\n")
+	logger := NewLogger(ModeQuiet)
+	checkFingerprintMismatch(existing, []byte("the actual source"), "/tmp/whatever", logger)
+}
+
+func TestProcessJournal_FingerprintMismatchForcesReMerge(t *testing.T) {
+	// End-to-end: with the toggle on, the second run with a modified
+	// source should still merge cleanly. The fingerprint mismatch is a
+	// hint, not a failure.
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	// Source with one carryover item.
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+
+	// Pre-existing target with a stale fingerprint and a fresh
+	// today-only item, so the merge will both keep the existing
+	// item and detect a fingerprint mismatch.
+	preExistingTarget := "---\ndate: " + today + "\ntodoer_source_fingerprint: 0000000000000000000000000000000000000000000000000000000000000000\n---\n\n# J\n\n## Todos\n\n- [[" + today + "]]\n  - [ ] already here\n\n## Notes\n"
+	createTestFile(t, target, preExistingTarget)
+
+	t.Setenv(fingerprintEnabledEnv, "1")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	content := string(after)
+	if !strings.Contains(content, "carry me") {
+		t.Fatalf("expected the carryover item to be merged in, got:\n%s", content)
+	}
+	if !strings.Contains(content, "already here") {
+		t.Fatalf("expected the pre-existing today item to be preserved, got:\n%s", content)
+	}
+}
+
+func TestProcessJournal_RecordsFingerprintWhenEnabled(t *testing.T) {
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+
+	t.Setenv(fingerprintEnabledEnv, "1")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	content := string(after)
+	if !strings.Contains(content, "todoer_source_fingerprint:") {
+		t.Fatalf("expected fingerprint key in target frontmatter, got:\n%s", content)
+	}
+	if !strings.Contains(content, "todoer_source_fingerprint_algo: sha256") {
+		t.Fatalf("expected fingerprint algo key in target frontmatter, got:\n%s", content)
+	}
+	// The recorded fingerprint should be a 64-char hex SHA-256.
+	before, afterKey, found := strings.Cut(content, "todoer_source_fingerprint: ")
+	if !found {
+		t.Fatalf("expected 'todoer_source_fingerprint: ' key, got:\n%s", content)
+	}
+	_ = before
+	end := strings.IndexByte(afterKey, '\n')
+	if end < 0 {
+		t.Fatalf("expected newline after fingerprint value, got:\n%s", content)
+	}
+	value := strings.TrimSpace(afterKey[:end])
+	if len(value) != 64 {
+		t.Fatalf("expected 64-char hex fingerprint, got %d chars: %q", len(value), value)
+	}
+}
+
+func TestProcessJournal_NoFingerprintWhenDisabled(t *testing.T) {
+	// Without TODOER_FINGERPRINT, the spike is invisible: the target
+	// does not receive a fingerprint key.
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+
+	// Make sure the env var is unset.
+	if err := os.Unsetenv(fingerprintEnabledEnv); err != nil {
+		t.Fatalf("unsetenv: %v", err)
+	}
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	if strings.Contains(string(after), "todoer_source_fingerprint") {
+		t.Fatalf("expected no fingerprint key when toggle is off, got:\n%s", string(after))
+	}
+}
+
+func TestProcessJournal_AnnotateTargetFingerprintHelper(t *testing.T) {
+	// Direct test of the helper: feed it a target without a fingerprint
+	// and confirm both keys are added.
+	target := "---\ndate: 2026-03-16\n---\n\n# J\n\n## Todos\n\n- [[2026-03-16]]\n  - [ ] x\n\n## Notes\n"
+	source := []byte("source content for fingerprinting")
+	out, err := annotateTargetWithFingerprint([]byte(target), source)
+	if err != nil {
+		t.Fatalf("annotateTargetWithFingerprint: %v", err)
+	}
+	got := string(out)
+	if !strings.Contains(got, "todoer_source_fingerprint:") {
+		t.Fatalf("expected fingerprint key, got:\n%s", got)
+	}
+	if !strings.Contains(got, "todoer_source_fingerprint_algo: sha256") {
+		t.Fatalf("expected algo key, got:\n%s", got)
+	}
+	// Calling it again should be idempotent: the value is replaced
+	// (not duplicated).
+	out2, err := annotateTargetWithFingerprint(out, source)
+	if err != nil {
+		t.Fatalf("annotateTargetWithFingerprint (second call): %v", err)
+	}
+	if strings.Count(string(out2), "todoer_source_fingerprint:") != 1 {
+		t.Fatalf("expected exactly one fingerprint key on idempotent call, got:\n%s", string(out2))
+	}
+}
+
+func TestSafeWriteFile_BadTarget(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Target inside a non-existent directory should fail.
+	bad := filepath.Join(tempDir, "no-such-dir", "out.md")
+	if err := safeWriteFile(bad, []byte("hi"), 0o644); err == nil {
+		t.Fatalf("expected error when target directory does not exist")
+	}
+}
+
+func TestLogger_InfoAndDebugModes(_ *testing.T) {
+	quiet := NewLogger(ModeQuiet)
+	quiet.Info("hi %s", "x")
+	quiet.Debug("hi %s", "x")
+	normal := NewLogger(ModeNormal)
+	normal.Info("hi %s", "x")
+	debug := NewLogger(ModeDebug)
+	debug.Debug("hi %s", "x")
+	debug.Info("hi %s", "x")
+}
+
+func TestLogger_Error(_ *testing.T) {
+	logger := NewLogger(ModeQuiet)
+	logger.Error("oops %s", "x")
+}
+
+func TestExpandPathEdgeCases(t *testing.T) {
+	if got := expandPath(""); got != "" {
+		t.Fatalf("expected empty path passthrough, got %q", got)
+	}
+	if got := expandPath("/abs/path"); got != "/abs/path" {
+		t.Fatalf("expected absolute path passthrough, got %q", got)
+	}
+	if got := expandPath("relative/path"); got != "relative/path" {
+		t.Fatalf("expected relative path passthrough, got %q", got)
+	}
+	// Home expansion: when not actually run under a user with HOME set, this
+	// falls through to the original path; that is the documented behavior.
+	if got := expandPath("~/foo"); !strings.HasPrefix(got, "~/") && !strings.HasPrefix(got, "/") {
+		t.Fatalf("expected home expansion to produce a path, got %q", got)
+	}
+}
+
+func TestEnsureDirectories_CreatesMissingRoot(t *testing.T) {
+	tempDir := t.TempDir()
+	missing := filepath.Join(tempDir, "no-such-dir", "nested")
+
+	cfg := &Config{RootDir: missing}
+	if err := ensureDirectories(cfg); err != nil {
+		t.Fatalf("ensureDirectories: %v", err)
+	}
+	if info, err := os.Stat(missing); err != nil || !info.IsDir() {
+		t.Fatalf("expected missing root to be created, got err=%v", err)
+	}
+}
+
+func TestEnsureDirectories_NilConfig(t *testing.T) {
+	if err := ensureDirectories(nil); err != nil {
+		t.Fatalf("ensureDirectories(nil) should be a no-op, got %v", err)
+	}
+}
+
+func TestGetConfigValue(t *testing.T) {
+	if got := getConfigValue("cli", "cfg"); got != "cli" {
+		t.Fatalf("expected CLI value to win, got %q", got)
+	}
+	if got := getConfigValue("", "cfg"); got != "cfg" {
+		t.Fatalf("expected config value when CLI is empty, got %q", got)
+	}
+	if got := getConfigValue("", ""); got != "" {
+		t.Fatalf("expected empty when both are empty, got %q", got)
+	}
+}
+
+func TestLoggerWithMode(t *testing.T) {
+	logger := NewLogger(ModeNormal).WithMode(ModeQuiet)
+	if logger.mode != ModeQuiet {
+		t.Fatalf("expected WithMode to switch mode")
+	}
+}
+
+func TestLoggerForCommand(t *testing.T) {
+	base := NewLogger(ModeNormal)
+	if loggerForCommand(base, true).mode != ModeQuiet {
+		t.Fatalf("expected printPath=true to use ModeQuiet")
+	}
+	if loggerForCommand(base, false).mode != ModeNormal {
+		t.Fatalf("expected printPath=false to keep base mode")
 	}
 }
 

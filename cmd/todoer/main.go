@@ -29,10 +29,13 @@ type processCmd struct {
 	TemplateDate string `help:"Optional date for template rendering (YYYY-MM-DD)"`
 }
 
-type newCmd struct{}
+type newCmd struct {
+	Backup bool `help:"Preserve a .bak copy of the source journal before applying the carryover update"`
+}
 
 type addCmd struct {
 	TodoWords []string `arg:"" name:"todo-text" help:"Todo text to add to today's journal"`
+	Backup    bool     `help:"Preserve a .bak copy of the source journal when creating today's journal for the first time"`
 }
 
 type previewCmd struct {
@@ -59,7 +62,7 @@ func (cmd *newCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) erro
 	logger := loggerForCommand(baseLogger, cli.PrintPath)
 	logger.Debug("Executing new command")
 	rootDir, templateFile := sharedPaths(cli, config)
-	return cmdNew(rootDir, templateFile, cli.PrintPath, config, logger)
+	return cmdNewWithOptions(rootDir, templateFile, cli.PrintPath, cmd.Backup, config, logger)
 }
 
 func (cmd *addCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
@@ -67,14 +70,14 @@ func (cmd *addCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) erro
 	logger.Debug("Executing add command")
 	rootDir, templateFile := sharedPaths(cli, config)
 	todoText := strings.Join(cmd.TodoWords, " ")
-	return cmdAdd(rootDir, templateFile, todoText, cli.PrintPath, config, logger)
+	return cmdAdd(rootDir, templateFile, todoText, cli.PrintPath, cmd.Backup, config, logger)
 }
 
 func (cmd *processCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
 	logger := loggerForCommand(baseLogger, cli.PrintPath)
 	logger.Debug("Executing process command")
 	_, templateFile := sharedPaths(cli, config)
-	return processJournal(cmd.SourceFile, cmd.TargetFile, templateFile, cmd.TemplateDate, false, cli.PrintPath, config, logger)
+	return processJournal(cmd.SourceFile, cmd.TargetFile, templateFile, cmd.TemplateDate, false, cli.PrintPath, false, config, logger)
 }
 
 func (cmd *previewCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {

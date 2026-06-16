@@ -23,8 +23,21 @@ most recent previous journal.
 Synopsis:
 
 ```bash
-todoer [--root-dir PATH] [--template-file PATH] [--print-path] new
+todoer [--root-dir PATH] [--template-file PATH] [--print-path] new [--backup]
 ```
+
+Options:
+
+- `--backup` - preserve a `.bak` copy of the source journal before
+  applying the carryover update. The default is to update the source
+  in place without a backup; use this flag when you want a one-shot
+  safety net (e.g. before a large manual edit).
+
+If today's journal already exists, `new` still runs the carryover
+pipeline and merges any missing items into the existing target
+(`processJournal` with `merge=true`). Re-running `new` is
+idempotent: items already in today stay, missing items from
+yesterday are appended, and nothing is duplicated.
 
 ### `todoer add`
 
@@ -36,17 +49,25 @@ same transfer behavior as `new`, then appends the todo item.
 Synopsis:
 
 ```bash
-todoer [--root-dir PATH] [--template-file PATH] [--print-path] add TODO_TEXT...
+todoer [--root-dir PATH] [--template-file PATH] [--print-path] add TODO_TEXT... [--backup]
 ```
 
 Options:
 
 - `TODO_TEXT...` - todo text to append (multi-word text can be passed
   without quotes).
+- `--backup` - preserve a `.bak` copy of the source journal when
+  today's journal has to be created for the first time (same
+  semantics as `new --backup`).
 
 ### `todoer process`
 
 Process a journal file into a new target file using a template.
+
+This is the explicit, overwrite-style entry point. The daily flow
+(`new`, `tui`, `add`) uses the same code path but with
+`merge=true`, which splices the carryover into an existing
+target instead of overwriting it.
 
 Synopsis:
 
@@ -70,8 +91,13 @@ same transfer behavior as `new`, then opens the UI.
 Synopsis:
 
 ```bash
-todoer [--root-dir PATH] [--template-file PATH] tui
+todoer [--root-dir PATH] [--template-file PATH] tui [--backup]
 ```
+
+Options:
+
+- `--backup` - preserve a `.bak` copy of the source journal when
+  today's journal has to be created for the first time.
 
 Core keys:
 
@@ -84,6 +110,19 @@ Core keys:
 - `s` - save.
 - `r` - reload from disk.
 - `q` - save (if dirty) and quit.
+
+Carryover behaviour: if today's section is missing or empty, the
+TUI falls back to the most recent non-empty day and shows it in
+read-only mode. Pressing `space`, `x`, or `d` on a carryover
+item is blocked and shows `Cannot edit carryover items`. To
+edit a carryover item, run `todoer new` first to bring it into
+today.
+
+When the user adds a new todo from the carryover view, the
+new todo is appended to today's section but the view stays
+on the carryover day (sticky display day). The new todo is
+visible after `s` to save and `r` to reload, or immediately if
+the user was already on today.
 
 ### `todoer preview`
 
@@ -330,9 +369,19 @@ Package import path:
 "git.luguber.info/inful/todoer/pkg/core"
 ```
 
-Main entry point for template rendering:
+Main entry points for template rendering and journal manipulation:
 
 - `CreateFromTemplate(opts TemplateOptions) (string, error)`
+- `ExtractFrontmatterMetadata(content string) (map[string]string, bool, error)`
+- `UpsertFrontmatterMetadata(content string, updates map[string]string) (string, error)`
+- `ParseTodosSection(content string) (*TodoJournal, error)`
+- `JournalToString(journal *TodoJournal) string`
+- `SplitJournal(journal *TodoJournal) (completed, uncompleted *TodoJournal)`
+- `MergeCarryover(source, target *TodoJournal) *TodoJournal`
+- `FindDaySection(journal *TodoJournal, date string) *DaySection`
+- `FindOrCreateDaySection(journal *TodoJournal, date string) *DaySection`
+- `RemoveItemFromDays(days []*DaySection, target *TodoItem) []*DaySection`
+- `RemoveItemRecursive(items []*TodoItem, target *TodoItem) ([]*TodoItem, bool)`
 
 `TemplateOptions` groups:
 
@@ -342,4 +391,45 @@ Main entry point for template rendering:
 - `PreviousDate` - optional previous journal date.
 - `Journal` - optional journal structure for statistics.
 - `CustomVars` - optional custom variables map.
+
+`MergeCarryover` is the load-bearing piece of the ADR-0001
+sync engine. It takes a source journal and a target journal,
+appends any source items that are not already in the target
+(matched by `(day, text)` after date-tag stripping), and
+returns the merged target. Items are deep-copied so the
+caller's journals are not aliased. Day sections are sorted
+by date. The function is safe to call repeatedly: it is
+idempotent by construction.
+
+## Frontmatter metadata
+
+The carryover metadata lives in the journal's YAML frontmatter
+block. Todoer writes and reads these keys; the `core`
+package provides `ExtractFrontmatterMetadata` and
+`UpsertFrontmatterMetadata` helpers that preserve unrelated
+keys, their order, and the document's line ending style
+(LF or CRLF).
+
+| Key | When | Purpose |
+| --- | --- | --- |
+| `todoer_carryover_to` | Future (ADR-0001 acceptance) | Target date the source carried into. |
+| `todoer_carryover_updated_at` | Future (ADR-0001 acceptance) | Timestamp of the last carryover sync. |
+| `todoer_source_fingerprint` | Only with `TODOER_FINGERPRINT=1` (spike) | SHA-256 of the source content at sync time. Used to detect external changes to the source between syncs. |
+| `todoer_source_fingerprint_algo` | Only with `TODOER_FINGERPRINT=1` (spike) | Algorithm used for the fingerprint (`sha256`). |
+| `todoer_source_fingerprint_at` | Only with `TODOER_FINGERPRINT=1` (spike) | Timestamp of the last fingerprint. |
+
+The fingerprint spike is off by default. With the toggle on,
+`processJournal` logs a `Fingerprint mismatch` message when
+the recorded fingerprint does not match the current source
+content. Per ADR-0001, the fingerprint is a hint, not a
+gating check: a mismatch does not fail the sync, it just
+forces a conservative re-merge (the default behaviour).
+
+## Environment variables
+
+- `TODOER_ROOT_DIR` - override the configured root directory.
+- `TODOER_TEMPLATE_FILE` - override the configured template file.
+- `XDG_CONFIG_HOME` - XDG-style config directory; falls back to
+  `~/.config` when unset.
+- `TODOER_FINGERPRINT` - set to `1` to enable the fingerprint spike.
 

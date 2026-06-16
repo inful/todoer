@@ -385,7 +385,7 @@ title: 2025-06-19
 		if i%3 == 0 {
 			completed = "[x]"
 		}
-		sourceContent.WriteString(fmt.Sprintf("- [[2025-06-19]]\n  - %s Large todo item %d\n", completed, i))
+		fmt.Fprintf(&sourceContent, "- [[2025-06-19]]\n  - %s Large todo item %d\n", completed, i)
 	}
 
 	sourceContent.WriteString("\n## Notes\n\nLarge journal with many todos.\n")

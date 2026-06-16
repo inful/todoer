@@ -94,7 +94,12 @@ Behavior:
 - Locates the most recent journal before today in the same root.
 - Moves incomplete todos to the new file.
 - Leaves completed todos in the previous file, tagged with the completion date.
-- Creates a backup of the previous file before modifying it.
+- If today's journal already exists, the new carryover items are
+  merged into the existing file (no overwrite, no duplication).
+  Re-running `todoer new` is therefore safe and idempotent.
+- By default, the source journal is updated in place without a
+  backup. Pass `--backup` to keep a `.bak` copy of the source
+  journal next to the original (handy before large manual edits).
 - If no previous journal exists, creates the file from the configured or embedded template.
 
 ### Process an existing journal file
@@ -115,7 +120,13 @@ Behavior:
 1. Parses the source file and locates the todos section.
 2. Moves incomplete tasks into the target file using the given template.
 3. Keeps completed tasks in the source file with date tags.
-4. Creates a backup of the source file before modifications.
+4. The `process` command always overwrites the target. For the
+   idempotent "merge into existing" behavior, use `new` (or
+   `tui` / `add`), which share the same code path with
+   `merge=true`.
+5. The source file is updated in place without a backup. (The
+   `process` command is intended for one-shot use; the daily
+   flow has its own backup policy via `--backup`.)
 
 ## Use custom templates
 

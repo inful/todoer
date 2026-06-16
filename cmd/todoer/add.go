@@ -11,7 +11,8 @@ import (
 
 // cmdAdd ensures today's journal exists and appends a new unchecked todo item.
 // If today's journal has not yet been created, it first runs the same transfer flow as `new`.
-func cmdAdd(rootDir, templateFile, todoText string, printPath bool, config *Config, logger *Logger) error {
+// When backup is true, a .bak of the source journal is preserved before the carryover update.
+func cmdAdd(rootDir, templateFile, todoText string, printPath, backup bool, config *Config, logger *Logger) error {
 	trimmedTodo := strings.TrimSpace(todoText)
 	if trimmedTodo == "" {
 		return fmt.Errorf("todo text cannot be empty")
@@ -22,7 +23,7 @@ func cmdAdd(rootDir, templateFile, todoText string, printPath bool, config *Conf
 
 	if _, err := os.Stat(journalPath); os.IsNotExist(err) {
 		logger.Info("Today's journal does not exist yet, creating it first.")
-		if err := cmdNew(rootDir, templateFile, false, config, logger); err != nil {
+		if err := cmdNewWithOptions(rootDir, templateFile, false, backup, config, logger); err != nil {
 			return fmt.Errorf("failed to create today's journal before adding todo: %w", err)
 		}
 	}
@@ -60,7 +61,7 @@ func appendTodoToJournal(journalPath, today, todoText string, config *Config) er
 		journal = &core.TodoJournal{Days: []*core.DaySection{}}
 	}
 
-	todaySection := findOrCreateDaySection(journal, today)
+	todaySection := core.FindOrCreateDaySection(journal, today)
 	todaySection.Items = append(todaySection.Items, &core.TodoItem{
 		Completed:   false,
 		Text:        todoText,
@@ -76,19 +77,4 @@ func appendTodoToJournal(journalPath, today, todoText string, config *Config) er
 	}
 
 	return nil
-}
-
-func findOrCreateDaySection(journal *core.TodoJournal, date string) *core.DaySection {
-	for _, day := range journal.Days {
-		if day != nil && day.Date == date {
-			return day
-		}
-	}
-
-	newDay := &core.DaySection{
-		Date:  date,
-		Items: []*core.TodoItem{},
-	}
-	journal.Days = append(journal.Days, newDay)
-	return newDay
 }

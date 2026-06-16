@@ -2,6 +2,8 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -379,6 +381,65 @@ func TestTagCompletedSubitems(t *testing.T) {
 	})
 }
 
+func TestMoveUndatedTodosToCurrentDate(t *testing.T) {
+	t.Run("moves both completed and uncompleted undated todos", func(t *testing.T) {
+		undatedCompleted := createTestTodoItem("Done task", true)
+		undatedUncompleted := createTestTodoItem("Carry task", false)
+
+		journal := createTestJournal(
+			createTestDaySection("", undatedCompleted, undatedUncompleted),
+		)
+
+		result := MoveUndatedTodosToCurrentDate(journal, "2026-03-16")
+
+		if len(result.Days) != 1 {
+			t.Fatalf("expected one day section, got %d", len(result.Days))
+		}
+
+		day := result.Days[0]
+		if day.Date != "2026-03-16" {
+			t.Fatalf("expected day date 2026-03-16, got %s", day.Date)
+		}
+
+		if len(day.Items) != 2 {
+			t.Fatalf("expected two items in moved day, got %d", len(day.Items))
+		}
+
+		if !day.Items[0].Completed || day.Items[0].Text != "Done task" {
+			t.Fatalf("expected completed undated todo to be preserved, got %+v", day.Items[0])
+		}
+
+		if day.Items[1].Completed || day.Items[1].Text != "Carry task" {
+			t.Fatalf("expected uncompleted undated todo to be preserved, got %+v", day.Items[1])
+		}
+	})
+
+	t.Run("appends undated todos to existing current-date section", func(t *testing.T) {
+		existing := createTestTodoItem("Existing dated task", false)
+		undatedCompleted := createTestTodoItem("Done task", true)
+
+		journal := createTestJournal(
+			createTestDaySection("2026-03-16", existing),
+			createTestDaySection("", undatedCompleted),
+		)
+
+		result := MoveUndatedTodosToCurrentDate(journal, "2026-03-16")
+
+		if len(result.Days) != 1 {
+			t.Fatalf("expected one merged day section, got %d", len(result.Days))
+		}
+
+		items := result.Days[0].Items
+		if len(items) != 2 {
+			t.Fatalf("expected two merged items, got %d", len(items))
+		}
+
+		if items[0].Text != "Existing dated task" || items[1].Text != "Done task" {
+			t.Fatalf("unexpected merged item order/content: %q, %q", items[0].Text, items[1].Text)
+		}
+	})
+}
+
 func TestJournalToString(t *testing.T) {
 	t.Run("nil journal should return empty string", func(t *testing.T) {
 		result := JournalToString(nil)
@@ -678,4 +739,266 @@ func TestJournalConstants(t *testing.T) {
 			t.Errorf("Expected IndentSpaces to be 2, got %d", IndentSpaces)
 		}
 	})
+}
+
+func TestFindDaySection(t *testing.T) {
+	if got := FindDaySection(nil, "2026-03-16"); got != nil {
+		t.Fatalf("expected nil journal to return nil, got %+v", got)
+	}
+
+	day := &DaySection{Date: "2026-03-16", Items: []*TodoItem{{Text: "x"}}}
+	journal := &TodoJournal{Days: []*DaySection{day}}
+
+	if got := FindDaySection(journal, "2099-01-01"); got != nil {
+		t.Fatalf("expected no-match to return nil, got %+v", got)
+	}
+	if got := FindDaySection(journal, "2026-03-16"); got != day {
+		t.Fatalf("expected match to return the day section, got %+v", got)
+	}
+	// Nil day in the slice is tolerated.
+	journal2 := &TodoJournal{Days: []*DaySection{nil, day}}
+	if got := FindDaySection(journal2, "2026-03-16"); got != day {
+		t.Fatalf("expected match to skip nil entries, got %+v", got)
+	}
+}
+
+func TestFindOrCreateDaySection(t *testing.T) {
+	existing := &DaySection{Date: "2026-03-16", Items: []*TodoItem{{Text: "x"}}}
+	journal := &TodoJournal{Days: []*DaySection{existing}}
+
+	got := FindOrCreateDaySection(journal, "2026-03-16")
+	if got != existing {
+		t.Fatalf("expected to return the existing day section, got %+v", got)
+	}
+
+	got2 := FindOrCreateDaySection(journal, "2026-03-17")
+	if got2 == nil || got2.Date != "2026-03-17" {
+		t.Fatalf("expected a new day section for 2026-03-17, got %+v", got2)
+	}
+	if len(journal.Days) != 2 {
+		t.Fatalf("expected journal to now have 2 day sections, got %d", len(journal.Days))
+	}
+}
+
+func TestRemoveItemFromDays(t *testing.T) {
+	target := &TodoItem{Text: "target"}
+	other := &TodoItem{Text: "other"}
+	sub := &TodoItem{Text: "subtarget"}
+	day := &DaySection{
+		Date: "2026-03-16",
+		Items: []*TodoItem{
+			other,
+			{Text: "parent", SubItems: []*TodoItem{sub, {Text: "subother"}}},
+		},
+	}
+	days := []*DaySection{day}
+
+	// Remove a nested item.
+	updated := RemoveItemFromDays(days, sub)
+	if len(updated) != 1 {
+		t.Fatalf("expected one day, got %d", len(updated))
+	}
+	if len(updated[0].Items) != 2 {
+		t.Fatalf("expected parent + other to remain, got %d", len(updated[0].Items))
+	}
+	if len(updated[0].Items[1].SubItems) != 1 {
+		t.Fatalf("expected one subitem left, got %d", len(updated[0].Items[1].SubItems))
+	}
+
+	// Remove a top-level item.
+	updated2 := RemoveItemFromDays(updated, other)
+	if len(updated2[0].Items) != 1 {
+		t.Fatalf("expected one item left, got %d", len(updated2[0].Items))
+	}
+
+	// Remove a missing target is a no-op.
+	updated3 := RemoveItemFromDays(updated2, target)
+	if len(updated3[0].Items) != 1 {
+		t.Fatalf("expected unchanged items, got %d", len(updated3[0].Items))
+	}
+
+	// Nil days and nil items in the slice are tolerated.
+	updated4 := RemoveItemFromDays([]*DaySection{nil, day}, target)
+	if len(updated4) != 2 {
+		t.Fatalf("expected nil-day pass-through, got %d", len(updated4))
+	}
+}
+
+func TestRemoveItemRecursive_NilSafety(t *testing.T) {
+	items, removed := RemoveItemRecursive(nil, &TodoItem{Text: "x"})
+	if removed {
+		t.Fatalf("expected no removal on nil items")
+	}
+	if items != nil {
+		t.Fatalf("expected nil items to be returned as-is")
+	}
+
+	items, removed = RemoveItemRecursive([]*TodoItem{nil}, &TodoItem{Text: "x"})
+	if removed {
+		t.Fatalf("expected no removal when only nil items are present")
+	}
+	_ = items
+}
+
+// TestJournalParseSerializeRoundTrip asserts that parsing a todos section and
+// then serializing it produces a journal that, when parsed again, yields the
+// same structure. Catches drift between the parser and the writer.
+func TestJournalParseSerializeRoundTrip(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "simple",
+			body: "- [[2025-05-12]]\n  - [ ] An unfinished todo\n  - [x] A completed todo\n- [[2025-05-11]]\n  - [ ] Unfinished\n    - [ ] Unfinished subtask\n  - [ ] Unfinished 2\n    - [x] Completed subtask\n    - [ ] Uncompleted subtask\n",
+		},
+		{
+			name: "single_completed",
+			body: "- [[2025-05-12]]\n  - [x] Done\n",
+		},
+		{
+			name: "single_undated",
+			body: "- [ ] No date here\n- [x] Done without date\n",
+		},
+		{
+			name: "bullet_entries",
+			body: "- [[2025-05-12]]\n  - [x] Task with bullets\n    * detail one\n    * detail two\n",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			first, err := ParseTodosSection(tc.body)
+			if err != nil {
+				t.Fatalf("first parse: %v", err)
+			}
+			serialized := JournalToString(first)
+			second, err := ParseTodosSection(serialized)
+			if err != nil {
+				t.Fatalf("second parse: %v\nserialized:\n%s", err, serialized)
+			}
+
+			if !journalEqual(first, second) {
+				t.Fatalf("round-trip mismatch\nfirst:\n%+v\nsecond:\n%+v\nserialized:\n%s", first, second, serialized)
+			}
+		})
+	}
+}
+
+func journalEqual(a, b *TodoJournal) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
+	if a == nil {
+		return true
+	}
+	if len(a.Days) != len(b.Days) {
+		return false
+	}
+	for i := range a.Days {
+		if !dayEqual(a.Days[i], b.Days[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func dayEqual(a, b *DaySection) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
+	if a == nil {
+		return true
+	}
+	if a.Date != b.Date {
+		return false
+	}
+	if len(a.Items) != len(b.Items) {
+		return false
+	}
+	for i := range a.Items {
+		if !itemEqual(a.Items[i], b.Items[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func itemEqual(a, b *TodoItem) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
+	if a == nil {
+		return true
+	}
+	if a.Completed != b.Completed || a.Text != b.Text {
+		return false
+	}
+	if len(a.BulletLines) != len(b.BulletLines) {
+		return false
+	}
+	for i := range a.BulletLines {
+		if a.BulletLines[i] != b.BulletLines[i] {
+			return false
+		}
+	}
+	if len(a.SubItems) != len(b.SubItems) {
+		return false
+	}
+	for i := range a.SubItems {
+		if !itemEqual(a.SubItems[i], b.SubItems[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// TestJournalRoundTripFromTestdata walks the integration testdata fixtures
+// and asserts that the same structure survives a parse -> serialize -> parse
+// round trip. This catches drift between the parser and the writer that
+// would silently mangle user data on save.
+func TestJournalRoundTripFromTestdata(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "tests", "testdata"))
+	if err != nil {
+		t.Skipf("cannot resolve testdata root: %v", err)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Skipf("cannot read testdata root: %v", err)
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		inputPath := filepath.Join(root, e.Name(), "input.md")
+		body, err := os.ReadFile(inputPath)
+		if err != nil {
+			t.Logf("skip %s: %v", e.Name(), err)
+			continue
+		}
+		_, todosSection, _, err := ExtractTodosSectionWithHeader(string(body), TodosHeader)
+		if err != nil {
+			t.Logf("skip %s: extract failed: %v", e.Name(), err)
+			continue
+		}
+		if strings.TrimSpace(todosSection) == "" {
+			continue
+		}
+
+		t.Run(e.Name(), func(t *testing.T) {
+			first, err := ParseTodosSection(todosSection)
+			if err != nil {
+				t.Fatalf("first parse: %v", err)
+			}
+			serialized := JournalToString(first)
+			second, err := ParseTodosSection(serialized)
+			if err != nil {
+				t.Fatalf("second parse failed for %s\nserialized:\n%s", e.Name(), serialized)
+			}
+			if !journalEqual(first, second) {
+				t.Fatalf("round-trip mismatch for %s\nfirst:\n%+v\nsecond:\n%+v\nserialized:\n%s", e.Name(), first, second, serialized)
+			}
+		})
+	}
 }
