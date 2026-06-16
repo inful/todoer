@@ -1203,15 +1203,30 @@ func TestProcessJournal_MergeIsIdempotent(t *testing.T) {
 func TestFingerprintEnabled_Default(t *testing.T) {
 	// TODOER_FINGERPRINT is unset by default in tests; the helper
 	// should report false.
+	if err := os.Unsetenv(fingerprintEnabledEnv); err != nil {
+		t.Fatalf("unsetenv: %v", err)
+	}
 	if fingerprintEnabled() {
 		t.Fatalf("expected fingerprintEnabled to be false by default")
 	}
 }
 
-func TestFingerprintEnabled_Toggle(t *testing.T) {
-	t.Setenv(fingerprintEnabledEnv, "1")
-	if !fingerprintEnabled() {
-		t.Fatalf("expected fingerprintEnabled to be true when TODOER_FINGERPRINT=1")
+func TestFingerprintEnabled_TruthyValues(t *testing.T) {
+	// strconv.ParseBool accepts: 1, t, T, TRUE, true, True,
+	// 0, f, F, FALSE, false, False. We expect the spike to
+	// turn on for any of the truthy spellings and to stay
+	// off for the falsy ones and for garbage.
+	for _, value := range []string{"1", "t", "T", "true", "TRUE", "True"} {
+		t.Setenv(fingerprintEnabledEnv, value)
+		if !fingerprintEnabled() {
+			t.Fatalf("expected fingerprintEnabled to be true for %q", value)
+		}
+	}
+	for _, value := range []string{"0", "f", "F", "false", "FALSE", "no", "", "yes-please"} {
+		t.Setenv(fingerprintEnabledEnv, value)
+		if fingerprintEnabled() {
+			t.Fatalf("expected fingerprintEnabled to be false for %q", value)
+		}
 	}
 }
 

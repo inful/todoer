@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,8 +31,14 @@ const (
 	fingerprintKeyAlgo    = "todoer_source_fingerprint_algo"
 )
 
+// fingerprintEnabled reports whether the ADR-0001 fingerprint spike
+// is turned on. The toggle is TODOER_FINGERPRINT and accepts the
+// usual truthy spellings: "1", "t", "T", "true", "TRUE", "0", "f",
+// "F", "false", "FALSE". Anything else (including unset) is treated
+// as off.
 func fingerprintEnabled() bool {
-	return os.Getenv(fingerprintEnabledEnv) == "1"
+	v, err := strconv.ParseBool(os.Getenv(fingerprintEnabledEnv))
+	return err == nil && v
 }
 
 func computeFingerprint(content []byte) string {
