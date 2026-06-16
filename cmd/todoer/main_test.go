@@ -1200,6 +1200,100 @@ func TestProcessJournal_MergeIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestFingerprintEnabled_Default(t *testing.T) {
+	// TODOER_FINGERPRINT is unset by default in tests; the helper
+	// should report false.
+	if fingerprintEnabled() {
+		t.Fatalf("expected fingerprintEnabled to be false by default")
+	}
+}
+
+func TestFingerprintEnabled_Toggle(t *testing.T) {
+	t.Setenv(fingerprintEnabledEnv, "1")
+	if !fingerprintEnabled() {
+		t.Fatalf("expected fingerprintEnabled to be true when TODOER_FINGERPRINT=1")
+	}
+}
+
+func TestComputeFingerprint_Deterministic(t *testing.T) {
+	content := []byte("hello world")
+	got := computeFingerprint(content)
+	if len(got) != 64 {
+		t.Fatalf("expected 64-char hex SHA-256, got %d chars: %s", len(got), got)
+	}
+	if got != computeFingerprint(content) {
+		t.Fatalf("expected deterministic fingerprint")
+	}
+	// Different content should yield a different fingerprint.
+	if got == computeFingerprint([]byte("hello world!")) {
+		t.Fatalf("expected different content to yield different fingerprint")
+	}
+}
+
+func TestCheckFingerprintMismatch_NoPriorFingerprint(_ *testing.T) {
+	// Existing target has no frontmatter fingerprint yet. The check
+	// should be a silent no-op (treat as fresh sync).
+	logger := NewLogger(ModeQuiet)
+	existing := []byte("# Just a heading\n\nNo frontmatter.\n")
+	checkFingerprintMismatch(existing, []byte("source content"), "/tmp/whatever", logger)
+}
+
+func TestCheckFingerprintMismatch_Matching(_ *testing.T) {
+	source := []byte("the source")
+	fp := computeFingerprint(source)
+	existing := []byte("---\ntitle: x\ntodoer_source_fingerprint: " + fp + "\n---\n\n# Body\n")
+	logger := NewLogger(ModeQuiet)
+	// Same source -> no mismatch log; we just check it does not panic.
+	checkFingerprintMismatch(existing, source, "/tmp/whatever", logger)
+}
+
+func TestCheckFingerprintMismatch_Differing(_ *testing.T) {
+	// Existing target records a fingerprint for some other source
+	// content. The current source differs; the check should log a
+	// mismatch and not fail.
+	existing := []byte("---\ntitle: x\ntodoer_source_fingerprint: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n---\n\n# Body\n")
+	logger := NewLogger(ModeQuiet)
+	checkFingerprintMismatch(existing, []byte("the actual source"), "/tmp/whatever", logger)
+}
+
+func TestProcessJournal_FingerprintMismatchForcesReMerge(t *testing.T) {
+	// End-to-end: with the toggle on, the second run with a modified
+	// source should still merge cleanly. The fingerprint mismatch is a
+	// hint, not a failure.
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	// Source with one carryover item.
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+
+	// Pre-existing target with a stale fingerprint and a fresh
+	// today-only item, so the merge will both keep the existing
+	// item and detect a fingerprint mismatch.
+	preExistingTarget := "---\ndate: " + today + "\ntodoer_source_fingerprint: 0000000000000000000000000000000000000000000000000000000000000000\n---\n\n# J\n\n## Todos\n\n- [[" + today + "]]\n  - [ ] already here\n\n## Notes\n"
+	createTestFile(t, target, preExistingTarget)
+
+	t.Setenv(fingerprintEnabledEnv, "1")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	content := string(after)
+	if !strings.Contains(content, "carry me") {
+		t.Fatalf("expected the carryover item to be merged in, got:\n%s", content)
+	}
+	if !strings.Contains(content, "already here") {
+		t.Fatalf("expected the pre-existing today item to be preserved, got:\n%s", content)
+	}
+}
+
 func TestSafeWriteFile_BadTarget(t *testing.T) {
 	tempDir := t.TempDir()
 

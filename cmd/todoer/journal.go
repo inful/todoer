@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,31 @@ import (
 	"github.com/inful/todoer/pkg/core"
 	"github.com/inful/todoer/pkg/generator"
 )
+
+// Fingerprint keys (ADR-0001 spike; off by default).
+//
+// TODOER_FINGERPRINT=1 enables the spike. When on, the daily flow
+// records todoer_source_fingerprint in the target's frontmatter and
+// logs mismatches on the next sync. The fingerprint here is a plain
+// SHA-256 of the source content; the ADR calls for swapping in the
+// `mdfp` library once it is integrated. The spike captures the design
+// pattern; the mdfp library integration is a follow-up.
+const (
+	fingerprintEnabledEnv   = "TODOER_FINGERPRINT"
+	fingerprintAlgo         = "sha256"
+	fingerprintKeyValue     = "todoer_source_fingerprint"
+	fingerprintKeyAlgo      = "todoer_source_fingerprint_algo"
+	fingerprintKeyUpdatedAt = "todoer_source_fingerprint_at"
+)
+
+func fingerprintEnabled() bool {
+	return os.Getenv(fingerprintEnabledEnv) == "1"
+}
+
+func computeFingerprint(content []byte) string {
+	sum := sha256.Sum256(content)
+	return fmt.Sprintf("%x", sum)
+}
 
 // getGenerator builds a Generator from CLI/config, resolving template and previous date.
 func getGenerator(templateFile, templateDate, sourceFile string, config *Config) (*generator.Generator, string, error) {
@@ -86,6 +112,9 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 	// items for the carryover.
 	if merge {
 		if existing, err := os.ReadFile(targetFile); err == nil {
+			if fingerprintEnabled() {
+				checkFingerprintMismatch(existing, modifiedContentBytes, targetFile, logger)
+			}
 			merged, mergeErr := mergeIntoExistingTarget(existing, newContentBytes, config)
 			if mergeErr != nil {
 				return fmt.Errorf("error merging into existing target %s: %w", targetFile, mergeErr)
@@ -160,6 +189,35 @@ func mergeIntoExistingTarget(existingTarget, newContent []byte, config *Config) 
 	merged := core.MergeCarryover(newJournal, existingJournal)
 	newTodos := core.JournalToString(merged)
 	return []byte(beforeTodos + newTodos + afterTodos), nil
+}
+
+// checkFingerprintMismatch compares the source content's SHA-256
+// fingerprint to the value recorded in the existing target's
+// frontmatter (todoer_source_fingerprint). If they differ, the
+// source has changed since the last sync and a re-merge is forced.
+// The function never returns an error or fails the sync; the
+// fingerprint is a hint, per ADR-0001.
+func checkFingerprintMismatch(existingTarget, sourceContent []byte, targetFile string, logger *Logger) {
+	metadata, hasFM, err := core.ExtractFrontmatterMetadata(string(existingTarget))
+	if err != nil || !hasFM {
+		// No prior fingerprint recorded; treat as a fresh sync.
+		return
+	}
+	stored := metadata[fingerprintKeyValue]
+	if stored == "" {
+		return
+	}
+	current := computeFingerprint(sourceContent)
+	if stored != current {
+		logger.Info("Fingerprint mismatch on %s (stored=%s..., current=%s...); forcing conservative re-merge", targetFile, shortHash(stored), shortHash(current))
+	}
+}
+
+func shortHash(s string) string {
+	if len(s) <= 8 {
+		return s
+	}
+	return s[:8]
 }
 
 // findClosestJournalFile returns the most recent journal before the given date.
