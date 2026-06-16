@@ -103,7 +103,7 @@ func (cmd *tuiCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) erro
 	rootDir, templateFile := sharedPaths(cli, config)
 	logger := baseLogger.WithMode(ModeQuiet)
 
-	if err := cmdNew(rootDir, templateFile, false, config, logger); err != nil {
+	if err := cmdNewWithOptions(rootDir, templateFile, false, false, config, logger); err != nil {
 		return fmt.Errorf("failed to prepare today's journal for tui: %w", err)
 	}
 
@@ -234,6 +234,10 @@ func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.status = "No todo selected"
 			return m, nil
 		}
+		if m.isReadOnlyView() {
+			m.status = "Cannot edit carryover items"
+			return m, nil
+		}
 		entry := filtered[m.selected]
 		entry.item.Completed = !entry.item.Completed
 		m.dirty = true
@@ -241,6 +245,10 @@ func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		if len(filtered) == 0 {
 			m.status = "No todo selected"
+			return m, nil
+		}
+		if m.isReadOnlyView() {
+			m.status = "Cannot edit carryover items"
 			return m, nil
 		}
 		target := filtered[m.selected].item
@@ -377,14 +385,38 @@ func (m tuiModel) View() string {
 
 func (m *tuiModel) refreshItems() {
 	m.items = make([]tuiItem, 0)
-	if m.todayDay == nil {
+	displayDay := m.displayDaySection()
+	if displayDay == nil {
 		return
 	}
-	flattenTodoItems(m.todayDay.Items, 0, &m.items)
+	flattenTodoItems(displayDay.Items, 0, &m.items)
 	filtered := m.filteredItems()
 	if m.selected >= len(filtered) {
 		m.selected = max(0, len(filtered)-1)
 	}
+}
+
+func (m *tuiModel) displayDaySection() *core.DaySection {
+	if m.todayDay != nil {
+		return m.todayDay
+	}
+
+	for i := len(m.journal.Days) - 1; i >= 0; i-- {
+		day := m.journal.Days[i]
+		if day != nil && len(day.Items) > 0 {
+			return day
+		}
+	}
+
+	return nil
+}
+
+// isReadOnlyView reports whether the currently displayed day is not today's
+// section. When the model falls back to showing a carryover day, edits to those
+// items would silently mutate a different journal; the carryover view is
+// read-only and the user is asked to run `new` to bring items into today.
+func (m *tuiModel) isReadOnlyView() bool {
+	return m.displayDaySection() != m.todayDay
 }
 
 func (m tuiModel) filteredItems() []tuiItem {
