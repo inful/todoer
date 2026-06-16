@@ -148,7 +148,7 @@ func prependFrontmatterBlock(content string, updates map[string]string) string {
 	var builder strings.Builder
 	builder.WriteString("---\n")
 	for _, key := range keys {
-		builder.WriteString(fmt.Sprintf("%s: %s\n", key, updates[key]))
+		fmt.Fprintf(&builder, "%s: %s\n", key, updates[key])
 	}
 	builder.WriteString("---")
 	if content != "" {

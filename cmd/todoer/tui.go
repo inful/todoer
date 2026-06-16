@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -403,8 +404,7 @@ func (m *tuiModel) displayDaySection() *core.DaySection {
 		return m.todayDay
 	}
 
-	for i := len(m.journal.Days) - 1; i >= 0; i-- {
-		day := m.journal.Days[i]
+	for _, day := range slices.Backward(m.journal.Days) {
 		if day != nil && len(day.Items) > 0 {
 			return day
 		}
