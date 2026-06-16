@@ -158,6 +158,12 @@ func (m tuiModel) updateFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.filterMode = false
+		// Cancel discards the in-progress query so the user is
+		// not surprised by a filter they thought they had
+		// abandoned. To keep a filter, the user presses Enter
+		// instead.
+		m.filterQuery = ""
+		m.selected = 0
 		m.status = "Filter cancelled"
 	case "enter":
 		m.filterMode = false

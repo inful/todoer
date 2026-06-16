@@ -639,6 +639,11 @@ func TestTUIUpdateFilterMode_EscBackspaceRunes(t *testing.T) {
 	if m4.filterMode {
 		t.Fatalf("expected filter mode to clear on esc")
 	}
+	// Esc cancels the in-progress query. To keep a filter the user
+	// presses Enter.
+	if m4.filterQuery != "" {
+		t.Fatalf("expected filterQuery to be cleared on esc, got %q", m4.filterQuery)
+	}
 	if !strings.Contains(m4.status, "cancelled") {
 		t.Fatalf("expected cancel status, got %q", m4.status)
 	}
