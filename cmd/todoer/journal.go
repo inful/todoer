@@ -24,11 +24,19 @@ import (
 // SHA-256 of the source content; the ADR calls for swapping in the
 // `mdfp` library once it is integrated. The spike captures the design
 // pattern; the mdfp library integration is a follow-up.
+//
+// TODOER_FINGERPRINT_WRITE=0 suppresses the write side of the spike
+// (the frontmatter upsert) while keeping the read side (the mismatch
+// check) active. This lets users detect external source changes
+// without polluting their frontmatter. The default is "write enabled"
+// to preserve the original behavior; the toggle is checked only when
+// TODOER_FINGERPRINT is also on.
 const (
-	fingerprintEnabledEnv = "TODOER_FINGERPRINT"
-	fingerprintAlgo       = "sha256"
-	fingerprintKeyValue   = "todoer_source_fingerprint"
-	fingerprintKeyAlgo    = "todoer_source_fingerprint_algo"
+	fingerprintEnabledEnv   = "TODOER_FINGERPRINT"
+	fingerprintWriteEnv     = "TODOER_FINGERPRINT_WRITE"
+	fingerprintAlgo         = "sha256"
+	fingerprintKeyValue     = "todoer_source_fingerprint"
+	fingerprintKeyAlgo      = "todoer_source_fingerprint_algo"
 )
 
 // fingerprintEnabled reports whether the ADR-0001 fingerprint spike
@@ -41,24 +49,35 @@ func fingerprintEnabled() bool {
 	return err == nil && v
 }
 
+// fingerprintWriteEnabled reports whether the daily flow should
+// upsert the source's fingerprint into the target's frontmatter.
+// It is gated on TODOER_FINGERPRINT_WRITE. The default (unset or
+// unparseable) is "write enabled" to preserve the original behavior.
+// The spike itself (fingerprintEnabled) is a prerequisite.
+func fingerprintWriteEnabled() bool {
+	v := os.Getenv(fingerprintWriteEnv)
+	if v == "" {
+		return true
+	}
+	parsed, err := strconv.ParseBool(v)
+	if err != nil {
+		return true
+	}
+	return parsed
+}
+
 func computeFingerprint(content []byte) string {
 	sum := sha256.Sum256(content)
 	return fmt.Sprintf("%x", sum)
 }
 
-// getGenerator builds a Generator from CLI/config, resolving template and previous date.
-func getGenerator(templateFile, templateDate, sourceFile string, config *Config) (*generator.Generator, string, error) {
+// getGenerator builds a Generator from CLI/config, resolving template and
+// previous date. The previous date is supplied by the caller (typically
+// extracted from the source file's frontmatter) so that processJournal can
+// read the source file exactly once.
+func getGenerator(templateFile, templateDate, previousDate string, config *Config) (*generator.Generator, string, error) {
 	if templateDate == "" {
 		templateDate = time.Now().Format(core.DateFormat)
-	}
-
-	previousDate := ""
-	if sourceFile != "" {
-		if content, readErr := os.ReadFile(sourceFile); readErr == nil {
-			if extractedDate, extractErr := core.ExtractDateFromFrontmatter(string(content), config.FrontmatterDateKey); extractErr == nil {
-				previousDate = extractedDate
-			}
-		}
 	}
 
 	tmplContent, tmplName, err := resolveTemplate(templateFile)
@@ -80,25 +99,47 @@ func getGenerator(templateFile, templateDate, sourceFile string, config *Config)
 }
 
 // processJournal processes a journal file, writing the target and optionally
-// updating the source with a backup. When merge is true and the target
-// file already exists, the source's uncompleted items are merged into the
-// target's existing todos via core.MergeCarryover instead of overwriting
-// the target. When merge is false, the target is overwritten in full.
-func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup, printPath, merge bool, config *Config, logger *Logger) error {
+// updating the source with a backup. When mergeIfExists is true and the
+// target file already exists, the source's uncompleted items are merged
+// into the target's existing todos via core.MergeCarryover instead of
+// overwriting the target. When mergeIfExists is false, the target is
+// overwritten in full (or created if missing).
+//
+// The source file is read exactly once. The previous date for template
+// rendering is extracted from that single read, and the same bytes are
+// handed to the generator. Writes are ordered source-first, then
+// target, so a failed source write leaves the target untouched.
+func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup, printPath, mergeIfExists bool, config *Config, logger *Logger) error {
 	logger.Debug("Processing journal: source=%s, target=%s, template=%s, date=%s", sourceFile, targetFile, templateFile, templateDate)
 
 	if err := validateProcessArgs(sourceFile, targetFile, templateDate); err != nil {
 		return err
 	}
 
-	gen, templateSource, err := getGenerator(templateFile, templateDate, sourceFile, config)
+	// Read the source once. All subsequent operations work from this
+	// snapshot to avoid a TOCTOU window between the date extraction
+	// and the content processing.
+	sourceContent, err := os.ReadFile(sourceFile)
+	if err != nil {
+		return fmt.Errorf("error reading source file %s: %w", sourceFile, err)
+	}
+
+	// Extract the previous date from the same read. Errors here are
+	// non-fatal: an empty PreviousDate just leaves the .PreviousDate*
+	// template variables empty.
+	var previousDate string
+	if extracted, extractErr := core.ExtractDateFromFrontmatter(string(sourceContent), config.FrontmatterDateKey); extractErr == nil {
+		previousDate = extracted
+	}
+
+	gen, templateSource, err := getGenerator(templateFile, templateDate, previousDate, config)
 	if err != nil {
 		return err
 	}
 
 	logger.Debug("Using template source: %s", templateSource)
 
-	result, err := gen.ProcessFile(sourceFile)
+	result, err := gen.Process(string(sourceContent))
 	if err != nil {
 		return fmt.Errorf("error processing file %s: %w", sourceFile, err)
 	}
@@ -118,7 +159,7 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 	// instead of overwriting. The merge preserves the target's body
 	// (frontmatter, sections after Todos) and uses the source's
 	// items for the carryover.
-	if merge {
+	if mergeIfExists {
 		if existing, err := os.ReadFile(targetFile); err == nil {
 			if fingerprintEnabled() {
 				checkFingerprintMismatch(existing, modifiedContentBytes, targetFile, logger)
@@ -137,18 +178,15 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 	// detect external changes to the source. The fingerprint is the
 	// SHA-256 of the post-processed source content (the same bytes
 	// checkFingerprintMismatch compares against), so a re-run on an
-	// unchanged source will match.
-	if merge && fingerprintEnabled() {
+	// unchanged source will match. The write side can be suppressed
+	// with TODOER_FINGERPRINT_WRITE=0 to keep the read-only mismatch
+	// detection without polluting the frontmatter.
+	if mergeIfExists && fingerprintEnabled() && fingerprintWriteEnabled() {
 		annotated, err := annotateTargetWithFingerprint(newContentBytes, modifiedContentBytes)
 		if err != nil {
 			return fmt.Errorf("error recording source fingerprint: %w", err)
 		}
 		newContentBytes = annotated
-	}
-
-	logger.Debug("Writing %d bytes to target file: %s", len(newContentBytes), targetFile)
-	if err := safeWriteFile(targetFile, newContentBytes, FilePermissions); err != nil {
-		return fmt.Errorf("error writing to target file %s: %w", targetFile, err)
 	}
 
 	logger.Info("Successfully processed %s -> %s (template: %s)", sourceFile, targetFile, templateSource)
@@ -157,17 +195,17 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 		fmt.Println(targetFile)
 	}
 
+	// Write the source first, then the target. This ordering means a
+	// failed source write leaves the target untouched, which is a
+	// strictly better failure mode than the previous target-first
+	// order (where a failed source write would leave the target
+	// updated but the source inconsistent).
 	if len(modifiedContentBytes) > 0 {
 		if !skipBackup {
 			backupFile := sourceFile + ".bak"
-			originalContentBytes, err := os.ReadFile(sourceFile)
-			if err != nil {
-				return fmt.Errorf("error reading original file for backup: %w", err)
-			}
-			if err := safeWriteFile(backupFile, originalContentBytes, FilePermissions); err != nil {
+			if err := safeWriteFile(backupFile, sourceContent, FilePermissions); err != nil {
 				return fmt.Errorf("error creating backup file %s: %w", backupFile, err)
 			}
-
 			logger.Info("Backup of original file created: %s", backupFile)
 		}
 
@@ -180,6 +218,11 @@ func processJournal(sourceFile, targetFile, templateFile, templateDate string, s
 		}
 	} else {
 		logger.Info("No modifications found in the original file.")
+	}
+
+	logger.Debug("Writing %d bytes to target file: %s", len(newContentBytes), targetFile)
+	if err := safeWriteFile(targetFile, newContentBytes, FilePermissions); err != nil {
+		return fmt.Errorf("error writing to target file %s: %w", targetFile, err)
 	}
 
 	return nil
@@ -309,15 +352,15 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 	return closestFile, nil
 }
 
-// cmdNew creates today's journal using the closest previous journal or a blank template.
-// It does not preserve a .bak of the source journal by default; callers that want a
-// backup should call cmdNewWithOptions with preserveSourceBackup=true or invoke
-// the `new --backup` flag.
-func cmdNew(rootDir, templateFile string, printPath bool, config *Config, logger *Logger) error {
-	return cmdNewWithOptions(rootDir, templateFile, printPath, false, config, logger)
-}
-
-// cmdNewWithOptions creates today's journal and optionally preserves a backup of the source journal.
+// cmdNewWithOptions creates today's journal and optionally preserves a backup
+// of the source journal.
+//
+// Early-return contract: if today's journal already exists, the function
+// returns nil without re-running the carryover merge. This is intentional —
+// the TUI's read-only carryover view (when today's section is empty or
+// missing) depends on it. Callers that want to re-merge on every
+// invocation should delete the existing file first or use the `process`
+// subcommand with merge semantics.
 func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBackup bool, config *Config, logger *Logger) error {
 	today := time.Now().Format(core.DateFormat)
 	journalPath := buildJournalPath(rootDir, today)
@@ -363,7 +406,7 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 
 	logger.Info("Using '%s' as source to create new journal for today.", closest)
 
-	// merge=true: the daily flow must be idempotent and merge-into-existing
+	// mergeIfExists=true: the daily flow must be idempotent and merge-into-existing
 	// per ADR-0001. If today's journal already exists (e.g. created by
 	// hand or by an earlier run), the source's uncompleted items are
 	// merged in instead of overwriting the target.

@@ -714,15 +714,15 @@ Previous notes.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := NewLogger(ModeQuiet)
-			err := cmdNew(tt.rootDir, "", false, config, logger)
+			err := cmdNewWithOptions(tt.rootDir, "", false, false, config, logger)
 
 			if tt.expectError {
 				if err == nil {
-					t.Errorf("cmdNew() expected error, got none")
+					t.Errorf("cmdNewWithOptions() expected error, got none")
 				}
 			} else {
 				if err != nil {
-					t.Errorf("cmdNew() unexpected error: %v", err)
+					t.Errorf("cmdNewWithOptions() unexpected error: %v", err)
 				}
 			}
 		})
@@ -743,9 +743,9 @@ func TestCmdNew_AlreadyExists(t *testing.T) {
 
 	// Should not error if file already exists
 	logger := NewLogger(ModeQuiet)
-	err := cmdNew(tempDir, "", false, config, logger)
+	err := cmdNewWithOptions(tempDir, "", false, false, config, logger)
 	if err != nil {
-		t.Errorf("cmdNew() unexpected error when file exists: %v", err)
+		t.Errorf("cmdNewWithOptions() unexpected error when file exists: %v", err)
 	}
 }
 
@@ -864,8 +864,8 @@ date: `+yesterday+`
 `)
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdNew(tempDir, "", false, config, logger); err != nil {
-		t.Fatalf("cmdNew() unexpected error: %v", err)
+	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+		t.Fatalf("cmdNewWithOptions() unexpected error: %v", err)
 	}
 
 	if _, err := os.Stat(source + ".bak"); !os.IsNotExist(err) {
@@ -1230,6 +1230,43 @@ func TestFingerprintEnabled_TruthyValues(t *testing.T) {
 	}
 }
 
+func TestFingerprintWriteEnabled_Default(t *testing.T) {
+	// TODOER_FINGERPRINT_WRITE is unset by default. The default
+	// must be "write enabled" so that turning the spike on with
+	// TODOER_FINGERPRINT=1 retains the existing behavior.
+	if err := os.Unsetenv("TODOER_FINGERPRINT_WRITE"); err != nil {
+		t.Fatalf("unsetenv: %v", err)
+	}
+	if !fingerprintWriteEnabled() {
+		t.Fatalf("expected fingerprintWriteEnabled to be true by default")
+	}
+}
+
+func TestFingerprintWriteEnabled_TruthyValues(t *testing.T) {
+	for _, value := range []string{"1", "t", "T", "true", "TRUE", "True"} {
+		t.Setenv("TODOER_FINGERPRINT_WRITE", value)
+		if !fingerprintWriteEnabled() {
+			t.Fatalf("expected fingerprintWriteEnabled to be true for %q", value)
+		}
+	}
+	for _, value := range []string{"0", "f", "F", "false", "FALSE"} {
+		t.Setenv("TODOER_FINGERPRINT_WRITE", value)
+		if fingerprintWriteEnabled() {
+			t.Fatalf("expected fingerprintWriteEnabled to be false for %q", value)
+		}
+	}
+	// Unset and unparseable values fall back to the documented default
+	// (write enabled).
+	t.Setenv("TODOER_FINGERPRINT_WRITE", "")
+	if !fingerprintWriteEnabled() {
+		t.Fatalf("expected fingerprintWriteEnabled to be true for unset value (default on)")
+	}
+	t.Setenv("TODOER_FINGERPRINT_WRITE", "garbage")
+	if !fingerprintWriteEnabled() {
+		t.Fatalf("expected fingerprintWriteEnabled to be true for unparseable value (default on)")
+	}
+}
+
 func TestComputeFingerprint_Deterministic(t *testing.T) {
 	content := []byte("hello world")
 	got := computeFingerprint(content)
@@ -1377,6 +1414,34 @@ func TestProcessJournal_NoFingerprintWhenDisabled(t *testing.T) {
 	after, _ := os.ReadFile(target)
 	if strings.Contains(string(after), "todoer_source_fingerprint") {
 		t.Fatalf("expected no fingerprint key when toggle is off, got:\n%s", string(after))
+	}
+}
+
+func TestProcessJournal_NoFingerprintWriteWhenSuppressed(t *testing.T) {
+	// With TODOER_FINGERPRINT=1 (spike on) and TODOER_FINGERPRINT_WRITE=0
+	// (write side suppressed), the target does not receive a fingerprint
+	// key. The read side (mismatch detection) is still active.
+	tempDir := setupTempDir(t)
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+
+	today := time.Now().Format(core.DateFormat)
+	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
+	source := buildJournalPath(tempDir, yesterday)
+	target := buildJournalPath(tempDir, today)
+
+	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] carry me\n\n## Notes\n")
+
+	t.Setenv(fingerprintEnabledEnv, "1")
+	t.Setenv(fingerprintWriteEnv, "0")
+
+	logger := NewLogger(ModeQuiet)
+	if err := processJournal(source, target, "", today, false, false, true, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
+	}
+
+	after, _ := os.ReadFile(target)
+	if strings.Contains(string(after), "todoer_source_fingerprint") {
+		t.Fatalf("expected no fingerprint key when write is suppressed, got:\n%s", string(after))
 	}
 }
 
@@ -1530,6 +1595,26 @@ func TestValidateFilePath(t *testing.T) {
 			name:        "path with non-existent parent",
 			path:        filepath.Join(tempDir, "subdir/test.md"),
 			expectError: false, // Should be valid since parent can potentially be created
+		},
+		{
+			name:        "filename starting with two dots is legitimate",
+			path:        filepath.Join(tempDir, "..notes.md"),
+			expectError: false, // "..notes.md" is a normal filename, not traversal
+		},
+		{
+			name:        "filename containing two dots in middle is legitimate",
+			path:        filepath.Join(tempDir, "somedir..backup", "journal.md"),
+			expectError: false, // directories with ".." in the middle are valid on every OS
+		},
+		{
+			name:        "parent traversal with explicit double-dot component",
+			path:        tempDir + "/../evil.md",
+			expectError: true, // ".." as a full path component is traversal
+		},
+		{
+			name:        "traversal to absolute path",
+			path:        "../etc/passwd",
+			expectError: true, // already covered, but pinning explicitly
 		},
 	}
 
