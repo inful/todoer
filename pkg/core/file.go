@@ -198,13 +198,6 @@ func sortedMetadataKeys(values map[string]string) []string {
 	return keys
 }
 
-// ExtractTodosSection extracts the TODOS section from the file content.
-// It returns content before the section, the section body, and content after.
-// The function expects a specific format with a blank line after the Todos header.
-func ExtractTodosSection(content string) (string, string, string, error) {
-	return ExtractTodosSectionWithHeader(content, TodosHeader)
-}
-
 // ExtractTodosSectionWithHeader extracts the TODOS section using a configurable header.
 // It returns content before the section, the section body, and content after.
 // The function expects a specific format with a blank line after the Todos header.
@@ -256,14 +249,6 @@ func ExtractTodosSectionWithHeader(content string, todosHeader string) (string, 
 	}
 
 	return beforeTodos, strings.TrimSpace(todosSection), afterTodos, nil
-}
-
-// ProcessTodosSection processes the TODOS section and returns completed and uncompleted sections.
-// It parses todos, splits them, adds date tags, and converts back to strings.
-// If there are no completed tasks, it returns a "Moved to [[date]]" message for the completed section.
-func ProcessTodosSection(todosSection string, originalDate string, currentDate string) (string, string, error) {
-	completed, uncompleted, _, err := ProcessTodosSectionWithStats(todosSection, originalDate, currentDate)
-	return completed, uncompleted, err
 }
 
 // validateProcessInputs validates the inputs for ProcessTodosSection
