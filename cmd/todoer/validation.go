@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/inful/todoer/pkg/core"
 )
@@ -28,11 +27,15 @@ func validateFilePath(path string) error {
 		return fmt.Errorf("%w: path cannot be empty", ErrInvalidPath)
 	}
 
-	// Check the raw input for directory traversal BEFORE filepath.Clean resolves it.
-	// filepath.Clean("/foo/../../etc/passwd") → "/etc/passwd", removing all ".." traces,
-	// so the check must happen on the original string.
-	if strings.Contains(path, "..") {
-		return fmt.Errorf("%w: path contains directory traversal", ErrInvalidPath)
+	// Check the raw input for directory traversal BEFORE filepath.Clean
+	// resolves it. filepath.Clean("/foo/../../etc/passwd") → "/etc/passwd",
+	// removing the ".." traces, so the check must happen on the original
+	// string. We check at component boundaries (a substring check would
+	// wrongly reject a legitimate filename like "..notes.md").
+	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
+		if part == ".." {
+			return fmt.Errorf("%w: path contains directory traversal", ErrInvalidPath)
+		}
 	}
 
 	// Clean the path to normalize it after the traversal check.
@@ -67,14 +70,17 @@ func validateFilePath(path string) error {
 	return nil
 }
 
-// validateDateFormat validates date string format
+// validateDateFormat validates date string format.
+// Delegates to core.ValidateDate so there is one source of truth for the
+// YYYY-MM-DD format. The error is wrapped with the public ErrInvalidDate
+// sentinel so callers can use errors.Is to detect this case.
 func validateDateFormat(date string) error {
 	if date == "" {
 		return nil // Empty date is valid (will use current date)
 	}
 
-	if _, err := time.Parse(core.DateFormat, date); err != nil {
-		return fmt.Errorf("%w: expected format YYYY-MM-DD, got %s", ErrInvalidDate, date)
+	if err := core.ValidateDate(date); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidDate, err)
 	}
 
 	return nil
