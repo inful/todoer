@@ -105,6 +105,37 @@ func UpsertFrontmatterMetadata(content string, updates map[string]string) (strin
 	return joinFrontmatterAndBody(fmLines, body, sep), nil
 }
 
+// DeleteFrontmatterMetadata removes the listed keys from a document's
+// frontmatter block. Other keys (and their order) and the body's line
+// ending style are preserved. Missing keys are no-ops. A document
+// without a frontmatter block, or with a malformed block, is returned
+// unchanged. An empty keys list is a no-op.
+func DeleteFrontmatterMetadata(content string, keys []string) (string, error) {
+	if len(keys) == 0 {
+		return content, nil
+	}
+	keySet := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		keySet[k] = true
+	}
+
+	fmLines, body, sep, hasFM, malformed := splitFrontmatter(content)
+	if malformed || !hasFM {
+		return content, nil
+	}
+
+	filtered := fmLines[:0:0]
+	for _, line := range fmLines {
+		key, _, ok := parseFrontmatterLine(line)
+		if ok && keySet[key] {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+
+	return joinFrontmatterAndBody(filtered, body, sep), nil
+}
+
 // splitFrontmatter splits a document into its frontmatter lines and the
 // body, preserving the line ending style. The returned separator is the
 // one detected in the input (LF or CRLF); it is used by the re-emit

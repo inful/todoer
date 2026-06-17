@@ -414,9 +414,7 @@ keys, their order, and the document's line ending style
 | --- | --- | --- |
 | `todoer_carryover_to` | Future (ADR-0001 acceptance) | Target date the source carried into. |
 | `todoer_carryover_updated_at` | Future (ADR-0001 acceptance) | Timestamp of the last carryover sync. |
-| `todoer_source_fingerprint` | Only with `TODOER_FINGERPRINT=1` (spike) | SHA-256 of the source content at sync time. Used to detect external changes to the source between syncs. |
-| `todoer_source_fingerprint_algo` | Only with `TODOER_FINGERPRINT=1` (spike) | Algorithm used for the fingerprint (`sha256`). |
-| `todoer_source_fingerprint_at` | Only with `TODOER_FINGERPRINT=1` (spike) | Timestamp of the last fingerprint. |
+| `fingerprint` | Only with `TODOER_FINGERPRINT=1` (spike) | SHA-256 of the source's frontmatter (with any existing `fingerprint` field stripped) and body, computed by `github.com/inful/mdfp`. Used to detect external changes to the source between syncs. |
 
 The fingerprint spike is off by default. With the toggle on,
 `processJournal` logs a `Fingerprint mismatch` message when
@@ -425,6 +423,19 @@ content. Per ADR-0001, the fingerprint is a hint, not a
 gating check: a mismatch does not fail the sync, it just
 forces a conservative re-merge (the default behaviour).
 
+Changes to any non-fingerprint frontmatter field (title, date,
+tags, custom keys) change the fingerprint and trigger a
+mismatch log on the next sync. Only the `fingerprint` field
+itself is excluded from the hash, so re-runs on the same
+body+metadata are stable.
+
+> **Note:** before v0.4.0 the spike recorded `todoer_source_fingerprint`
+> and `todoer_source_fingerprint_algo`. Upgrading to v0.4.0+ while
+> the spike is on will write the new `fingerprint` key alongside any
+> existing `todoer_source_fingerprint` key; the old key is harmless
+> but stale. The `todoer_source_fingerprint_at` key documented in
+> earlier revisions was never implemented and has been removed.
+
 ## Environment variables
 
 - `TODOER_ROOT_DIR` - override the configured root directory.
@@ -432,4 +443,8 @@ forces a conservative re-merge (the default behaviour).
 - `XDG_CONFIG_HOME` - XDG-style config directory; falls back to
   `~/.config` when unset.
 - `TODOER_FINGERPRINT` - set to `1` to enable the fingerprint spike.
+- `TODOER_FINGERPRINT_WRITE` - set to `0` to suppress the write side
+  of the fingerprint spike (no `fingerprint:` key in the target's
+  frontmatter) while keeping the read-side mismatch detection
+  active. Default is "write enabled" (unset or unparseable).
 

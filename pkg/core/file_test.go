@@ -201,6 +201,89 @@ Body`
 	})
 }
 
+func TestDeleteFrontmatterMetadata(t *testing.T) {
+	t.Run("removes specified keys, preserves others", func(t *testing.T) {
+		content := "---\ntitle: x\ndate: 2026-03-17\ntodoer_source_fingerprint: abc\n---\n\nbody\n"
+		got, err := DeleteFrontmatterMetadata(content, []string{"todoer_source_fingerprint"})
+		if err != nil {
+			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
+		}
+		if strings.Contains(got, "todoer_source_fingerprint") {
+			t.Fatalf("expected key removed, got:\n%s", got)
+		}
+		if !strings.Contains(got, "title: x") || !strings.Contains(got, "date: 2026-03-17") {
+			t.Fatalf("expected other keys preserved, got:\n%s", got)
+		}
+		if !strings.Contains(got, "body") {
+			t.Fatalf("expected body preserved, got:\n%s", got)
+		}
+	})
+
+	t.Run("removes multiple keys in one pass", func(t *testing.T) {
+		content := "---\ntitle: x\ntodoer_source_fingerprint: abc\ntodoer_source_fingerprint_algo: sha256\n---\n\nbody\n"
+		got, err := DeleteFrontmatterMetadata(content, []string{
+			"todoer_source_fingerprint",
+			"todoer_source_fingerprint_algo",
+		})
+		if err != nil {
+			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
+		}
+		if strings.Contains(got, "todoer_source_fingerprint") {
+			t.Fatalf("expected all legacy keys removed, got:\n%s", got)
+		}
+		if !strings.Contains(got, "title: x") {
+			t.Fatalf("expected unrelated keys preserved, got:\n%s", got)
+		}
+	})
+
+	t.Run("missing keys are no-ops", func(t *testing.T) {
+		content := "---\ntitle: x\n---\n\nbody\n"
+		got, err := DeleteFrontmatterMetadata(content, []string{"nonexistent"})
+		if err != nil {
+			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
+		}
+		if got != content {
+			t.Fatalf("expected unchanged content, got:\n%q\nwant:\n%q", got, content)
+		}
+	})
+
+	t.Run("empty keys list is a no-op", func(t *testing.T) {
+		content := "---\ntitle: x\n---\n\nbody\n"
+		got, err := DeleteFrontmatterMetadata(content, nil)
+		if err != nil {
+			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
+		}
+		if got != content {
+			t.Fatalf("expected unchanged content, got:\n%q", got)
+		}
+	})
+
+	t.Run("no frontmatter is a no-op", func(t *testing.T) {
+		content := "# Just a heading\n\nbody\n"
+		got, err := DeleteFrontmatterMetadata(content, []string{"any"})
+		if err != nil {
+			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
+		}
+		if got != content {
+			t.Fatalf("expected unchanged content, got:\n%q", got)
+		}
+	})
+
+	t.Run("preserves CRLF line endings", func(t *testing.T) {
+		content := "---\r\ntitle: x\r\ntodoer_source_fingerprint: abc\r\n---\r\n\r\nbody\r\n"
+		got, err := DeleteFrontmatterMetadata(content, []string{"todoer_source_fingerprint"})
+		if err != nil {
+			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
+		}
+		if strings.Contains(got, "todoer_source_fingerprint") {
+			t.Fatalf("expected key removed, got:\n%q", got)
+		}
+		if !strings.Contains(got, "\r\n") {
+			t.Fatalf("expected CRLF line endings preserved, got:\n%q", got)
+		}
+	})
+}
+
 // Test ExtractDateFromFrontmatter function
 func TestExtractDateFromFrontmatter(t *testing.T) {
 	tests := []struct {

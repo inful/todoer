@@ -63,12 +63,15 @@ func fingerprintWriteEnabled() bool {
 }
 
 // computeFingerprint returns the mdfp fingerprint of the given journal
-// content. The fingerprint hashes the markdown body (excluding
-// frontmatter) via mdfp.CalculateFingerprintFromParts, so changes to
-// frontmatter metadata alone do not change the fingerprint. The
-// frontmatter's own fingerprint field is stripped from the input
-// before hashing, so re-running on the same body produces the same
-// hash. See github.com/inful/mdfp and ADR-0001.
+// content. mdfp.CalculateFingerprintFromParts hashes a canonical
+// virtual document consisting of the frontmatter (with any existing
+// 'fingerprint' field stripped) plus the body. Changes to
+// non-fingerprint frontmatter fields (title, date, tags, custom
+// user keys) therefore DO change the fingerprint and trigger a
+// 'Fingerprint mismatch' log on the next sync. The fingerprint
+// field itself is stripped from the input before hashing, so
+// re-running on the same body+metadata produces the same hash.
+// See github.com/inful/mdfp and ADR-0001.
 func computeFingerprint(content []byte) (string, error) {
 	frontmatter, body, err := mdfp.ParseMarkdown(string(content))
 	if err != nil {
@@ -292,7 +295,10 @@ func checkFingerprintMismatch(existingTarget, sourceContent []byte, targetFile s
 
 // annotateTargetWithFingerprint upserts the source's mdfp fingerprint
 // into the target's frontmatter. The key/value are added (or
-// replaced) and unrelated keys are preserved. Returns the annotated
+// replaced) and unrelated keys are preserved. As a one-time
+// migration, any pre-v0.4.0 spike fields (todoer_source_fingerprint,
+// todoer_source_fingerprint_algo) are also removed so target files
+// don't accumulate stale keys after upgrading. Returns the annotated
 // content, or an error if the frontmatter helpers fail or the source
 // cannot be parsed.
 func annotateTargetWithFingerprint(targetContent, sourceContent []byte) ([]byte, error) {
@@ -300,10 +306,17 @@ func annotateTargetWithFingerprint(targetContent, sourceContent []byte) ([]byte,
 	if err != nil {
 		return nil, fmt.Errorf("compute source fingerprint: %w", err)
 	}
+	cleaned, err := core.DeleteFrontmatterMetadata(string(targetContent), []string{
+		"todoer_source_fingerprint",
+		"todoer_source_fingerprint_algo",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("strip legacy fingerprint fields: %w", err)
+	}
 	updates := map[string]string{
 		fingerprintKeyValue: fingerprint,
 	}
-	annotated, err := core.UpsertFrontmatterMetadata(string(targetContent), updates)
+	annotated, err := core.UpsertFrontmatterMetadata(cleaned, updates)
 	if err != nil {
 		return nil, err
 	}

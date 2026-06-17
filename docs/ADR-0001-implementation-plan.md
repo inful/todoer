@@ -88,10 +88,13 @@ integrated in v0.4.0 follow-up).
   "write enabled" to preserve the original behaviour.
 - Fingerprint computation: `github.com/inful/mdfp` v1.2.0, via
   `mdfp.CalculateFingerprintFromParts(frontmatter, body)`. The
-  library hashes the markdown body (excluding frontmatter) so
-  changes to metadata alone don't change the fingerprint, and it
-  strips any existing `fingerprint` field from the frontmatter
-  before hashing so re-runs on the same body are stable. The
+  library hashes a canonical virtual document consisting of the
+  frontmatter (with any existing `fingerprint` field stripped)
+  plus the body. **Changes to non-fingerprint frontmatter fields
+  (title, date, tags, custom keys) DO change the fingerprint**
+  and trigger a `Fingerprint mismatch` log on the next sync.
+  The `fingerprint` field itself is stripped before hashing, so
+  re-runs on the same body+metadata produce a stable hash. The
   field name `fingerprint` matches the library's
   `mdfp.FingerprintField` constant.
 - Algorithm: SHA-256, hardcoded in mdfp. The mdfp library

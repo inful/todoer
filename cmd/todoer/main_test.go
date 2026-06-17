@@ -1268,8 +1268,9 @@ func TestFingerprintWriteEnabled_TruthyValues(t *testing.T) {
 }
 
 func TestComputeFingerprint_Deterministic(t *testing.T) {
-	// mdfp fingerprints the markdown body (excluding frontmatter), so
-	// the input needs a recognizable body to fingerprint.
+	// mdfp fingerprints a canonical virtual document of
+	// frontmatter (with the fingerprint field stripped) plus body.
+	// The test inputs need a recognizable body to fingerprint.
 	content := []byte("# hello world\n\nSome body.\n")
 	got, err := computeFingerprint(content)
 	if err != nil {
@@ -1295,6 +1296,37 @@ func TestComputeFingerprint_Deterministic(t *testing.T) {
 	}
 }
 
+func TestComputeFingerprint_FrontmatterChangesHash(t *testing.T) {
+	// mdfp includes the frontmatter in the hash, with only the
+	// 'fingerprint' field stripped. Two documents with the same
+	// body but different frontmatter metadata must therefore
+	// produce different fingerprints. This pins the
+	// canonicalization contract — if mdfp ever changes to
+	// exclude frontmatter, this test will fail.
+	body := "\n# hello world\n\nSome body.\n"
+	withTitleA := []byte("---\ntitle: A\n---\n" + body)
+	withTitleB := []byte("---\ntitle: B\n---\n" + body)
+	fpA, err := computeFingerprint(withTitleA)
+	if err != nil {
+		t.Fatalf("computeFingerprint (title A): %v", err)
+	}
+	fpB, err := computeFingerprint(withTitleB)
+	if err != nil {
+		t.Fatalf("computeFingerprint (title B): %v", err)
+	}
+	if fpA == fpB {
+		t.Fatalf("expected different frontmatter to change the hash, both = %q", fpA)
+	}
+	// Same frontmatter should still produce the same hash.
+	fpA2, err := computeFingerprint([]byte("---\ntitle: A\n---\n" + body))
+	if err != nil {
+		t.Fatalf("computeFingerprint (title A again): %v", err)
+	}
+	if fpA != fpA2 {
+		t.Fatalf("expected deterministic fingerprint for same content, got %q and %q", fpA, fpA2)
+	}
+}
+
 func TestCheckFingerprintMismatch_NoPriorFingerprint(_ *testing.T) {
 	// Existing target has no frontmatter fingerprint yet. The check
 	// should be a silent no-op (treat as fresh sync).
@@ -1303,11 +1335,11 @@ func TestCheckFingerprintMismatch_NoPriorFingerprint(_ *testing.T) {
 	checkFingerprintMismatch(existing, []byte("source content"), "/tmp/whatever", logger)
 }
 
-func TestCheckFingerprintMismatch_Matching(_ *testing.T) {
+func TestCheckFingerprintMismatch_Matching(t *testing.T) {
 	source := []byte("# the source\n\nbody content.\n")
 	fp, err := computeFingerprint(source)
 	if err != nil {
-		return
+		t.Fatalf("computeFingerprint: %v", err)
 	}
 	existing := []byte("---\ntitle: x\nfingerprint: " + fp + "\n---\n\n# Body\n")
 	logger := NewLogger(ModeQuiet)
@@ -1491,6 +1523,31 @@ func TestProcessJournal_AnnotateTargetFingerprintHelper(t *testing.T) {
 	}
 	if strings.Count(string(out2), "fingerprint:") != 1 {
 		t.Fatalf("expected exactly one fingerprint key on idempotent call, got:\n%s", string(out2))
+	}
+}
+
+func TestProcessJournal_AnnotateStripsLegacyFingerprintFields(t *testing.T) {
+	// One-time migration: a target that still carries the pre-v0.4.0
+	// spike fields (todoer_source_fingerprint / todoer_source_fingerprint_algo)
+	// should have them stripped when the new fingerprint is written.
+	// This prevents stale frontmatter from accumulating forever
+	// after a user upgrades todoer with the spike enabled.
+	target := "---\ndate: 2026-03-16\ntodoer_source_fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ntodoer_source_fingerprint_algo: sha256\n---\n\n# J\n\n## Notes\n"
+	source := []byte("source content for fingerprinting")
+	out, err := annotateTargetWithFingerprint([]byte(target), source)
+	if err != nil {
+		t.Fatalf("annotateTargetWithFingerprint: %v", err)
+	}
+	got := string(out)
+	if strings.Contains(got, "todoer_source_fingerprint") {
+		t.Fatalf("expected legacy todoer_source_fingerprint to be stripped, got:\n%s", got)
+	}
+	if !strings.Contains(got, "fingerprint:") {
+		t.Fatalf("expected new fingerprint key to be present, got:\n%s", got)
+	}
+	// Non-fingerprint frontmatter fields must be preserved.
+	if !strings.Contains(got, "date: 2026-03-16") {
+		t.Fatalf("expected unrelated 'date' frontmatter key to be preserved, got:\n%s", got)
 	}
 }
 
