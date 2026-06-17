@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/inful/mdfp"
 	"github.com/inful/todoer/pkg/core"
 	"github.com/inful/todoer/pkg/generator"
 )
@@ -17,13 +17,11 @@ import (
 // Fingerprint keys (ADR-0001 spike; off by default).
 //
 // TODOER_FINGERPRINT=1 enables the spike. When on, the daily flow
-// records todoer_source_fingerprint and todoer_source_fingerprint_algo
-// in the target's frontmatter, and on the next sync logs a
-// 'Fingerprint mismatch' message if the stored value does not match
-// the current source's SHA-256. The fingerprint here is a plain
-// SHA-256 of the source content; the ADR calls for swapping in the
-// `mdfp` library once it is integrated. The spike captures the design
-// pattern; the mdfp library integration is a follow-up.
+// records the source's fingerprint in the target's frontmatter, and
+// on the next sync logs a 'Fingerprint mismatch' message if the
+// stored value does not match the current source's fingerprint. The
+// fingerprint is computed by the github.com/inful/mdfp library
+// (SHA-256 of the markdown body, excluding frontmatter — see ADR-0001).
 //
 // TODOER_FINGERPRINT_WRITE=0 suppresses the write side of the spike
 // (the frontmatter upsert) while keeping the read side (the mismatch
@@ -32,11 +30,9 @@ import (
 // to preserve the original behavior; the toggle is checked only when
 // TODOER_FINGERPRINT is also on.
 const (
-	fingerprintEnabledEnv   = "TODOER_FINGERPRINT"
-	fingerprintWriteEnv     = "TODOER_FINGERPRINT_WRITE"
-	fingerprintAlgo         = "sha256"
-	fingerprintKeyValue     = "todoer_source_fingerprint"
-	fingerprintKeyAlgo      = "todoer_source_fingerprint_algo"
+	fingerprintEnabledEnv = "TODOER_FINGERPRINT"
+	fingerprintWriteEnv   = "TODOER_FINGERPRINT_WRITE"
+	fingerprintKeyValue   = mdfp.FingerprintField // "fingerprint"
 )
 
 // fingerprintEnabled reports whether the ADR-0001 fingerprint spike
@@ -66,9 +62,19 @@ func fingerprintWriteEnabled() bool {
 	return parsed
 }
 
-func computeFingerprint(content []byte) string {
-	sum := sha256.Sum256(content)
-	return fmt.Sprintf("%x", sum)
+// computeFingerprint returns the mdfp fingerprint of the given journal
+// content. The fingerprint hashes the markdown body (excluding
+// frontmatter) via mdfp.CalculateFingerprintFromParts, so changes to
+// frontmatter metadata alone do not change the fingerprint. The
+// frontmatter's own fingerprint field is stripped from the input
+// before hashing, so re-running on the same body produces the same
+// hash. See github.com/inful/mdfp and ADR-0001.
+func computeFingerprint(content []byte) (string, error) {
+	frontmatter, body, err := mdfp.ParseMarkdown(string(content))
+	if err != nil {
+		return "", fmt.Errorf("parse markdown for fingerprint: %w", err)
+	}
+	return mdfp.CalculateFingerprintFromParts(frontmatter, body), nil
 }
 
 // getGenerator builds a Generator from CLI/config, resolving template and
@@ -256,12 +262,13 @@ func mergeIntoExistingTarget(existingTarget, newContent []byte, config *Config) 
 	return []byte(beforeTodos + newTodos + afterTodos), nil
 }
 
-// checkFingerprintMismatch compares the source content's SHA-256
+// checkFingerprintMismatch compares the source content's mdfp
 // fingerprint to the value recorded in the existing target's
-// frontmatter (todoer_source_fingerprint). If they differ, the
-// source has changed since the last sync and a mismatch is logged.
-// The function never returns an error or fails the sync; the
-// fingerprint is a hint, per ADR-0001.
+// frontmatter. If they differ, the source has changed since the last
+// sync and a mismatch is logged. The function never returns an error
+// or fails the sync; the fingerprint is a hint, per ADR-0001.
+// Parse failures are silently treated as "no fingerprint to compare
+// against" so a malformed source doesn't block the merge.
 func checkFingerprintMismatch(existingTarget, sourceContent []byte, targetFile string, logger *Logger) {
 	metadata, hasFM, err := core.ExtractFrontmatterMetadata(string(existingTarget))
 	if err != nil || !hasFM {
@@ -272,20 +279,29 @@ func checkFingerprintMismatch(existingTarget, sourceContent []byte, targetFile s
 	if stored == "" {
 		return
 	}
-	current := computeFingerprint(sourceContent)
+	current, err := computeFingerprint(sourceContent)
+	if err != nil {
+		// Source couldn't be parsed for fingerprinting; skip the
+		// mismatch check rather than failing the sync.
+		return
+	}
 	if stored != current {
 		logger.Info("Fingerprint mismatch on %s (stored=%s..., current=%s...)", targetFile, shortHash(stored), shortHash(current))
 	}
 }
 
-// annotateTargetWithFingerprint upserts the source's fingerprint and
-// algorithm into the target's frontmatter. The key/value are added
-// (or replaced) and unrelated keys are preserved. Returns the
-// annotated content, or an error if the frontmatter helpers fail.
+// annotateTargetWithFingerprint upserts the source's mdfp fingerprint
+// into the target's frontmatter. The key/value are added (or
+// replaced) and unrelated keys are preserved. Returns the annotated
+// content, or an error if the frontmatter helpers fail or the source
+// cannot be parsed.
 func annotateTargetWithFingerprint(targetContent, sourceContent []byte) ([]byte, error) {
+	fingerprint, err := computeFingerprint(sourceContent)
+	if err != nil {
+		return nil, fmt.Errorf("compute source fingerprint: %w", err)
+	}
 	updates := map[string]string{
-		fingerprintKeyValue: computeFingerprint(sourceContent),
-		fingerprintKeyAlgo:  fingerprintAlgo,
+		fingerprintKeyValue: fingerprint,
 	}
 	annotated, err := core.UpsertFrontmatterMetadata(string(targetContent), updates)
 	if err != nil {

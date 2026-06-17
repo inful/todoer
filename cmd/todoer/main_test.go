@@ -1268,16 +1268,29 @@ func TestFingerprintWriteEnabled_TruthyValues(t *testing.T) {
 }
 
 func TestComputeFingerprint_Deterministic(t *testing.T) {
-	content := []byte("hello world")
-	got := computeFingerprint(content)
+	// mdfp fingerprints the markdown body (excluding frontmatter), so
+	// the input needs a recognizable body to fingerprint.
+	content := []byte("# hello world\n\nSome body.\n")
+	got, err := computeFingerprint(content)
+	if err != nil {
+		t.Fatalf("computeFingerprint: %v", err)
+	}
 	if len(got) != 64 {
 		t.Fatalf("expected 64-char hex SHA-256, got %d chars: %s", len(got), got)
 	}
-	if got != computeFingerprint(content) {
-		t.Fatalf("expected deterministic fingerprint")
+	got2, err := computeFingerprint(content)
+	if err != nil {
+		t.Fatalf("computeFingerprint (second call): %v", err)
+	}
+	if got != got2 {
+		t.Fatalf("expected deterministic fingerprint, got %q and %q", got, got2)
 	}
 	// Different content should yield a different fingerprint.
-	if got == computeFingerprint([]byte("hello world!")) {
+	got3, err := computeFingerprint([]byte("# hello world!\n\nSome body.\n"))
+	if err != nil {
+		t.Fatalf("computeFingerprint (third call): %v", err)
+	}
+	if got == got3 {
 		t.Fatalf("expected different content to yield different fingerprint")
 	}
 }
@@ -1291,9 +1304,12 @@ func TestCheckFingerprintMismatch_NoPriorFingerprint(_ *testing.T) {
 }
 
 func TestCheckFingerprintMismatch_Matching(_ *testing.T) {
-	source := []byte("the source")
-	fp := computeFingerprint(source)
-	existing := []byte("---\ntitle: x\ntodoer_source_fingerprint: " + fp + "\n---\n\n# Body\n")
+	source := []byte("# the source\n\nbody content.\n")
+	fp, err := computeFingerprint(source)
+	if err != nil {
+		return
+	}
+	existing := []byte("---\ntitle: x\nfingerprint: " + fp + "\n---\n\n# Body\n")
 	logger := NewLogger(ModeQuiet)
 	// Same source -> no mismatch log; we just check it does not panic.
 	checkFingerprintMismatch(existing, source, "/tmp/whatever", logger)
@@ -1303,9 +1319,9 @@ func TestCheckFingerprintMismatch_Differing(_ *testing.T) {
 	// Existing target records a fingerprint for some other source
 	// content. The current source differs; the check should log a
 	// mismatch and not fail.
-	existing := []byte("---\ntitle: x\ntodoer_source_fingerprint: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n---\n\n# Body\n")
+	existing := []byte("---\ntitle: x\nfingerprint: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n---\n\n# Body\n")
 	logger := NewLogger(ModeQuiet)
-	checkFingerprintMismatch(existing, []byte("the actual source"), "/tmp/whatever", logger)
+	checkFingerprintMismatch(existing, []byte("# the actual source\n\nbody.\n"), "/tmp/whatever", logger)
 }
 
 func TestProcessJournal_FingerprintMismatchForcesReMerge(t *testing.T) {
@@ -1326,7 +1342,7 @@ func TestProcessJournal_FingerprintMismatchForcesReMerge(t *testing.T) {
 	// Pre-existing target with a stale fingerprint and a fresh
 	// today-only item, so the merge will both keep the existing
 	// item and detect a fingerprint mismatch.
-	preExistingTarget := "---\ndate: " + today + "\ntodoer_source_fingerprint: 0000000000000000000000000000000000000000000000000000000000000000\n---\n\n# J\n\n## Todos\n\n- [[" + today + "]]\n  - [ ] already here\n\n## Notes\n"
+	preExistingTarget := "---\ndate: " + today + "\nfingerprint: 0000000000000000000000000000000000000000000000000000000000000000\n---\n\n# J\n\n## Todos\n\n- [[" + today + "]]\n  - [ ] already here\n\n## Notes\n"
 	createTestFile(t, target, preExistingTarget)
 
 	t.Setenv(fingerprintEnabledEnv, "1")
@@ -1366,16 +1382,16 @@ func TestProcessJournal_RecordsFingerprintWhenEnabled(t *testing.T) {
 
 	after, _ := os.ReadFile(target)
 	content := string(after)
-	if !strings.Contains(content, "todoer_source_fingerprint:") {
+	if !strings.Contains(content, "fingerprint:") {
 		t.Fatalf("expected fingerprint key in target frontmatter, got:\n%s", content)
 	}
-	if !strings.Contains(content, "todoer_source_fingerprint_algo: sha256") {
-		t.Fatalf("expected fingerprint algo key in target frontmatter, got:\n%s", content)
+	if strings.Contains(content, "todoer_source_fingerprint") {
+		t.Fatalf("expected old 'todoer_source_fingerprint' field name to be gone, got:\n%s", content)
 	}
 	// The recorded fingerprint should be a 64-char hex SHA-256.
-	before, afterKey, found := strings.Cut(content, "todoer_source_fingerprint: ")
+	before, afterKey, found := strings.Cut(content, "fingerprint: ")
 	if !found {
-		t.Fatalf("expected 'todoer_source_fingerprint: ' key, got:\n%s", content)
+		t.Fatalf("expected 'fingerprint: ' key, got:\n%s", content)
 	}
 	_ = before
 	end := strings.IndexByte(afterKey, '\n')
@@ -1413,6 +1429,9 @@ func TestProcessJournal_NoFingerprintWhenDisabled(t *testing.T) {
 
 	after, _ := os.ReadFile(target)
 	if strings.Contains(string(after), "todoer_source_fingerprint") {
+		t.Fatalf("expected no old todoer_source_fingerprint key when toggle is off, got:\n%s", string(after))
+	}
+	if strings.Contains(string(after), "fingerprint:") {
 		t.Fatalf("expected no fingerprint key when toggle is off, got:\n%s", string(after))
 	}
 }
@@ -1441,6 +1460,9 @@ func TestProcessJournal_NoFingerprintWriteWhenSuppressed(t *testing.T) {
 
 	after, _ := os.ReadFile(target)
 	if strings.Contains(string(after), "todoer_source_fingerprint") {
+		t.Fatalf("expected no old todoer_source_fingerprint key when write is suppressed, got:\n%s", string(after))
+	}
+	if strings.Contains(string(after), "fingerprint:") {
 		t.Fatalf("expected no fingerprint key when write is suppressed, got:\n%s", string(after))
 	}
 }
@@ -1455,11 +1477,11 @@ func TestProcessJournal_AnnotateTargetFingerprintHelper(t *testing.T) {
 		t.Fatalf("annotateTargetWithFingerprint: %v", err)
 	}
 	got := string(out)
-	if !strings.Contains(got, "todoer_source_fingerprint:") {
+	if !strings.Contains(got, "fingerprint:") {
 		t.Fatalf("expected fingerprint key, got:\n%s", got)
 	}
-	if !strings.Contains(got, "todoer_source_fingerprint_algo: sha256") {
-		t.Fatalf("expected algo key, got:\n%s", got)
+	if strings.Contains(got, "todoer_source_fingerprint") {
+		t.Fatalf("expected old field name to be gone, got:\n%s", got)
 	}
 	// Calling it again should be idempotent: the value is replaced
 	// (not duplicated).
@@ -1467,7 +1489,7 @@ func TestProcessJournal_AnnotateTargetFingerprintHelper(t *testing.T) {
 	if err != nil {
 		t.Fatalf("annotateTargetWithFingerprint (second call): %v", err)
 	}
-	if strings.Count(string(out2), "todoer_source_fingerprint:") != 1 {
+	if strings.Count(string(out2), "fingerprint:") != 1 {
 		t.Fatalf("expected exactly one fingerprint key on idempotent call, got:\n%s", string(out2))
 	}
 }

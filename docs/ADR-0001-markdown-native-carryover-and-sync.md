@@ -98,15 +98,26 @@ Rejected because it conflicts with markdown-only source-of-truth goals and creat
 - Frontmatter parsing/writing should preserve unrelated user metadata.
 - Sync should be transactional for writes (atomic write path already exists).
 - Conflict handling remains optimistic and markdown-based (no merge UI required for initial implementation).
-- Fingerprint storage format should be explicit and versioned (for example `todoer_fingerprint_algo` + `todoer_fingerprint_value`).
+- Fingerprint storage format: the field name is `fingerprint`
+  (matching `mdfp.FingerprintField`) and the algorithm is
+  SHA-256 (the only algorithm mdfp currently supports). The
+  library strips any existing `fingerprint` value from the
+  frontmatter before hashing, so re-runs on the same body are
+  stable. A per-record algorithm tag is deferred until mdfp
+  ships a second algorithm (e.g. BLAKE3), at which point the
+  tag would be added.
 - Fingerprints must be treated as hints; mismatch triggers re-merge, not hard failure.
-- Canonicalization rules must be documented (for example newline normalization and frontmatter inclusion/exclusion).
+- Canonicalization rules: the mdfp library defines them — the
+  body is used verbatim, and the frontmatter is hashed with
+  any existing `fingerprint` field stripped, surrounded by the
+  `---` delimiters and a single newline separator. See
+  `mdfp.CalculateFingerprintFromParts` for the exact rules.
 
 ## Follow-up Work
-1. Implement carryover marker read/write in journal sync path.
-2. Implement merge-into-existing behavior for target files.
-3. Add tests for idempotent repeated sync and existing-file scenarios.
-4. Extend `add --date`/date-targeted flows to call the same sync routine.
-5. Timebox a spike to integrate `mdfp` behind an internal feature toggle.
-6. Add tests for unchanged-vs-changed fingerprint paths and canonicalization edge cases.
-7. Decide keep/adapt/drop `mdfp` based on correctness, complexity, and performance.
+1. Implement carryover marker read/write in journal sync path. — **DONE** (ADR-0001 phase A)
+2. Implement merge-into-existing behavior for target files. — **DONE** (ADR-0001 phase C)
+3. Add tests for idempotent repeated sync and existing-file scenarios. — **DONE** (`pkg/core/sync_test.go`, `cmd/todoer/main_test.go`)
+4. Extend `add --date`/date-targeted flows to call the same sync routine. — **DEFERRED** (not in v0.4.0; re-evaluate when date-targeted flows are needed)
+5. Timebox a spike to integrate `mdfp` behind an internal feature toggle. — **DONE** (initial spike at `c5aeb03`; mdfp library integrated in v0.4.0)
+6. Add tests for unchanged-vs-changed fingerprint paths and canonicalization edge cases. — **DONE** (`TestComputeFingerprint_Deterministic`, `TestCheckFingerprintMismatch_*`, `TestProcessJournal_RecordsFingerprintWhenEnabled`, `TestProcessJournal_NoFingerprintWriteWhenSuppressed`)
+7. Decide keep/adapt/drop `mdfp` based on correctness, complexity, and performance. — **DECISION: keep.** The library is small (one file, ~150 lines), well-tested by its own suite, and its canonicalization rules are documented in the source. Body-only hashing (excluding frontmatter) is the right model for our use case. No additional abstraction layer is justified.

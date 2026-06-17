@@ -72,19 +72,32 @@ Status: **DONE** (commit `db665ac`).
 ### 4) Fingerprint Spike (`mdfp`) Behind Feature Toggle
 Goal: evaluate fingerprinting as a safety/optimization hint, not identity.
 
-Status: **DONE** (commit `c5aeb03`, minimal spike).
+Status: **DONE** (initial spike at commit `c5aeb03`; mdfp library
+integrated in v0.4.0 follow-up).
 
 - Feature toggle: `TODOER_FINGERPRINT=1` enables the spike; off
   by default. When on, the daily flow's merge path reads the
-  existing target's `todoer_source_fingerprint` and logs a
-  `Fingerprint mismatch` message if the current source's
-  SHA-256 differs. Per ADR-0001, the fingerprint is a hint:
-  a mismatch does not fail the sync, it just forces a
-  conservative re-merge (the default behaviour).
-- Stand-in: SHA-256 of the source content. The mdfp library
-  swap is a follow-up; the spike captures the design pattern
-  (toggle, frontmatter key, mismatch detection) and is
-  invisible when the toggle is off.
+  existing target's `fingerprint` and logs a `Fingerprint mismatch`
+  message if the current source's fingerprint differs. Per
+  ADR-0001, the fingerprint is a hint: a mismatch does not fail
+  the sync, it just forces a conservative re-merge (the default
+  behaviour).
+- Companion toggle: `TODOER_FINGERPRINT_WRITE=0` suppresses the
+  write side of the spike (the frontmatter upsert) while keeping
+  the read side (mismatch detection) active. The default is
+  "write enabled" to preserve the original behaviour.
+- Fingerprint computation: `github.com/inful/mdfp` v1.2.0, via
+  `mdfp.CalculateFingerprintFromParts(frontmatter, body)`. The
+  library hashes the markdown body (excluding frontmatter) so
+  changes to metadata alone don't change the fingerprint, and it
+  strips any existing `fingerprint` field from the frontmatter
+  before hashing so re-runs on the same body are stable. The
+  field name `fingerprint` matches the library's
+  `mdfp.FingerprintField` constant.
+- Algorithm: SHA-256, hardcoded in mdfp. The mdfp library
+  documents BLAKE3 as a possible future swap, at which point a
+  per-record algorithm tag would be worth adding. For now the
+  single algorithm is recorded in the library's docs.
 
 ## Test Plan (Lockdown)
 
@@ -125,7 +138,7 @@ Status: **DONE** (commit `c5aeb03`, minimal spike).
 1. Phase A: metadata helpers + tests. — **DONE** (commit `1ea2c84`)
 2. Phase B: sync merge engine + unit tests. — **DONE** (commit `e84e303`)
 3. Phase C: CLI flow integration (`process`, `new`, `tui`) + command tests. — **DONE** (commit `db665ac`)
-4. Phase D: `mdfp` spike under toggle + evaluation note. — **DONE** (commit `c5aeb03`, SHA-256 stand-in)
+4. Phase D: `mdfp` spike under toggle + evaluation note. — **DONE** (initial spike at `c5aeb03`; mdfp library swap landed in v0.4.0 follow-up)
 
 ## Acceptance Criteria
 
