@@ -63,6 +63,49 @@ type tuiStyles struct {
 	empty        lipgloss.Style
 }
 
+// tuiKeymap is the single source of truth for the TUI's normal-mode
+// keybindings. The same table drives both the bottom-of-view help
+// line and the initial status message, so adding a key only requires
+// updating this slice — drift between the three previously-hardcoded
+// strings is no longer possible.
+var tuiKeymap = []struct {
+	keys  string
+	label string
+}{
+	{"j/k", "move"},
+	{"space", "toggle"},
+	{"/", "filter"},
+	{"c", "clear filter"},
+	{"a", "add"},
+	{"d", "delete"},
+	{"s", "save"},
+	{"r", "reload"},
+	{"q", "quit"},
+}
+
+// tuiHelpText renders the bottom-of-view help line and is also the
+// base of the initial status message.
+func tuiHelpText() string {
+	var b strings.Builder
+	b.WriteString("Keys: ")
+	for i, k := range tuiKeymap {
+		if i > 0 {
+			b.WriteString(" | ")
+		}
+		b.WriteString(k.keys)
+		b.WriteString(" ")
+		b.WriteString(k.label)
+	}
+	return b.String()
+}
+
+// tuiInitStatus is the message shown in the model status field on
+// startup. It embeds the same key list as tuiHelpText so the
+// initial render is consistent with the help line.
+func tuiInitStatus() string {
+	return "Ready. " + strings.TrimPrefix(tuiHelpText(), "Keys: ")
+}
+
 var tuiTheme = tuiStyles{
 	header: lipgloss.NewStyle().
 		Bold(true).
@@ -126,7 +169,7 @@ func newTUIModel(journalPath, today string, config *Config) (tuiModel, error) {
 		journalPath: journalPath,
 		config:      config,
 		today:       today,
-		status:      "Ready. j/k move, space toggle, / filter, a add, d delete, s save, r reload, q quit",
+		status:      tuiInitStatus(),
 	}
 
 	if err := m.reloadFromDisk(); err != nil {
@@ -215,7 +258,7 @@ func (m tuiModel) View() string {
 	} else if m.filterMode {
 		b.WriteString(tuiTheme.inputLabel.Render("Filter todos: ") + m.filterQuery + "\n")
 	} else {
-		b.WriteString(tuiTheme.keyHelp.Render("Keys: j/k move | space toggle | / filter | c clear filter | a add | d delete | s save | r reload | q quit") + "\n")
+		b.WriteString(tuiTheme.keyHelp.Render(tuiHelpText()) + "\n")
 	}
 
 	statusStyle := tuiTheme.statusOK

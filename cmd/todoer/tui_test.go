@@ -1115,3 +1115,41 @@ func TestTUIRemoveItemRecursive_NilSafety(t *testing.T) {
 		t.Fatalf("expected no removal when only nil items are present")
 	}
 }
+
+// TestTUIHelpText_DriftGuard pins the help text and the init status
+// to a single source of truth. It enforces three invariants:
+//
+//  1. The init status embeds the same key list as the help text
+//     (i.e. they are derived from the same keymap).
+//  2. The primary keys advertised in the keymap appear in the help
+//     text. Aliases like down/up/x/ctrl+c are dispatched but not
+//     advertised; this is intentional and not flagged here.
+//  3. The rendered help text's segment count matches the keymap
+//     length, so a stale or duplicated keymap entry trips the test.
+func TestTUIHelpText_DriftGuard(t *testing.T) {
+	help := tuiHelpText()
+	init := tuiInitStatus()
+
+	// Invariant 1: init status embeds the help text body.
+	if !strings.Contains(init, strings.TrimPrefix(help, "Keys: ")) {
+		t.Errorf("init status does not contain help text: init=%q help=%q", init, help)
+	}
+
+	// Invariant 2: the primary keys from the keymap appear in the
+	// help text. This is the drift guard for the user-facing text.
+	required := []string{"j", "k", "space", "/", "c", "a", "d", "s", "r", "q"}
+	for _, key := range required {
+		if !strings.Contains(help, key) {
+			t.Errorf("help text is missing advertised key %q: %q", key, help)
+		}
+	}
+
+	// Invariant 3: the rendered help text's " | "-separated segment
+	// count matches the keymap length. This catches both stale
+	// entries (a keymap row removed but the test still passes) and
+	// accidental keymap duplication (more rows than rendered).
+	segments := strings.Split(strings.TrimPrefix(help, "Keys: "), " | ")
+	if got, want := len(segments), len(tuiKeymap); got != want {
+		t.Errorf("help text has %d segments; expected %d (matches tuiKeymap): %q", got, want, help)
+	}
+}

@@ -6,12 +6,15 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/alecthomas/kong v1.13.0
 	github.com/charmbracelet/bubbletea v1.2.4
-	github.com/spf13/afero v1.15.0
+	github.com/charmbracelet/lipgloss v1.0.0
 )
+
+// Test-only dependencies. These are imported exclusively by tests under
+// tests/ and are not part of the production build.
+require github.com/spf13/afero v1.15.0 // test
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/lipgloss v1.0.0 // indirect
 	github.com/charmbracelet/x/ansi v0.4.5 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
