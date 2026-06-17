@@ -33,8 +33,12 @@ type newCmd struct {
 	Backup bool `help:"Preserve a .bak copy of the source journal before applying the carryover update"`
 }
 
+func (cmd *newCmd) Help() string {
+	return "Date is always today. To process against a different date, use 'process' with --template-date."
+}
+
 type addCmd struct {
-	TodoWords []string `arg:"" name:"todo-text" help:"Todo text to add to today's journal"`
+	TodoWords []string `arg:"" name:"todo-text" help:"Todo text to add to today's journal (today's date is used; multi-word text is joined with spaces)"`
 	Backup    bool     `help:"Preserve a .bak copy of the source journal when creating today's journal for the first time"`
 }
 
@@ -43,6 +47,10 @@ type previewCmd struct {
 	TodosFile   string `help:"File containing a sample TODOS section to use for preview (optional)"`
 	TodosString string `help:"String containing a sample TODOS section to use for preview (optional, overrides --todos-file)"`
 	CustomVars  string `help:"Custom variables as JSON string (optional)"`
+}
+
+func (cmd *previewCmd) Help() string {
+	return "Render the configured template against a sample todos section. No files are written."
 }
 
 func loggerForCommand(baseLogger *Logger, printPath bool) *Logger {

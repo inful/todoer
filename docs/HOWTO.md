@@ -191,6 +191,28 @@ todos_header = "## Tasks"
 
 Todoer will then process the `## Tasks` section instead of `## Todos`.
 
+## Parser strictness inside the todos section
+
+The parser is strict: inside the `## Todos` (or configured) section, only
+the following line shapes are accepted:
+
+- A day header: `- [[YYYY-MM-DD]]`
+- A todo item: `- [ ]` (unchecked) or `- [x]` (checked), with optional
+  sub-items at greater indentation.
+- A bullet entry: `- text` (non-todo lines, associated with the nearest
+  preceding todo item).
+- A continuation line: indented text associated with the nearest
+  preceding todo item.
+
+Anything else inside the todos section is an error. If a free-form note,
+a code block, a blockquote, or any other non-todo content is placed
+between todo lines, `process` (and any other command that reparses the
+journal) will fail with `unparseable line N: "<line>"`.
+
+If you want a notes section, put it under a different `##` header. The
+parser only processes the configured todos header and preserves all
+other sections verbatim.
+
 ## Use custom template variables
 
 Todoer supports custom variables defined in the configuration file.

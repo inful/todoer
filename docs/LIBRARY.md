@@ -22,7 +22,7 @@ import (
     "fmt"
     "log"
 
-    "git.luguber.info/inful/todoer/pkg/generator"
+    "github.com/inful/todoer/pkg/generator"
 )
 
 func main() {
@@ -69,7 +69,7 @@ import (
     "fmt"
     "log"
 
-    "git.luguber.info/inful/todoer/pkg/generator"
+    "github.com/inful/todoer/pkg/generator"
 )
 
 func main() {
@@ -150,7 +150,7 @@ if err != nil {
 ## API Reference (Library)
 
 All types and functions below are in the
-`git.luguber.info/inful/todoer/pkg/generator` package.
+`github.com/inful/todoer/pkg/generator` package.
 
 ### Constructors
 
@@ -288,3 +288,92 @@ You can see additional generator usage examples in this document. The
 primary API surface is the options-based constructor
 `NewGeneratorWithOptions`, optional `Option` values, and the
 `Process`/`ProcessFile` methods.
+
+## Public API in `pkg/core`
+
+The `github.com/inful/todoer/pkg/core` package is also a public,
+library-level surface. The `pkg/generator` façade is a thin wrapper
+around `pkg/core`; the `cmd/todoer` CLI uses `pkg/core` directly for
+low-level journal and section operations. The following types and
+functions are part of the supported surface.
+
+### Types
+
+- `core.TodoItem` — A single todo line with completion flag, text,
+  nested sub-items, and associated bullet lines.
+- `core.DaySection` — All todo items for a single date
+  (`- [[YYYY-MM-DD]]` header).
+- `core.TodoJournal` — A full journal: an ordered list of `DaySection`s.
+- `core.TemplateData` — The struct passed to `text/template` when
+  rendering a journal file. Includes the current/previous date
+  variants, todo statistics, and `.Custom` for user-defined variables.
+
+### Constants and regexes
+
+- `core.TodosHeader` (default `"## Todos"`), `core.DateFormat`
+  (`"2006-01-02"`), `core.CompletedMarker`, `core.UncompletedMarker`.
+- Compiled regexes: `core.NextSectionRegex`, `core.DayHeaderRegex`,
+  `core.TodoItemRegex`, `core.BulletEntryRegex`,
+  `core.ContinuationRegex`, `core.DateTagRegex`.
+
+### Section and frontmatter I/O
+
+- `core.ExtractDateFromFrontmatter(content, dateKey) (string, error)` —
+  reads the configured date key (default `title`) from the YAML-style
+  frontmatter; falls back to today's date if missing.
+- `core.BuildFrontmatterDateRegex(key) *regexp.Regexp` — returns the
+  compiled regex used internally; useful for downstream tooling.
+- `core.ExtractFrontmatterMetadata(content) (map[string]string, bool, error)`
+  — reads simple `key: value` pairs.
+- `core.UpsertFrontmatterMetadata(content, updates) (string, error)` —
+  idempotently updates or inserts keys; preserves line ending style
+  (LF or CRLF) and unrelated keys.
+- `core.ExtractTodosSectionWithHeader(content, header) (before, body, after string, err error)`
+  — splits a file around the todos section.
+- `core.CreateFromTemplate(core.TemplateOptions) (string, error)` —
+  renders a Go `text/template` against the template-data struct.
+
+### Parsing, serializing, and manipulation
+
+- `core.ParseTodosSection(content) (*TodoJournal, error)` — parses a
+  todos section into a structured journal (day sections, items, sub-items,
+  bullet lines).
+- `core.JournalToString(journal) string` — serializes a journal back to
+  markdown.
+- `core.SplitJournal(journal) (completed, uncompleted *TodoJournal)` —
+  splits a journal into completed and uncompleted halves.
+- `core.MoveUndatedTodosToCurrentDate(journal, currentDate) *TodoJournal` —
+  moves items in undated day sections under the current date.
+- `core.TagCompletedItems(journal, date)` and
+  `core.TagCompletedSubitems(journal, date)` — append `#YYYY-MM-DD`
+  tags to completed items.
+- `core.FindDaySection`, `core.FindOrCreateDaySection`,
+  `core.RemoveItemFromDays`, `core.RemoveItemRecursive` — journal
+  navigation and mutation helpers.
+- `core.SortJournalDays(journal)` — sort days in place by date.
+
+### Carryover merge (ADR-0001)
+
+- `core.MergeCarryover(source, target *TodoJournal) *TodoJournal` —
+  appends source items into matching target days, skipping items whose
+  `(day, text-with-date-tag-stripped)` key is already present. Items are
+  deep-copied; day sections are sorted on return. The function is
+  idempotent: calling it twice on the same input is a no-op the second
+  time.
+
+### Utilities
+
+- `core.GetIndentLevel`, `core.NormalizeIndentation`,
+  `core.DeepCopyItem`, `core.IsCompleted`, `core.HasDateTag`,
+  `core.CountTotalItems`, `core.CountCompletedItems`,
+  `core.CountUncompletedTopLevelItems`.
+- `core.FormatDateVariables(date) core.DateVariables` — long/short,
+  weekday, ISO week, etc.
+- `core.CalculateTodoStatistics(journal, currentDate) core.TodoStatistics`.
+- `core.MergeCustomVariables`, `core.ValidateCustomVariables`.
+- `core.ValidateDate`, `core.BuildFrontmatterDateRegex`.
+
+### Template functions
+
+- `core.CreateTemplateFunctions() template.FuncMap` — returns the full
+  set of helper functions registered with the renderer.
