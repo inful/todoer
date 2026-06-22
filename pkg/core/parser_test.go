@@ -6,23 +6,10 @@ import (
 	"testing"
 )
 
-// Test helper functions
-func createTestTodoItemForParser(text string, completed bool, subitems ...*TodoItem) *TodoItem {
-	return &TodoItem{
-		Text:        text,
-		Completed:   completed,
-		SubItems:    subitems,
-		BulletLines: []string{},
-	}
-}
-
-func createTestDaySectionForParser(date string, items ...*TodoItem) *DaySection {
-	return &DaySection{
-		Date:  date,
-		Items: items,
-	}
-}
-
+// TestValidateDate is the entry point of parser_test.go. The shared
+// test-data helpers (createTestTodoItem, createTestDaySection) live
+// in journal_test.go so the parser tests and the journal tests can
+// share a single canonical constructor pair.
 func TestValidateDate(t *testing.T) {
 	t.Run("valid date should return no error", func(t *testing.T) {
 		err := ValidateDate("2023-01-01")
@@ -77,11 +64,11 @@ func TestNewParserState(t *testing.T) {
 func TestParserStateReset(t *testing.T) {
 	t.Run("should reset stacks but preserve currentDay", func(t *testing.T) {
 		state := newParserState()
-		state.currentDay = createTestDaySectionForParser("2023-01-01")
+		state.currentDay = createTestDaySection("2023-01-01")
 		state.currentIndentStack = []int{0, 2, 4}
 		state.currentItemStack = []*TodoItem{
-			createTestTodoItemForParser("Item 1", false),
-			createTestTodoItemForParser("Item 2", true),
+			createTestTodoItem("Item 1", false),
+			createTestTodoItem("Item 2", true),
 		}
 
 		state.reset()
@@ -384,7 +371,7 @@ func TestProcessLine(t *testing.T) {
 	t.Run("unparseable line with current day should return error", func(t *testing.T) {
 		journal := &TodoJournal{Days: []*DaySection{}}
 		state := newParserState()
-		state.currentDay = createTestDaySectionForParser("2023-01-01")
+		state.currentDay = createTestDaySection("2023-01-01")
 
 		err := processLine(journal, state, "some unparseable text", 5)
 		if err == nil {
@@ -431,7 +418,7 @@ func TestProcessDayHeader(t *testing.T) {
 		journal := &TodoJournal{Days: []*DaySection{}}
 		state := newParserState()
 		state.currentIndentStack = []int{0, 2}
-		state.currentItemStack = []*TodoItem{createTestTodoItemForParser("Test", false)}
+		state.currentItemStack = []*TodoItem{createTestTodoItem("Test", false)}
 
 		err := processDayHeader(journal, state, "2023-01-01")
 		if err != nil {
@@ -449,7 +436,7 @@ func TestProcessDayHeader(t *testing.T) {
 	t.Run("should append previous day to journal", func(t *testing.T) {
 		journal := &TodoJournal{Days: []*DaySection{}}
 		state := newParserState()
-		previousDay := createTestDaySectionForParser("2023-01-01")
+		previousDay := createTestDaySection("2023-01-01")
 		state.currentDay = previousDay
 
 		err := processDayHeader(journal, state, "2023-01-02")
@@ -469,7 +456,7 @@ func TestProcessDayHeader(t *testing.T) {
 func TestProcessTodoItem(t *testing.T) {
 	t.Run("should create todo item and add to hierarchy", func(t *testing.T) {
 		state := newParserState()
-		state.currentDay = createTestDaySectionForParser("2023-01-01")
+		state.currentDay = createTestDaySection("2023-01-01")
 		todoMatch := []string{"  - [ ] Task", "  ", " ", "Task"}
 
 		err := processTodoItem(state, todoMatch)
@@ -495,7 +482,7 @@ func TestProcessTodoItem(t *testing.T) {
 
 	t.Run("should handle completed todo item", func(t *testing.T) {
 		state := newParserState()
-		state.currentDay = createTestDaySectionForParser("2023-01-01")
+		state.currentDay = createTestDaySection("2023-01-01")
 		todoMatch := []string{"  - [x] Completed", "  ", "x", "Completed"}
 
 		err := processTodoItem(state, todoMatch)
@@ -513,10 +500,10 @@ func TestProcessTodoItem(t *testing.T) {
 func TestProcessAssociatedLine(t *testing.T) {
 	t.Run("should attach bullet line to appropriate todo item", func(t *testing.T) {
 		state := newParserState()
-		state.currentDay = createTestDaySectionForParser("2023-01-01")
+		state.currentDay = createTestDaySection("2023-01-01")
 
 		// Set up a todo item in the stack
-		item := createTestTodoItemForParser("Main task", false)
+		item := createTestTodoItem("Main task", false)
 		state.currentItemStack = []*TodoItem{item}
 		state.currentIndentStack = []int{2}
 
@@ -536,7 +523,7 @@ func TestProcessAssociatedLine(t *testing.T) {
 
 	t.Run("should handle empty item stack gracefully", func(t *testing.T) {
 		state := newParserState()
-		state.currentDay = createTestDaySectionForParser("2023-01-01")
+		state.currentDay = createTestDaySection("2023-01-01")
 
 		matches := []string{"    - Detail", "    ", "Detail"}
 		err := processAssociatedLine(state, "    - Detail", matches)
@@ -547,9 +534,9 @@ func TestProcessAssociatedLine(t *testing.T) {
 
 	t.Run("should normalize indentation in bullet lines", func(t *testing.T) {
 		state := newParserState()
-		state.currentDay = createTestDaySectionForParser("2023-01-01")
+		state.currentDay = createTestDaySection("2023-01-01")
 
-		item := createTestTodoItemForParser("Main task", false)
+		item := createTestTodoItem("Main task", false)
 		state.currentItemStack = []*TodoItem{item}
 		state.currentIndentStack = []int{2}
 
@@ -574,8 +561,8 @@ func TestProcessAssociatedLine(t *testing.T) {
 
 func TestFindTargetItemForBullet(t *testing.T) {
 	t.Run("should find parent item with lower indentation", func(t *testing.T) {
-		item1 := createTestTodoItemForParser("Item 1", false)
-		item2 := createTestTodoItemForParser("Item 2", false)
+		item1 := createTestTodoItem("Item 1", false)
+		item2 := createTestTodoItem("Item 2", false)
 		itemStack := []*TodoItem{item1, item2}
 		indentStack := []int{0, 2}
 
@@ -586,8 +573,8 @@ func TestFindTargetItemForBullet(t *testing.T) {
 	})
 
 	t.Run("should find parent item when bullet indentation matches parent", func(t *testing.T) {
-		item1 := createTestTodoItemForParser("Item 1", false)
-		item2 := createTestTodoItemForParser("Item 2", false)
+		item1 := createTestTodoItem("Item 1", false)
+		item2 := createTestTodoItem("Item 2", false)
 		itemStack := []*TodoItem{item1, item2}
 		indentStack := []int{0, 4}
 
@@ -598,8 +585,8 @@ func TestFindTargetItemForBullet(t *testing.T) {
 	})
 
 	t.Run("should return last item when no suitable parent found", func(t *testing.T) {
-		item1 := createTestTodoItemForParser("Item 1", false)
-		item2 := createTestTodoItemForParser("Item 2", false)
+		item1 := createTestTodoItem("Item 1", false)
+		item2 := createTestTodoItem("Item 2", false)
 		itemStack := []*TodoItem{item1, item2}
 		indentStack := []int{4, 6}
 
@@ -617,7 +604,7 @@ func TestFindTargetItemForBullet(t *testing.T) {
 	})
 
 	t.Run("should handle mismatched stack lengths gracefully", func(t *testing.T) {
-		item1 := createTestTodoItemForParser("Item 1", false)
+		item1 := createTestTodoItem("Item 1", false)
 		itemStack := []*TodoItem{item1}
 		indentStack := []int{0, 2, 4} // longer than item stack
 
@@ -651,7 +638,7 @@ func TestCreateNewDaySection(t *testing.T) {
 
 	t.Run("should append previous day to journal", func(t *testing.T) {
 		journal := &TodoJournal{Days: []*DaySection{}}
-		previousDay := createTestDaySectionForParser("2023-01-01")
+		previousDay := createTestDaySection("2023-01-01")
 
 		newDay := createNewDaySection(journal, previousDay, "2023-01-02")
 
@@ -739,8 +726,8 @@ func TestCreateTodoItem(t *testing.T) {
 
 func TestAddItemToHierarchy(t *testing.T) {
 	t.Run("should add top-level item to empty hierarchy", func(t *testing.T) {
-		currentDay := createTestDaySectionForParser("2023-01-01")
-		item := createTestTodoItemForParser("Top level", false)
+		currentDay := createTestDaySection("2023-01-01")
+		item := createTestTodoItem("Top level", false)
 
 		newIndentStack, newItemStack := addItemToHierarchy(
 			currentDay, item, 0, []int{}, []*TodoItem{})
@@ -760,9 +747,9 @@ func TestAddItemToHierarchy(t *testing.T) {
 	})
 
 	t.Run("should add child item to parent", func(t *testing.T) {
-		currentDay := createTestDaySectionForParser("2023-01-01")
-		parentItem := createTestTodoItemForParser("Parent", false)
-		childItem := createTestTodoItemForParser("Child", false)
+		currentDay := createTestDaySection("2023-01-01")
+		parentItem := createTestTodoItem("Parent", false)
+		childItem := createTestTodoItem("Child", false)
 
 		currentIndentStack := []int{0}
 		currentItemStack := []*TodoItem{parentItem}
@@ -785,9 +772,9 @@ func TestAddItemToHierarchy(t *testing.T) {
 	})
 
 	t.Run("should handle sibling items at same level", func(t *testing.T) {
-		currentDay := createTestDaySectionForParser("2023-01-01")
-		firstItem := createTestTodoItemForParser("First", false)
-		secondItem := createTestTodoItemForParser("Second", false)
+		currentDay := createTestDaySection("2023-01-01")
+		firstItem := createTestTodoItem("First", false)
+		secondItem := createTestTodoItem("Second", false)
 
 		// Add first item
 		currentIndentStack := []int{0}
@@ -812,10 +799,10 @@ func TestAddItemToHierarchy(t *testing.T) {
 	})
 
 	t.Run("should handle decreasing indentation levels", func(t *testing.T) {
-		currentDay := createTestDaySectionForParser("2023-01-01")
-		parentItem := createTestTodoItemForParser("Parent", false)
-		childItem := createTestTodoItemForParser("Child", false)
-		siblingItem := createTestTodoItemForParser("Sibling", false)
+		currentDay := createTestDaySection("2023-01-01")
+		parentItem := createTestTodoItem("Parent", false)
+		childItem := createTestTodoItem("Child", false)
+		siblingItem := createTestTodoItem("Sibling", false)
 
 		// Setup: parent at level 0, child at level 2
 		currentIndentStack := []int{0, 2}

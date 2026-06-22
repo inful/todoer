@@ -9,11 +9,19 @@ import (
 )
 
 // Test data helpers
+//
+// createTestTodoItem is the canonical constructor used by all
+// journal_test.go and parser_test.go tests in this package. It
+// matches the original parser_test.go helper: BulletLines is
+// always a non-nil empty slice, never nil, so that the parser's
+// append() and range calls behave identically regardless of how
+// the test item was constructed.
 func createTestTodoItem(text string, completed bool, subitems ...*TodoItem) *TodoItem {
 	return &TodoItem{
-		Text:      text,
-		Completed: completed,
-		SubItems:  subitems,
+		Text:        text,
+		Completed:   completed,
+		SubItems:    subitems,
+		BulletLines: []string{},
 	}
 }
 
