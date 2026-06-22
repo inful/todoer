@@ -127,7 +127,7 @@ func TestNewGeneratorFromFile(t *testing.T) {
 	t.Run("nonexistent file", func(t *testing.T) {
 		_, err := NewGeneratorFromFileWithOptions("nonexistent.md", "2024-01-15")
 		if err == nil {
-			t.Error("NewGeneratorFromFile() should fail for nonexistent file")
+			t.Error("NewGeneratorFromFileWithOptions() should fail for nonexistent file")
 		}
 	})
 }
