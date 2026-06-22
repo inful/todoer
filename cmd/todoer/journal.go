@@ -490,7 +490,15 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 	// per ADR-0001. If today's journal already exists (e.g. created by
 	// hand or by an earlier run), the source's uncompleted items are
 	// merged in instead of overwriting the target.
-	if err := processJournal(closest, journalPath, templateFile, today, skipBackup, printPath, true, config, logger); err != nil {
+	if err := processJournalWithOptions(ProcessOptions{
+		SourceFile:    closest,
+		TargetFile:    journalPath,
+		TemplateFile:  templateFile,
+		TemplateDate:  today,
+		MergeIfExists: true,
+		SkipBackup:    skipBackup,
+		PrintPath:     printPath,
+	}, config, logger); err != nil {
 		return err
 	}
 
