@@ -137,39 +137,27 @@ type ProcessOptions struct {
 	PrintPath bool
 }
 
-// processJournalWithOptions is the struct-based entry point. It
-// forwards to the legacy processJournal until Phase 3c removes the
-// old signature. New code should call this instead of the legacy
-// processJournal.
-func processJournalWithOptions(opts ProcessOptions, config *Config, logger *Logger) error {
-	return processJournal(
-		opts.SourceFile,
-		opts.TargetFile,
-		opts.TemplateFile,
-		opts.TemplateDate,
-		opts.SkipBackup,
-		opts.PrintPath,
-		opts.MergeIfExists,
-		config,
-		logger,
-	)
-}
-
-// processJournal processes a journal file, writing the target and optionally
-// updating the source with a backup. When mergeIfExists is true and the
-// target file already exists, the source's uncompleted items are merged
-// into the target's existing todos via core.MergeCarryover instead of
-// overwriting the target. When mergeIfExists is false, the target is
-// overwritten in full (or created if missing).
+// processJournal processes a journal file, writing the target and
+// optionally updating the source with a backup. When MergeIfExists is
+// true and the target file already exists, the source's uncompleted
+// items are merged into the target's existing todos via
+// core.MergeCarryover instead of overwriting the target. When
+// MergeIfExists is false, the target is overwritten in full (or
+// created if missing).
 //
 // The source file is read exactly once. The previous date for template
 // rendering is extracted from that single read, and the same bytes are
 // handed to the generator. Writes are ordered source-first, then
 // target, so a failed source write leaves the target untouched.
-//
-// Deprecated: prefer processJournalWithOptions. processJournal will be
-// removed once all callers migrate in Phase 3c.
-func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup, printPath, mergeIfExists bool, config *Config, logger *Logger) error {
+func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
+	sourceFile := opts.SourceFile
+	targetFile := opts.TargetFile
+	templateFile := opts.TemplateFile
+	templateDate := opts.TemplateDate
+	skipBackup := opts.SkipBackup
+	printPath := opts.PrintPath
+	mergeIfExists := opts.MergeIfExists
+
 	logger.Debug("Processing journal: source=%s, target=%s, template=%s, date=%s", sourceFile, targetFile, templateFile, templateDate)
 
 	if err := validateProcessArgs(sourceFile, targetFile, templateDate); err != nil {
@@ -490,7 +478,7 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 	// per ADR-0001. If today's journal already exists (e.g. created by
 	// hand or by an earlier run), the source's uncompleted items are
 	// merged in instead of overwriting the target.
-	if err := processJournalWithOptions(ProcessOptions{
+	if err := processJournal(ProcessOptions{
 		SourceFile:    closest,
 		TargetFile:    journalPath,
 		TemplateFile:  templateFile,

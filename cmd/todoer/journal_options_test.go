@@ -39,8 +39,8 @@ func TestProcessJournalWithOptions_ShimIsEquivalent(t *testing.T) {
 		SkipBackup:    false,
 		PrintPath:     false,
 	}
-	if err := processJournalWithOptions(opts, config, logger); err != nil {
-		t.Fatalf("processJournalWithOptions: %v", err)
+	if err := processJournal(opts, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
 	}
 
 	after, _ := os.ReadFile(target)
@@ -87,8 +87,8 @@ func TestProcessJournalWithOptions_NoBackupWhenSkipped(t *testing.T) {
 		MergeIfExists: true,
 		SkipBackup:    true,
 	}
-	if err := processJournalWithOptions(opts, config, logger); err != nil {
-		t.Fatalf("processJournalWithOptions: %v", err)
+	if err := processJournal(opts, config, logger); err != nil {
+		t.Fatalf("processJournal: %v", err)
 	}
 
 	bak := source + ".bak"
@@ -120,7 +120,7 @@ func TestProcessJournalWithOptions_PrintPath(t *testing.T) {
 		PrintPath:     true,
 	}
 	out := captureStdout(t, func() error {
-		return processJournalWithOptions(opts, config, logger)
+		return processJournal(opts, config, logger)
 	})
 
 	out = strings.TrimSpace(out)

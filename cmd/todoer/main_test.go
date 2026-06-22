@@ -494,7 +494,7 @@ func TestProcessJournal_ValidationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := NewLogger(ModeQuiet)
-			err := processJournalWithOptions(ProcessOptions{
+			err := processJournal(ProcessOptions{
 				SourceFile:   tt.sourceFile,
 				TargetFile:   tt.targetFile,
 				TemplateDate: tt.templateDate,
@@ -502,13 +502,13 @@ func TestProcessJournal_ValidationErrors(t *testing.T) {
 
 			if tt.expectError {
 				if err == nil {
-					t.Errorf("processJournalWithOptions() expected error, got none")
+					t.Errorf("processJournal() expected error, got none")
 				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("processJournalWithOptions() error = %v, want to contain %v", err, tt.errorContains)
+					t.Errorf("processJournal() error = %v, want to contain %v", err, tt.errorContains)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("processJournalWithOptions() unexpected error: %v", err)
+					t.Errorf("processJournal() unexpected error: %v", err)
 				}
 			}
 		})
@@ -543,12 +543,12 @@ Some notes here.
 	config := &Config{RootDir: tempDir}
 
 	logger := NewLogger(ModeQuiet)
-	err := processJournalWithOptions(ProcessOptions{
+	err := processJournal(ProcessOptions{
 		SourceFile: sourceFile,
 		TargetFile: targetFile,
 	}, config, logger)
 	if err != nil {
-		t.Fatalf("processJournalWithOptions() unexpected error: %v", err)
+		t.Fatalf("processJournal() unexpected error: %v", err)
 	}
 
 	// Check that target file was created
@@ -587,12 +587,12 @@ date: 2024-01-01
 	config := &Config{RootDir: tempDir}
 	logger := NewLogger(ModeQuiet)
 
-	if err := processJournalWithOptions(ProcessOptions{
+	if err := processJournal(ProcessOptions{
 		SourceFile: sourceFile,
 		TargetFile: targetFile,
 		SkipBackup: true,
 	}, config, logger); err != nil {
-		t.Fatalf("processJournalWithOptions() unexpected error: %v", err)
+		t.Fatalf("processJournal() unexpected error: %v", err)
 	}
 
 	if _, err := os.Stat(sourceFile + ".bak"); !os.IsNotExist(err) {
@@ -1107,7 +1107,7 @@ func TestProcessJournal_PrintPath(t *testing.T) {
 	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [ ] Carryover\n\n## Notes\n")
 
 	logger := NewLogger(ModeQuiet)
-	if err := processJournalWithOptions(ProcessOptions{
+	if err := processJournal(ProcessOptions{
 		SourceFile:   source,
 		TargetFile:   target,
 		TemplateDate: today,
@@ -1131,7 +1131,7 @@ func TestProcessJournal_OnlyCompletedItems(t *testing.T) {
 	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [x] Done\n\n## Notes\n")
 
 	logger := NewLogger(ModeQuiet)
-	if err := processJournalWithOptions(ProcessOptions{
+	if err := processJournal(ProcessOptions{
 		SourceFile:   source,
 		TargetFile:   target,
 		TemplateDate: today,
@@ -1172,7 +1172,7 @@ func TestProcessJournal_MergeIntoExistingTarget(t *testing.T) {
 	createTestFile(t, target, "---\ndate: "+today+"\n---\n\n# J\n\n## Todos\n\n- [["+today+"]]\n  - [ ] already in today\n\n## Notes\n")
 
 	logger := NewLogger(ModeQuiet)
-	if err := processJournalWithOptions(ProcessOptions{
+	if err := processJournal(ProcessOptions{
 		SourceFile:    source,
 		TargetFile:    target,
 		TemplateDate:  today,
@@ -1211,10 +1211,10 @@ func TestProcessJournal_MergeIsIdempotent(t *testing.T) {
 		TemplateDate:  today,
 		MergeIfExists: true,
 	}
-	if err := processJournalWithOptions(mergeOpts, config, logger); err != nil {
+	if err := processJournal(mergeOpts, config, logger); err != nil {
 		t.Fatalf("first processJournal: %v", err)
 	}
-	if err := processJournalWithOptions(mergeOpts, config, logger); err != nil {
+	if err := processJournal(mergeOpts, config, logger); err != nil {
 		t.Fatalf("second processJournal: %v", err)
 	}
 
@@ -1411,7 +1411,7 @@ func TestProcessJournal_FingerprintMismatchForcesReMerge(t *testing.T) {
 	t.Setenv(fingerprintEnabledEnv, "1")
 
 	logger := NewLogger(ModeQuiet)
-	if err := processJournalWithOptions(ProcessOptions{
+	if err := processJournal(ProcessOptions{
 		SourceFile:    source,
 		TargetFile:    target,
 		TemplateDate:  today,
@@ -1444,7 +1444,7 @@ func TestProcessJournal_RecordsFingerprintWhenEnabled(t *testing.T) {
 	t.Setenv(fingerprintEnabledEnv, "1")
 
 	logger := NewLogger(ModeQuiet)
-	if err := processJournalWithOptions(ProcessOptions{
+	if err := processJournal(ProcessOptions{
 		SourceFile:    source,
 		TargetFile:    target,
 		TemplateDate:  today,
@@ -1496,7 +1496,7 @@ func TestProcessJournal_NoFingerprintWhenDisabled(t *testing.T) {
 	}
 
 	logger := NewLogger(ModeQuiet)
-	if err := processJournalWithOptions(ProcessOptions{
+	if err := processJournal(ProcessOptions{
 		SourceFile:    source,
 		TargetFile:    target,
 		TemplateDate:  today,
@@ -1532,7 +1532,7 @@ func TestProcessJournal_NoFingerprintWriteWhenSuppressed(t *testing.T) {
 	t.Setenv(fingerprintWriteEnv, "0")
 
 	logger := NewLogger(ModeQuiet)
-	if err := processJournalWithOptions(ProcessOptions{
+	if err := processJournal(ProcessOptions{
 		SourceFile:    source,
 		TargetFile:    target,
 		TemplateDate:  today,
