@@ -107,6 +107,54 @@ func getGenerator(templateFile, templateDate, previousDate string, config *Confi
 	return gen, tmplName, nil
 }
 
+// ProcessOptions bundles the configuration for processJournal. It
+// replaces the legacy 9-parameter signature with a single struct so
+// call sites are self-documenting and the three boolean toggles
+// (SkipBackup, PrintPath, MergeIfExists) cannot be mis-ordered at
+// the call site.
+type ProcessOptions struct {
+	// SourceFile is the journal file to read from.
+	SourceFile string
+	// TargetFile is the journal file to write to.
+	TargetFile string
+	// TemplateFile is the user template path; empty selects the
+	// embedded default template (or the config-dir template if
+	// present).
+	TemplateFile string
+	// TemplateDate is the logical date for template rendering; empty
+	// means today.
+	TemplateDate string
+	// MergeIfExists, when true and TargetFile already exists,
+	// splices the source's uncompleted items into the target's
+	// todos via core.MergeCarryover instead of overwriting.
+	MergeIfExists bool
+	// SkipBackup, when true, suppresses the .bak copy of SourceFile
+	// that processJournal would otherwise write before updating
+	// the source.
+	SkipBackup bool
+	// PrintPath, when true, writes TargetFile to stdout on success
+	// so the command can be composed in shell pipelines.
+	PrintPath bool
+}
+
+// processJournalWithOptions is the struct-based entry point. It
+// forwards to the legacy processJournal until Phase 3c removes the
+// old signature. New code should call this instead of the legacy
+// processJournal.
+func processJournalWithOptions(opts ProcessOptions, config *Config, logger *Logger) error {
+	return processJournal(
+		opts.SourceFile,
+		opts.TargetFile,
+		opts.TemplateFile,
+		opts.TemplateDate,
+		opts.SkipBackup,
+		opts.PrintPath,
+		opts.MergeIfExists,
+		config,
+		logger,
+	)
+}
+
 // processJournal processes a journal file, writing the target and optionally
 // updating the source with a backup. When mergeIfExists is true and the
 // target file already exists, the source's uncompleted items are merged
@@ -118,6 +166,9 @@ func getGenerator(templateFile, templateDate, previousDate string, config *Confi
 // rendering is extracted from that single read, and the same bytes are
 // handed to the generator. Writes are ordered source-first, then
 // target, so a failed source write leaves the target untouched.
+//
+// Deprecated: prefer processJournalWithOptions. processJournal will be
+// removed once all callers migrate in Phase 3c.
 func processJournal(sourceFile, targetFile, templateFile, templateDate string, skipBackup, printPath, mergeIfExists bool, config *Config, logger *Logger) error {
 	logger.Debug("Processing journal: source=%s, target=%s, template=%s, date=%s", sourceFile, targetFile, templateFile, templateDate)
 
