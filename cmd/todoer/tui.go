@@ -112,7 +112,20 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m tuiModel) View() string {
 	var b strings.Builder
+	b.WriteString(m.viewHeader())
+	b.WriteString("\n")
+	b.WriteString(m.viewItems())
+	b.WriteString("\n")
+	b.WriteString(m.viewInputLine())
+	b.WriteString("\n")
+	b.WriteString(m.viewStatus())
+	return b.String()
+}
 
+// viewHeader renders the title bar, file path, state, and filter line.
+// It uses tuiTheme styles; the test surface is the textual content
+// (State:, Filter:, File:), which TestView_StateMarkers asserts on.
+func (m tuiModel) viewHeader() string {
 	stateText := "clean"
 	stateStyle := tuiTheme.stateClean
 	if m.dirty {
@@ -124,54 +137,72 @@ func (m tuiModel) View() string {
 		stateStyle = tuiTheme.stateChanged
 	}
 
+	var b strings.Builder
 	b.WriteString(tuiTheme.header.Render("todoer tui"))
 	b.WriteString("\n")
 	b.WriteString(tuiTheme.filePath.Render("File: "+m.journalPath) + "\n")
 	b.WriteString("State: " + stateStyle.Render(stateText) + "\n")
-	b.WriteString("Filter: " + tuiTheme.filePath.Render(m.filterQuery) + "\n\n")
+	b.WriteString("Filter: " + tuiTheme.filePath.Render(m.filterQuery) + "\n")
+	return b.String()
+}
 
+// viewItems renders the todo list, applying cursor and selection styles.
+// Returns the empty-state placeholder if no items match the filter.
+func (m tuiModel) viewItems() string {
 	filtered := m.filteredItems()
 	if len(filtered) == 0 {
-		b.WriteString(tuiTheme.empty.Render(m.emptyStateMessage()) + "\n")
-	} else {
-		for i, entry := range filtered {
-			cursor := " "
-			if i == m.selected {
-				cursor = ">"
-			}
+		return tuiTheme.empty.Render(m.emptyStateMessage()) + "\n"
+	}
 
-			check := "[ ]"
-			if entry.item.Completed {
-				check = "[x]"
-			}
+	var b strings.Builder
+	for i, entry := range filtered {
+		cursor := " "
+		if i == m.selected {
+			cursor = ">"
+		}
 
-			indent := strings.Repeat("  ", entry.depth)
-			line := fmt.Sprintf("%s %s%s %s", cursor, indent, check, entry.item.Text)
-			if i == m.selected {
-				b.WriteString(tuiTheme.selected.Render(line) + "\n")
-			} else {
-				b.WriteString(tuiTheme.item.Render(line) + "\n")
-			}
+		check := "[ ]"
+		if entry.item.Completed {
+			check = "[x]"
+		}
+
+		indent := strings.Repeat("  ", entry.depth)
+		line := fmt.Sprintf("%s %s%s %s", cursor, indent, check, entry.item.Text)
+		if i == m.selected {
+			b.WriteString(tuiTheme.selected.Render(line) + "\n")
+		} else {
+			b.WriteString(tuiTheme.item.Render(line) + "\n")
 		}
 	}
+	return b.String()
+}
 
-	b.WriteString("\n")
-	if m.inputMode {
-		b.WriteString(tuiTheme.inputLabel.Render("Add todo: ") + m.inputText + "\n")
-	} else if m.filterMode {
-		b.WriteString(tuiTheme.inputLabel.Render("Filter todos: ") + m.filterQuery + "\n")
-	} else {
-		b.WriteString(tuiTheme.keyHelp.Render(tuiHelpText()) + "\n")
+// viewInputLine renders the bottom-of-view prompt: add-todo prompt
+// when in input mode, filter prompt when in filter mode, and the
+// static help line in normal mode. The help line is driven by
+// tuiKeymap so adding a key is a one-place edit.
+func (m tuiModel) viewInputLine() string {
+	switch {
+	case m.inputMode:
+		return tuiTheme.inputLabel.Render("Add todo: ") + m.inputText + "\n"
+	case m.filterMode:
+		return tuiTheme.inputLabel.Render("Filter todos: ") + m.filterQuery + "\n"
+	default:
+		return tuiTheme.keyHelp.Render(tuiHelpText()) + "\n"
 	}
+}
 
+// viewStatus renders the status line. The style is chosen from the
+// status text: "failed" / "error" use the error style, "external" /
+// "blocked" use the warn style, anything else uses the ok style.
+func (m tuiModel) viewStatus() string {
 	statusStyle := tuiTheme.statusOK
 	lowerStatus := strings.ToLower(m.status)
-	if strings.Contains(lowerStatus, "failed") || strings.Contains(lowerStatus, "error") {
+	switch {
+	case strings.Contains(lowerStatus, "failed") || strings.Contains(lowerStatus, "error"):
 		statusStyle = tuiTheme.statusErr
-	} else if strings.Contains(lowerStatus, "external") || strings.Contains(lowerStatus, "blocked") {
+	case strings.Contains(lowerStatus, "external") || strings.Contains(lowerStatus, "blocked"):
 		statusStyle = tuiTheme.statusWarn
 	}
-	b.WriteString("Status: " + statusStyle.Render(m.status) + "\n")
-
-	return b.String()
+	return "Status: " + statusStyle.Render(m.status) + "\n"
 }
