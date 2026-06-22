@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/inful/todoer/pkg/core"
@@ -32,10 +33,8 @@ func validateFilePath(path string) error {
 	// removing the ".." traces, so the check must happen on the original
 	// string. We check at component boundaries (a substring check would
 	// wrongly reject a legitimate filename like "..notes.md").
-	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
-		if part == ".." {
-			return fmt.Errorf("%w: path contains directory traversal", ErrInvalidPath)
-		}
+	if slices.Contains(strings.Split(filepath.ToSlash(path), "/"), "..") {
+		return fmt.Errorf("%w: path contains directory traversal", ErrInvalidPath)
 	}
 
 	// Clean the path to normalize it after the traversal check.
