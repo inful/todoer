@@ -9,6 +9,13 @@ import (
 	"github.com/inful/todoer/pkg/core"
 )
 
+// nonItemLines is the number of terminal lines consumed by the
+// header, footer, and blank-line separators in the View output,
+// used to compute the visible item count for viewport scrolling.
+// The View assembles: 4 header lines + 1 blank + N item lines +
+// 1 blank + 1 input line + 1 blank + 1 status line = N + 9.
+const nonItemLines = 9
+
 type tuiCmd struct {
 	Backup bool `help:"Preserve a .bak copy of the source journal when creating today's journal for the first time"`
 }
@@ -33,6 +40,13 @@ type tuiModel struct {
 
 	items    []tuiItem
 	selected int
+	// offset is the index (in the filtered list) of the first item
+	// rendered by viewItems. It advances as the user scrolls so
+	// the selected item stays in the viewport.
+	offset int
+	// viewportHeight is the total terminal height in lines (0 if
+	// unknown; set by the tea.WindowSizeMsg handler in Update).
+	viewportHeight int
 
 	dirty           bool
 	fileHash        string
@@ -94,6 +108,10 @@ func tuiTickCmd() tea.Cmd {
 
 func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.viewportHeight = msg.Height
+		m.ensureSelectedVisible()
+		return m, nil
 	case tuiTickMsg:
 		m.checkExternalChanges()
 		return m, tuiTickCmd()
@@ -146,16 +164,41 @@ func (m tuiModel) viewHeader() string {
 	return b.String()
 }
 
-// viewItems renders the todo list, applying cursor and selection styles.
-// Returns the empty-state placeholder if no items match the filter.
+// viewItems renders the todo list as a viewport window
+// [offset, offset+visibleCount) of the filtered list, applying
+// cursor and selection styles. Returns the empty-state placeholder
+// when the filtered list is empty.
+//
+// Without this, a list longer than the terminal would produce a
+// View output that exceeds the terminal height; Bubble Tea would
+// then clip the output to fit, and because items are appended
+// top-to-bottom, the bottom of the list is what the user sees —
+// the top is clipped off and the user cannot reach earlier items
+// by scrolling.
 func (m tuiModel) viewItems() string {
 	filtered := m.filteredItems()
 	if len(filtered) == 0 {
 		return tuiTheme.empty.Render(m.emptyStateMessage()) + "\n"
 	}
 
+	visibleCount := m.visibleItemCount()
+	// Clamp offset into [0, len(filtered) - visibleCount]. We use a
+	// local variable so viewItems stays a pure function (no
+	// mutation of m.offset). ensureSelectedVisible is the
+	// canonical place to keep the offset in range; the clamp
+	// here is defence-in-depth for callers that set m.offset
+	// directly.
+	offset := m.offset
+	offset = max(offset, 0)
+	if maxValid := len(filtered) - visibleCount; maxValid >= 0 && offset > maxValid {
+		offset = maxValid
+	}
+
+	visibleEnd := min(offset+visibleCount, len(filtered))
+
 	var b strings.Builder
-	for i, entry := range filtered {
+	for i := offset; i < visibleEnd; i++ {
+		entry := filtered[i]
 		cursor := " "
 		if i == m.selected {
 			cursor = ">"
@@ -175,6 +218,34 @@ func (m tuiModel) viewItems() string {
 		}
 	}
 	return b.String()
+}
+
+// visibleItemCount returns how many todo items can be rendered in
+// the current terminal viewport. Returns the full filtered list
+// length when viewportHeight is unknown (0), so callers without a
+// window size (notably unit tests) see the full list.
+func (m tuiModel) visibleItemCount() int {
+	if m.viewportHeight <= 0 {
+		return len(m.filteredItems())
+	}
+	count := m.viewportHeight - nonItemLines
+	if count < 1 {
+		return 1
+	}
+	return count
+}
+
+// ensureSelectedVisible adjusts m.offset so that m.selected is
+// within the current viewport. Call this after any change to
+// m.selected or m.viewportHeight.
+func (m *tuiModel) ensureSelectedVisible() {
+	visibleCount := m.visibleItemCount()
+	switch {
+	case m.selected < m.offset:
+		m.offset = m.selected
+	case m.selected >= m.offset+visibleCount:
+		m.offset = max(m.selected-visibleCount+1, 0)
+	}
 }
 
 // viewInputLine renders the bottom-of-view prompt: add-todo prompt

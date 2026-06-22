@@ -42,6 +42,7 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshItems()
 		if len(m.items) > 0 {
 			m.selected = len(m.items) - 1
+			m.ensureSelectedVisible()
 		}
 		m.dirty = true
 		m.inputMode = false
@@ -86,10 +87,12 @@ func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "j", "down":
 		if m.selected < len(filtered)-1 {
 			m.selected++
+			m.ensureSelectedVisible()
 		}
 	case "k", "up":
 		if m.selected > 0 {
 			m.selected--
+			m.ensureSelectedVisible()
 		}
 	case "/":
 		m.filterMode = true
@@ -129,6 +132,7 @@ func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.dirty = true
 		m.status = "Todo deleted"
+		m.ensureSelectedVisible()
 	case "a":
 		m.inputMode = true
 		m.inputText = ""
