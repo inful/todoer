@@ -193,7 +193,7 @@ func TestCheckExternalChanges_MissingFileDoesNothing(t *testing.T) {
 func TestFlattenTodoItems(t *testing.T) {
 	t.Run("empty input", func(t *testing.T) {
 		var out []tuiItem
-		flattenTodoItems(nil, 0, &out)
+		flattenTodoItems(nil, 0, &out, nil)
 		if len(out) != 0 {
 			t.Errorf("expected 0 items, got %d", len(out))
 		}
@@ -206,7 +206,7 @@ func TestFlattenTodoItems(t *testing.T) {
 			{Text: "c"},
 		}
 		var out []tuiItem
-		flattenTodoItems(items, 0, &out)
+		flattenTodoItems(items, 0, &out, nil)
 		if len(out) != 3 {
 			t.Fatalf("expected 3 items, got %d", len(out))
 		}
@@ -232,7 +232,7 @@ func TestFlattenTodoItems(t *testing.T) {
 			},
 		}
 		var out []tuiItem
-		flattenTodoItems(items, 0, &out)
+		flattenTodoItems(items, 0, &out, nil)
 		if len(out) != 3 {
 			t.Fatalf("expected 3 flattened items, got %d", len(out))
 		}
@@ -255,7 +255,7 @@ func TestFlattenTodoItems(t *testing.T) {
 			{Text: "b"},
 		}
 		var out []tuiItem
-		flattenTodoItems(items, 0, &out)
+		flattenTodoItems(items, 0, &out, nil)
 		if len(out) != 2 {
 			t.Errorf("expected 2 items (nil skipped), got %d", len(out))
 		}
@@ -264,7 +264,7 @@ func TestFlattenTodoItems(t *testing.T) {
 	t.Run("starting depth is honoured", func(t *testing.T) {
 		items := []*core.TodoItem{{Text: "x"}}
 		var out []tuiItem
-		flattenTodoItems(items, 5, &out)
+		flattenTodoItems(items, 5, &out, nil)
 		if len(out) != 1 || out[0].depth != 5 {
 			t.Errorf("expected depth 5, got %d", out[0].depth)
 		}

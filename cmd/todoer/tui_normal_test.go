@@ -64,66 +64,13 @@ title: 2026-03-14
 	}
 }
 
-func TestTUIToggleBlockedOnCarryoverDay(t *testing.T) {
-	item := &core.TodoItem{Text: "carryover item", Completed: false}
-	carryoverDay := &core.DaySection{Date: "2026-03-15", Items: []*core.TodoItem{item}}
-	m := tuiModel{
-		today:    "2026-03-16",
-		journal:  &core.TodoJournal{Days: []*core.DaySection{carryoverDay}},
-		todayDay: nil,
-	}
-	m.displayDay = m.pickInitialDisplayDay()
-	m.refreshItems()
-
-	if len(m.items) != 1 {
-		t.Fatalf("expected one visible carryover item, got %d", len(m.items))
-	}
-	if !m.isReadOnlyView() {
-		t.Fatalf("expected view to be read-only (carryover fallback)")
-	}
-
-	updated, _ := m.updateNormalMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	m2 := updated.(tuiModel)
-
-	if m2.status != "Cannot edit carryover items" {
-		t.Fatalf("expected read-only status, got: %q", m2.status)
-	}
-	if item.Completed {
-		t.Fatalf("carryover item should not have been toggled")
-	}
-	if m2.dirty {
-		t.Fatalf("model should not be dirty after blocked edit")
-	}
-}
-
-func TestTUIDeleteBlockedOnCarryoverDay(t *testing.T) {
-	item := &core.TodoItem{Text: "carryover item", Completed: false}
-	carryoverDay := &core.DaySection{Date: "2026-03-15", Items: []*core.TodoItem{item}}
-	m := tuiModel{
-		today:    "2026-03-16",
-		journal:  &core.TodoJournal{Days: []*core.DaySection{carryoverDay}},
-		todayDay: nil,
-	}
-	m.displayDay = m.pickInitialDisplayDay()
-	m.refreshItems()
-
-	if len(m.items) != 1 {
-		t.Fatalf("expected one visible carryover item, got %d", len(m.items))
-	}
-
-	updated, _ := m.updateNormalMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
-	m2 := updated.(tuiModel)
-
-	if m2.status != "Cannot edit carryover items" {
-		t.Fatalf("expected read-only status, got: %q", m2.status)
-	}
-	if len(carryoverDay.Items) != 1 {
-		t.Fatalf("carryover day items should be untouched, got %d items", len(carryoverDay.Items))
-	}
-	if m2.dirty {
-		t.Fatalf("model should not be dirty after blocked edit")
-	}
-}
+// Note: the previous TestTUIToggleBlockedOnCarryoverDay and
+// TestTUIDeleteBlockedOnCarryoverDay tests asserted that the
+// carryover view was read-only. The carryover view is now
+// editable: the user can toggle and delete items from any
+// previous day, and the change is written back to the correct
+// day in the journal. See cmd/todoer/tui_carryover_test.go
+// for the new tests that pin this behaviour.
 
 func TestTUIToggleWorksOnTodayDay(t *testing.T) {
 	item := &core.TodoItem{Text: "today item", Completed: false}
@@ -139,7 +86,7 @@ func TestTUIToggleWorksOnTodayDay(t *testing.T) {
 	if len(m.items) != 1 {
 		t.Fatalf("expected one item, got %d", len(m.items))
 	}
-	if m.isReadOnlyView() {
+	if m.isCarryoverView() {
 		t.Fatalf("expected view to be editable (today's day)")
 	}
 
@@ -200,7 +147,7 @@ func TestTUIAddInCarryoverViewKeepsCarryoverVisible(t *testing.T) {
 	if len(m.items) != 1 {
 		t.Fatalf("expected one visible carryover item, got %d", len(m.items))
 	}
-	if !m.isReadOnlyView() {
+	if !m.isCarryoverView() {
 		t.Fatalf("expected initial view to be the carryover fallback")
 	}
 
@@ -210,13 +157,22 @@ func TestTUIAddInCarryoverViewKeepsCarryoverVisible(t *testing.T) {
 	updated, _ := m.updateInputMode(tea.KeyMsg{Type: tea.KeyEnter})
 	m2 := updated.(tuiModel)
 
-	// The carryover item must still be visible: the new todo is in
-	// today's section, the view stays on the carryover day.
-	if len(m2.items) != 1 {
-		t.Fatalf("expected the carryover item to remain visible after add, got %d items", len(m2.items))
+	// The carryover item must still be visible AND the new today
+	// item is also visible (the carryover view shows items from
+	// all days, including today). The display day is sticky on
+	// the carryover day.
+	if len(m2.items) != 2 {
+		t.Fatalf("expected carryover + new today items visible after add, got %d items", len(m2.items))
 	}
-	if m2.items[0].item.Text != "carryover item" {
-		t.Fatalf("expected the carryover item to be the visible one, got %q", m2.items[0].item.Text)
+	got := make(map[string]bool)
+	for _, it := range m2.items {
+		got[it.item.Text] = true
+	}
+	if !got["carryover item"] {
+		t.Errorf("expected the carryover item to remain visible, got %+v", m2.items)
+	}
+	if !got["new today todo"] {
+		t.Errorf("expected the new today item to be visible, got %+v", m2.items)
 	}
 
 	// todayDay is set and has the new item, but displayDay is still the carryover.

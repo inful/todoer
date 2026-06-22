@@ -21,7 +21,7 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.status = "Cannot add empty todo"
 			return m, nil
 		}
-		wasCarryoverView := m.isReadOnlyView()
+		wasCarryoverView := m.isCarryoverView()
 		if m.todayDay == nil {
 			m.todayDay = core.FindOrCreateDaySection(m.journal, m.today)
 		}
@@ -102,10 +102,9 @@ func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.status = "No todo selected"
 			return m, nil
 		}
-		if m.isReadOnlyView() {
-			m.status = "Cannot edit carryover items"
-			return m, nil
-		}
+		// The carryover view is editable: toggling or deleting
+		// writes the change back to the correct day in the
+		// journal (entry.item is a pointer into the day's items).
 		entry := filtered[m.selected]
 		entry.item.Completed = !entry.item.Completed
 		m.dirty = true
@@ -113,10 +112,6 @@ func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		if len(filtered) == 0 {
 			m.status = "No todo selected"
-			return m, nil
-		}
-		if m.isReadOnlyView() {
-			m.status = "Cannot edit carryover items"
 			return m, nil
 		}
 		target := filtered[m.selected].item

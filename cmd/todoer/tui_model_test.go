@@ -81,13 +81,26 @@ title: 2026-03-20
 		t.Fatalf("failed to init tui model: %v", err)
 	}
 
-	// The carryover fallback should show the latest day by date,
-	// which is 2026-03-19.
+	// The carryover fallback picks the latest day by date, which
+	// is 2026-03-19. displayDay is unchanged.
 	if model.displayDay == nil || model.displayDay.Date != "2026-03-19" {
 		t.Fatalf("expected displayDay to be 2026-03-19, got %+v", model.displayDay)
 	}
-	if len(model.items) != 1 || model.items[0].item.Text != "yesterday" {
-		t.Fatalf("expected the 2026-03-19 item to be shown, got %+v", model.items)
+	// The carryover view shows items from ALL days (not just the
+	// most recent) so the user can mark todos from any previous
+	// day as complete. All three items from 03-19, 03-18, 03-15
+	// must be present.
+	if len(model.items) != 3 {
+		t.Fatalf("expected 3 items from all 3 carryover days, got %d", len(model.items))
+	}
+	got := make(map[string]bool)
+	for _, it := range model.items {
+		got[it.item.Text] = true
+	}
+	for _, want := range []string{"yesterday", "day before yesterday", "last week"} {
+		if !got[want] {
+			t.Errorf("expected item %q in carryover view, got items: %+v", want, model.items)
+		}
 	}
 }
 
@@ -130,7 +143,7 @@ title: 2026-03-16
 		t.Fatalf("unexpected todo text: %s", model.items[0].item.Text)
 	}
 
-	if !model.isReadOnlyView() {
+	if !model.isCarryoverView() {
 		t.Fatalf("expected read-only view when today section is empty and carryover has items")
 	}
 }

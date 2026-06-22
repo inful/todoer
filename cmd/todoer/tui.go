@@ -23,6 +23,11 @@ type tuiCmd struct {
 type tuiItem struct {
 	item  *core.TodoItem
 	depth int
+	// day is the *core.DaySection this item belongs to. Used by the
+	// carryover view to render day labels and to write changes
+	// back to the correct day. In the today view, day is
+	// m.todayDay for every item.
+	day *core.DaySection
 }
 
 type tuiTickMsg struct{}
@@ -210,7 +215,15 @@ func (m tuiModel) viewItems() string {
 		}
 
 		indent := strings.Repeat("  ", entry.depth)
-		line := fmt.Sprintf("%s %s%s %s", cursor, indent, check, entry.item.Text)
+		// In the carryover view, items come from many different
+		// days. Prefix each line with the date so the user can
+		// see which day each item is from.
+		var line string
+		if m.isCarryoverView() && entry.day != nil {
+			line = fmt.Sprintf("%s %s%s (%s) %s", cursor, indent, check, entry.day.Date, entry.item.Text)
+		} else {
+			line = fmt.Sprintf("%s %s%s %s", cursor, indent, check, entry.item.Text)
+		}
 		if i == m.selected {
 			b.WriteString(tuiTheme.selected.Render(line) + "\n")
 		} else {
