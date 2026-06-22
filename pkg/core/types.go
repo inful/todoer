@@ -19,9 +19,16 @@ const (
 
 // Compiled regex patterns for better performance
 var (
-	// NextSectionRegex matches the start of the next markdown section (## Header)
-	// Used to find the end of the TODOS section
-	NextSectionRegex = regexp.MustCompile(`\n\n## `)
+	// NextSectionRegex matches the start of the next markdown section
+	// (## Header). The (?m) flag enables multi-line mode so that
+	// ^ anchors to the start of any line. The leading \n matches
+	// the line terminator of the previous line, so the matched
+	// position points at that newline (which is the end of the
+	// Todos content). The previous form (\n\n## ) required a blank
+	// line in addition, which silently dropped trailing sections
+	// when the next header immediately followed the mandatory
+	// blank line.
+	NextSectionRegex = regexp.MustCompile(`(?m)^\n## `)
 
 	// DayHeaderRegex matches day headers in the format "- [[YYYY-MM-DD]]"
 	DayHeaderRegex = regexp.MustCompile(`- \[\[(\d{4}-\d{2}-\d{2})\]\]`)

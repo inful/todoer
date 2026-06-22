@@ -269,10 +269,26 @@ func ExtractTodosSectionWithHeader(content string, todosHeader string) (string, 
 	var afterTodos string
 
 	if nextSectionMatch != nil {
-		// There is another section after Todos
+		// There is another section after Todos. nextSectionMatch[0]
+		// points at the newline that ends the previous line; if the
+		// character before that newline is also a newline, the
+		// blank-line separator is part of the previous content, and
+		// we include it in the todos section so the trailing blank
+		// line is preserved on round-trip.
 		todosEndIndex := beforeTodosEnd + nextSectionMatch[0]
+		if todosEndIndex > 0 && content[todosEndIndex-1] == '\n' {
+			todosEndIndex--
+		}
 		todosSection = content[beforeTodosEnd:todosEndIndex]
 		afterTodos = content[todosEndIndex:]
+	} else if strings.HasPrefix(strings.TrimLeft(afterHeaderContent, " \t"), "## ") {
+		// afterHeaderContent begins with a section header but the
+		// next-section regex did not match (no preceding newline
+		// because the next header is on the same line as the
+		// blank-line separator). Treat the whole remainder as the
+		// trailing section(s), not as Todos content.
+		todosSection = ""
+		afterTodos = afterHeaderContent
 	} else {
 		// Todos is the last section
 		todosSection = afterHeaderContent

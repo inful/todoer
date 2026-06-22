@@ -34,15 +34,16 @@ func TestMergeIntoExistingTarget(t *testing.T) {
 			wantContains: []string{
 				"new task",
 				"- [[2025-06-22]]",
+				"## Notes",
+				"keep me",
 			},
-			// NOTE: when the existing target's Todos section is empty
-			// (no day headers), ExtractTodosSectionWithHeader's
-			// next-section regex (\n\n## ) does not match the
-			// "## Notes" that follows the mandatory blank line
-			// separator, so afterTodos is returned empty. This is a
-			// pre-existing limitation in pkg/core; out of scope for
-			// this test. We assert that the new item is present but
-			// do not assert that the trailing section is preserved.
+			// Even when the existing target's Todos section is empty
+			// (no day headers), the "## Notes" section that immediately
+			// follows the blank line separator must be preserved.
+			// ExtractTodosSectionWithHeader's next-section regex must
+			// match `^## ` (any line beginning with `## `), not the
+			// stricter `\n\n## ` which required a blank line in
+			// addition to the line start.
 		},
 		{
 			name:       "duplicate item on same day is not added twice",
