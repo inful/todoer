@@ -4,9 +4,169 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inful/todoer/pkg/core"
 )
+
+func TestTUIViewContainsKeyState(t *testing.T) {
+	day := &core.DaySection{Date: "2026-03-16", Items: []*core.TodoItem{
+		{Text: "first", Completed: false},
+		{Text: "second", Completed: true},
+	}}
+	m := tuiModel{
+		today:    "2026-03-16",
+		journal:  &core.TodoJournal{Days: []*core.DaySection{day}},
+		todayDay: day,
+		status:   "test-status",
+	}
+	m.displayDay = m.pickInitialDisplayDay()
+	m.refreshItems()
+
+	view := m.View()
+	if !strings.Contains(view, "test-status") {
+		t.Fatalf("expected status to appear in view, got:\n%s", view)
+	}
+	if !strings.Contains(view, "first") || !strings.Contains(view, "second") {
+		t.Fatalf("expected items to appear in view, got:\n%s", view)
+	}
+	if !strings.Contains(view, "[x]") {
+		t.Fatalf("expected completed marker in view, got:\n%s", view)
+	}
+}
+
+func TestTUIViewEmptyAndExternalChanged(t *testing.T) {
+	m := tuiModel{
+		today:   "2026-03-16",
+		journal: &core.TodoJournal{Days: []*core.DaySection{}},
+		status:  "ready",
+	}
+	// Force empty view.
+	m.displayDay = nil
+	m.refreshItems()
+
+	view := m.View()
+	if !strings.Contains(view, "No todos") {
+		t.Fatalf("expected empty placeholder in view, got:\n%s", view)
+	}
+	if !strings.Contains(view, "ready") {
+		t.Fatalf("expected status in view, got:\n%s", view)
+	}
+
+	// dirty + external-changed should show both states.
+	m.dirty = true
+	m.externalChanged = true
+	view2 := m.View()
+	if !strings.Contains(view2, "dirty") || !strings.Contains(view2, "external-changed") {
+		t.Fatalf("expected dirty + external-changed markers, got:\n%s", view2)
+	}
+}
+
+func TestTUIEmptyStateMessage(t *testing.T) {
+	// No display day at all -> generic placeholder.
+	m := tuiModel{today: "2026-03-16"}
+	if got := m.emptyStateMessage(); got != "(No todos)" {
+		t.Fatalf("expected generic 'No todos', got %q", got)
+	}
+
+	// Today view (displayDay == todayDay) -> today's section wording.
+	todayDay := &core.DaySection{Date: "2026-03-16", Items: nil}
+	m = tuiModel{
+		today:    "2026-03-16",
+		todayDay: todayDay,
+	}
+	m.displayDay = todayDay
+	if got := m.emptyStateMessage(); got != "(No todos in today's section)" {
+		t.Fatalf("expected today's section wording, got %q", got)
+	}
+
+	// Carryover view (displayDay != todayDay) -> names the carryover
+	// day so the user knows they are not looking at today.
+	carryoverDay := &core.DaySection{Date: "2026-03-15", Items: nil}
+	m = tuiModel{
+		today:    "2026-03-16",
+		todayDay: todayDay,
+	}
+	m.displayDay = carryoverDay
+	if got := m.emptyStateMessage(); got != "(No items in [[2026-03-15]])" {
+		t.Fatalf("expected carryover-day wording, got %q", got)
+	}
+}
+
+func TestTUIViewEmptyInCarryoverView(t *testing.T) {
+	// End-to-end: construct a model where the display day is a
+	// carryover day with no items, render the view, and assert the
+	// view does not claim 'today's section'.
+	todayDay := &core.DaySection{Date: "2026-03-16", Items: nil}
+	carryoverDay := &core.DaySection{Date: "2026-03-15", Items: nil}
+	m := tuiModel{
+		today:    "2026-03-16",
+		journal:  &core.TodoJournal{Days: []*core.DaySection{carryoverDay, todayDay}},
+		todayDay: todayDay,
+	}
+	m.displayDay = carryoverDay
+	m.refreshItems()
+
+	view := m.View()
+	if strings.Contains(view, "today's section") {
+		t.Fatalf("carryover view should not mention 'today's section', got:\n%s", view)
+	}
+	if !strings.Contains(view, "No items in [[2026-03-15]]") {
+		t.Fatalf("expected carryover-day wording in view, got:\n%s", view)
+	}
+}
+
+func TestTUIViewInputAndFilterModes(t *testing.T) {
+	m := tuiModel{
+		inputMode:  true,
+		inputText:  "draft",
+		filterMode: false,
+	}
+	view := m.View()
+	if !strings.Contains(view, "Add todo") {
+		t.Fatalf("expected add-todo label, got:\n%s", view)
+	}
+	if !strings.Contains(view, "draft") {
+		t.Fatalf("expected input text in view, got:\n%s", view)
+	}
+
+	m.inputMode = false
+	m.filterMode = true
+	m.filterQuery = "needle"
+	view2 := m.View()
+	if !strings.Contains(view2, "Filter todos") {
+		t.Fatalf("expected filter-todos label, got:\n%s", view2)
+	}
+	if !strings.Contains(view2, "needle") {
+		t.Fatalf("expected filter query in view, got:\n%s", view2)
+	}
+}
+
+func TestTUIHelpText_DriftGuard(t *testing.T) {
+	help := tuiHelpText()
+	init := tuiInitStatus()
+
+	// Invariant 1: init status embeds the help text body.
+	if !strings.Contains(init, strings.TrimPrefix(help, "Keys: ")) {
+		t.Errorf("init status does not contain help text: init=%q help=%q", init, help)
+	}
+
+	// Invariant 2: the primary keys from the keymap appear in the
+	// help text. This is the drift guard for the user-facing text.
+	required := []string{"j", "k", "space", "/", "c", "a", "d", "s", "r", "q"}
+	for _, key := range required {
+		if !strings.Contains(help, key) {
+			t.Errorf("help text is missing advertised key %q: %q", key, help)
+		}
+	}
+
+	// Invariant 3: the rendered help text's " | "-separated segment
+	// count matches the keymap length. This catches both stale
+	// entries (a keymap row removed but the test still passes) and
+	// accidental keymap duplication (more rows than rendered).
+	segments := strings.Split(strings.TrimPrefix(help, "Keys: "), " | ")
+	if got, want := len(segments), len(tuiKeymap); got != want {
+		t.Errorf("help text has %d segments; expected %d (matches tuiKeymap): %q", got, want, help)
+	}
+}
 
 // TestView_StateMarkers captures the state-line markers in the View
 // output. These are stable, easy to assert on, and survive the
@@ -164,6 +324,3 @@ func stripANSI(s string) string {
 	}
 	return b.String()
 }
-
-// _ keeps the bubbletea import used elsewhere in this package.
-var _ tea.KeyMsg
