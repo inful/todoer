@@ -309,15 +309,23 @@ func calculateDaysSpan(startDate, endDate string) int {
 	return daysBetween(start, end)
 }
 
-// daysBetween returns the number of whole days between start and end.
-// Extracted from calculateDaysSpan so the day-counting math can be
-// tested directly with time.Time values (which is the only way to
-// exercise DST- and fixed-zone-specific behaviour without touching
-// the process-wide time.Local).
+// daysBetween returns the number of whole calendar days between
+// start and end. Extracted from calculateDaysSpan so the
+// day-counting math can be tested directly with time.Time values
+// (which is the only way to exercise DST- and fixed-zone-specific
+// behaviour without touching the process-wide time.Local).
+//
+// We compare calendar dates, not elapsed durations, because the
+// latter is wrong by one day across a DST transition. The 24-hour
+// wall-clock span from 2024-03-10 00:00 EST to 2024-03-11 00:00
+// EDT is only 23 actual hours, so int(diff.Hours() / 24) returns
+// 0 even though the calendar dates differ by one day.
 func daysBetween(start, end time.Time) int {
-	// Calculate difference in days
-	diff := end.Sub(start)
-	return int(diff.Hours() / 24)
+	y1, m1, d1 := start.Date()
+	y2, m2, d2 := end.Date()
+	c1 := time.Date(y1, m1, d1, 0, 0, 0, 0, time.UTC)
+	c2 := time.Date(y2, m2, d2, 0, 0, 0, 0, time.UTC)
+	return int(c2.Sub(c1) / (24 * time.Hour))
 }
 
 // MergeCustomVariables merges custom variables from config into TemplateData.
