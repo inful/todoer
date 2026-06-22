@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
@@ -10,21 +9,23 @@ import (
 
 func (m *tuiModel) refreshItems() {
 	m.items = make([]tuiItem, 0)
-	// In the carryover view (today is empty, display is a previous
-	// day), flatten items from ALL days so the user can see and
-	// mark complete todos from every previous day — not just the
-	// most recent one. Each item carries a reference to its day
-	// so the carryover view can render day labels and so toggle
-	// and delete write the change back to the correct day.
-	if m.isCarryoverView() {
-		for _, day := range m.journal.Days {
-			if day != nil {
-				flattenTodoItems(day.Items, 0, &m.items, day)
-			}
-		}
-	} else {
-		if m.displayDay != nil {
-			flattenTodoItems(m.displayDay.Items, 0, &m.items, m.displayDay)
+	// Always show items from all days. Today's items come first
+	// (no day label), followed by carryover items from previous
+	// days in reverse-chronological order (newest first, with a
+	// date prefix). This way the user always sees every pending
+	// todo, regardless of whether today has items, and can mark
+	// any item as complete from the TUI.
+	//
+	// This replaces the earlier "carryover view" mode where carryover
+	// items were only shown when today was empty. The old mode hid
+	// items from previous days whenever the user had anything in
+	// today, which made those items unreachable from the TUI.
+	if m.todayDay != nil && len(m.todayDay.Items) > 0 {
+		flattenTodoItems(m.todayDay.Items, 0, &m.items, m.todayDay)
+	}
+	for _, day := range slices.Backward(m.journal.Days) {
+		if day != nil && day != m.todayDay && len(day.Items) > 0 {
+			flattenTodoItems(day.Items, 0, &m.items, day)
 		}
 	}
 	filtered := m.filteredItems()
@@ -60,21 +61,12 @@ func (m *tuiModel) isCarryoverView() bool {
 	return m.displayDay != m.todayDay
 }
 
-// emptyStateMessage returns the placeholder text shown in the body of
-// the view when the filtered item list is empty. The wording is
-// section-relative: the carryover view names the carryover day
-// (so the user knows they are looking at a previous day, not
-// today), the today view names today's section, and the degenerate
-// no-display-day state falls back to a generic message.
+// emptyStateMessage returns the placeholder text shown in the
+// body of the view when the filtered item list is empty. The
+// view always shows items from all days, so a single generic
+// message covers all cases.
 func (m *tuiModel) emptyStateMessage() string {
-	switch {
-	case m.displayDay == nil:
-		return "(No todos)"
-	case m.isCarryoverView():
-		return fmt.Sprintf("(No items in [[%s]])", m.displayDay.Date)
-	default:
-		return "(No todos in today's section)"
-	}
+	return "(No todos)"
 }
 
 func (m tuiModel) filteredItems() []tuiItem {

@@ -215,11 +215,11 @@ func (m tuiModel) viewItems() string {
 		}
 
 		indent := strings.Repeat("  ", entry.depth)
-		// In the carryover view, items come from many different
-		// days. Prefix each line with the date so the user can
-		// see which day each item is from.
+		// Prefix items that are NOT from today with the day they
+		// belong to. Today's items have no label since the day is
+		// implicit in the view.
 		var line string
-		if m.isCarryoverView() && entry.day != nil {
+		if entry.day != nil && entry.day != m.todayDay {
 			line = fmt.Sprintf("%s %s%s (%s) %s", cursor, indent, check, entry.day.Date, entry.item.Text)
 		} else {
 			line = fmt.Sprintf("%s %s%s %s", cursor, indent, check, entry.item.Text)

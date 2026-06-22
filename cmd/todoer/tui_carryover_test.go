@@ -140,3 +140,111 @@ func TestCarryoverView_AllowsDeleteOnOldDay(t *testing.T) {
 		t.Errorf("model should be dirty after deleting in carryover view")
 	}
 }
+
+// TestTodayView_ShowsCarryoverItems pins the contract that the
+// today view (when today has items) ALSO shows items from previous
+// days. This is the fix for the bug where carryover items were
+// only visible when today was empty: if the user had any items in
+// today, the carryover items from previous days were hidden and
+// unreachable from the TUI.
+func TestTodayView_ShowsCarryoverItems(t *testing.T) {
+	// Today has an item; two previous days also have items.
+	todayItem := &core.TodoItem{Text: "today task", Completed: false}
+	oldItem1 := &core.TodoItem{Text: "yesterday task", Completed: false}
+	oldItem2 := &core.TodoItem{Text: "day before task", Completed: false}
+
+	todayDay := &core.DaySection{Date: "2026-06-22", Items: []*core.TodoItem{todayItem}}
+	dayBefore := &core.DaySection{Date: "2026-06-20", Items: []*core.TodoItem{oldItem1, oldItem2}}
+	dayBetween := &core.DaySection{Date: "2026-06-21", Items: nil} // empty day, skipped
+
+	m := tuiModel{
+		today:    "2026-06-22",
+		journal:  &core.TodoJournal{Days: []*core.DaySection{dayBetween, dayBefore, todayDay}},
+		todayDay: todayDay,
+	}
+	m.displayDay = m.pickInitialDisplayDay()
+	m.refreshItems()
+
+	// All three items should be visible: today's item, plus the two
+	// carryover items from 2026-06-20.
+	if len(m.items) != 3 {
+		t.Fatalf("expected 3 items (1 today + 2 carryover), got %d", len(m.items))
+	}
+
+	stripped := stripANSI(m.View())
+	for _, text := range []string{"today task", "yesterday task", "day before task"} {
+		if !strings.Contains(stripped, text) {
+			t.Errorf("expected view to contain %q, got:\n%s", text, stripped)
+		}
+	}
+}
+
+// TestTodayView_DayLabelsForNonTodayItems pins the contract that
+// in the today view, today's items are shown without a date label
+// (the day is implicit), while carryover items are shown with a
+// date prefix so the user knows which day each item is from.
+func TestTodayView_DayLabelsForNonTodayItems(t *testing.T) {
+	todayItem := &core.TodoItem{Text: "today task", Completed: false}
+	oldItem := &core.TodoItem{Text: "old task", Completed: false}
+	todayDay := &core.DaySection{Date: "2026-06-22", Items: []*core.TodoItem{todayItem}}
+	oldDay := &core.DaySection{Date: "2026-06-20", Items: []*core.TodoItem{oldItem}}
+
+	m := tuiModel{
+		today:    "2026-06-22",
+		journal:  &core.TodoJournal{Days: []*core.DaySection{oldDay, todayDay}},
+		todayDay: todayDay,
+	}
+	m.displayDay = m.pickInitialDisplayDay()
+	m.refreshItems()
+
+	stripped := stripANSI(m.View())
+	// Today's item should NOT have a date label.
+	if strings.Contains(stripped, "(2026-06-22) today task") {
+		t.Errorf("today's item should not have a date label, got:\n%s", stripped)
+	}
+	// Carryover item should have a date label.
+	if !strings.Contains(stripped, "(2026-06-20) old task") {
+		t.Errorf("expected carryover item to have date label, got:\n%s", stripped)
+	}
+}
+
+// TestTodayView_AllowsToggleOnCarryoverItem verifies that the
+// user can mark a carryover item complete from the today view.
+// This is the user-facing fix: the user no longer needs to run
+// `todoer new` to bring items into today before editing them.
+func TestTodayView_AllowsToggleOnCarryoverItem(t *testing.T) {
+	todayItem := &core.TodoItem{Text: "today task", Completed: false}
+	oldItem := &core.TodoItem{Text: "old task", Completed: false}
+	todayDay := &core.DaySection{Date: "2026-06-22", Items: []*core.TodoItem{todayItem}}
+	oldDay := &core.DaySection{Date: "2026-06-20", Items: []*core.TodoItem{oldItem}}
+
+	m := tuiModel{
+		today:    "2026-06-22",
+		journal:  &core.TodoJournal{Days: []*core.DaySection{oldDay, todayDay}},
+		todayDay: todayDay,
+	}
+	m.displayDay = m.pickInitialDisplayDay()
+	m.refreshItems()
+
+	// Cursor is on today's item (index 0). Press 'j' to move to the
+	// carryover item.
+	updated, _ := m.updateNormalMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	m = updated.(tuiModel)
+	if m.selected != 1 {
+		t.Fatalf("expected selected=1 after 'j', got %d", m.selected)
+	}
+
+	// Toggle the carryover item.
+	updated, _ = m.updateNormalMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	m = updated.(tuiModel)
+
+	if !oldItem.Completed {
+		t.Errorf("carryover item should have been toggled, got Completed=%v", oldItem.Completed)
+	}
+	if m.status == "Cannot edit carryover items" {
+		t.Errorf("today view should not block edits of carryover items, got status=%q", m.status)
+	}
+	if !m.dirty {
+		t.Errorf("model should be dirty after toggling")
+	}
+}

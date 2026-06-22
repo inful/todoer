@@ -61,33 +61,29 @@ func TestTUIViewEmptyAndExternalChanged(t *testing.T) {
 }
 
 func TestTUIEmptyStateMessage(t *testing.T) {
-	// No display day at all -> generic placeholder.
-	m := tuiModel{today: "2026-03-16"}
-	if got := m.emptyStateMessage(); got != "(No todos)" {
-		t.Fatalf("expected generic 'No todos', got %q", got)
+	// The view always shows items from all days, so the empty-state
+	// message is a single generic placeholder. This used to have
+	// three cases (no display day, today view, carryover view) but
+	// the distinction no longer matters: the view always shows all
+	// days, and if no days have items, the generic message covers
+	// all cases.
+	tests := []struct {
+		name     string
+		today    string
+		todayDay *core.DaySection
+		display  *core.DaySection
+	}{
+		{"no display day", "2026-03-16", nil, nil},
+		{"today view, empty", "2026-03-16", &core.DaySection{Date: "2026-03-16"}, &core.DaySection{Date: "2026-03-16"}},
+		{"carryover view, empty", "2026-03-16", &core.DaySection{Date: "2026-03-16"}, &core.DaySection{Date: "2026-03-15"}},
 	}
-
-	// Today view (displayDay == todayDay) -> today's section wording.
-	todayDay := &core.DaySection{Date: "2026-03-16", Items: nil}
-	m = tuiModel{
-		today:    "2026-03-16",
-		todayDay: todayDay,
-	}
-	m.displayDay = todayDay
-	if got := m.emptyStateMessage(); got != "(No todos in today's section)" {
-		t.Fatalf("expected today's section wording, got %q", got)
-	}
-
-	// Carryover view (displayDay != todayDay) -> names the carryover
-	// day so the user knows they are not looking at today.
-	carryoverDay := &core.DaySection{Date: "2026-03-15", Items: nil}
-	m = tuiModel{
-		today:    "2026-03-16",
-		todayDay: todayDay,
-	}
-	m.displayDay = carryoverDay
-	if got := m.emptyStateMessage(); got != "(No items in [[2026-03-15]])" {
-		t.Fatalf("expected carryover-day wording, got %q", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tuiModel{today: tt.today, todayDay: tt.todayDay, displayDay: tt.display}
+			if got := m.emptyStateMessage(); got != "(No todos)" {
+				t.Errorf("expected '(No todos)', got %q", got)
+			}
+		})
 	}
 }
 
@@ -106,11 +102,11 @@ func TestTUIViewEmptyInCarryoverView(t *testing.T) {
 	m.refreshItems()
 
 	view := m.View()
-	if strings.Contains(view, "today's section") {
-		t.Fatalf("carryover view should not mention 'today's section', got:\n%s", view)
-	}
-	if !strings.Contains(view, "No items in [[2026-03-15]]") {
-		t.Fatalf("expected carryover-day wording in view, got:\n%s", view)
+	// The empty-state message is now generic ("(No todos)") because
+	// the view always shows items from all days, so the section-
+	// specific message no longer applies.
+	if !strings.Contains(view, "(No todos)") {
+		t.Fatalf("expected generic empty-state message, got:\n%s", view)
 	}
 }
 
