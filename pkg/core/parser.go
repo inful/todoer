@@ -146,14 +146,36 @@ func processTodoItem(state *parserState, todoMatch []string) error {
 
 // processAssociatedLine processes a line that is associated with a todo item,
 // like a bullet point or a continuation line. It finds the correct parent todo item
-// based on indentation and appends the line to its BulletLines.
+// based on indentation and appends the line to its BulletLines, storing the
+// indent relative to the parent (in IndentSpaces levels, excluding the
+// first level of "deeper than parent" which the writer always adds) so
+// the writer can re-indent the line when the parent is moved to a
+// different position.
 func processAssociatedLine(state *parserState, line string, matches []string) error {
 	if len(state.currentItemStack) > 0 {
 		normalizedLine := NormalizeIndentation(line)
-		indent := GetIndentLevel(matches[1])
-		targetItem := findTargetItemForBullet(state.currentItemStack, state.currentIndentStack, indent)
+		bulletIndent := GetIndentLevel(matches[1])
+		targetItem, parentIndent := findTargetItemForBullet(state.currentItemStack, state.currentIndentStack, bulletIndent)
 		if targetItem != nil {
-			targetItem.BulletLines = append(targetItem.BulletLines, normalizedLine)
+			// The writer renders a bullet at depth (parent_depth + 1)
+			// plus any extra levels the bullet is deeper than the
+			// parent. We store only the extra levels here; a normal
+			// sub-bullet one IndentSpaces level beyond the parent
+			// therefore has Indent=0.
+			//
+			// In other words:
+			//   writer_depth = parent_depth + 1 + Indent
+			//   Indent = (bullet_indent - parent_indent) / IndentSpaces - 1
+			// Should not happen — findTargetItemForBullet guarantees
+			// bulletIndent > parentIndent, so the difference is
+			// at least 1 — but guard against a negative value
+			// getting into the model.
+			relativeIndent := max((bulletIndent-parentIndent)/IndentSpaces-1, 0)
+			content := strings.TrimLeft(normalizedLine, " \t")
+			targetItem.BulletLines = append(targetItem.BulletLines, BulletLine{
+				Indent: relativeIndent,
+				Text:   content,
+			})
 		}
 	}
 	return nil
@@ -162,7 +184,9 @@ func processAssociatedLine(state *parserState, line string, matches []string) er
 // findTargetItemForBullet finds the appropriate todo item to attach a bullet entry to
 // based on indentation level. It traverses the current item stack from the most
 // recent item backwards to find the first item whose indentation level is less
-// than the bullet's indentation, indicating it should be the parent.
+// than the bullet's indentation, indicating it should be the parent. The second
+// return value is the indent of that parent item, which the caller uses to
+// compute the bullet's relative indent for storage.
 //
 // If no such parent is found (e.g., the bullet's indentation is less than or
 // equal to all items in the stack), it attaches the bullet to the most recently
@@ -170,22 +194,23 @@ func processAssociatedLine(state *parserState, line string, matches []string) er
 //
 // Example:
 //   - [ ] Todo item (indent 0)
-//   - Bullet entry (indent 2) -> attaches to todo above
+//   - Bullet entry (indent 2) -> attaches to todo above (relative indent 0)
 //   - [ ] Sub todo (indent 4)
-//   - Sub bullet (indent 6) -> attaches to sub todo above
-func findTargetItemForBullet(currentItemStack []*TodoItem, currentIndentStack []int, bulletIndent int) *TodoItem {
+//   - Sub bullet (indent 6) -> attaches to sub todo above (relative indent 0)
+func findTargetItemForBullet(currentItemStack []*TodoItem, currentIndentStack []int, bulletIndent int) (*TodoItem, int) {
 	// Use the minimum length to avoid out-of-bounds access
 	minLen := min(len(currentItemStack), len(currentIndentStack))
 	for i := minLen - 1; i >= 0; i-- {
 		if bulletIndent > currentIndentStack[i] {
-			return currentItemStack[i]
+			return currentItemStack[i], currentIndentStack[i]
 		}
 	}
 	// If no suitable parent found, attach to the last item
 	if len(currentItemStack) > 0 {
-		return currentItemStack[len(currentItemStack)-1]
+		last := len(currentItemStack) - 1
+		return currentItemStack[last], currentIndentStack[last]
 	}
-	return nil
+	return nil, 0
 }
 
 // createNewDaySection creates a new day section and adds the previous one to the journal
@@ -205,7 +230,7 @@ func createTodoItem(matches []string) *TodoItem {
 		Completed:   matches[2] == "x",
 		Text:        matches[3],
 		SubItems:    []*TodoItem{},
-		BulletLines: []string{},
+		BulletLines: []BulletLine{},
 	}
 }
 

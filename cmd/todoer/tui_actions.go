@@ -29,7 +29,7 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			Completed:   false,
 			Text:        text,
 			SubItems:    []*core.TodoItem{},
-			BulletLines: []string{},
+			BulletLines: []core.BulletLine{},
 		})
 		// Keep displayDay sticky so isCarryoverView() reports the same
 		// mode the user was in before the add. The view always shows all

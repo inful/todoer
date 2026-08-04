@@ -228,10 +228,17 @@ func TestParseTaskSection(t *testing.T) {
 			t.Errorf("Expected 2 bullet lines, got %d", len(item.BulletLines))
 		}
 
-		expectedBullets := []string{"    - Detail 1", "    - Detail 2"}
+		// Parser stores the bullet's indent relative to the parent
+		// (in IndentSpaces levels), not the original absolute
+		// whitespace, so the writer can re-indent correctly when the
+		// parent moves to a different position.
+		expectedBullets := []BulletLine{
+			{Indent: 0, Text: "- Detail 1"},
+			{Indent: 0, Text: "- Detail 2"},
+		}
 		for i, expected := range expectedBullets {
 			if item.BulletLines[i] != expected {
-				t.Errorf("Expected bullet line '%s', got '%s'", expected, item.BulletLines[i])
+				t.Errorf("Expected bullet line %+v, got %+v", expected, item.BulletLines[i])
 			}
 		}
 	})
@@ -503,7 +510,8 @@ func TestProcessAssociatedLine(t *testing.T) {
 		state := newParserState()
 		state.currentDay = createTestDaySection("2023-01-01")
 
-		// Set up a todo item in the stack
+		// Set up a todo item in the stack with indent 2; the bullet
+		// line at indent 4 is one IndentSpaces level deeper.
 		item := createTestTodoItem("Main task", false)
 		state.currentItemStack = []*TodoItem{item}
 		state.currentIndentStack = []int{2}
@@ -517,8 +525,13 @@ func TestProcessAssociatedLine(t *testing.T) {
 		if len(item.BulletLines) != 1 {
 			t.Errorf("Expected 1 bullet line, got %d", len(item.BulletLines))
 		}
-		if item.BulletLines[0] != "    - Detail" {
-			t.Errorf("Expected bullet line '    - Detail', got '%s'", item.BulletLines[0])
+		// Stored with relative indent 0 (one IndentSpaces level
+		// beyond the parent — the writer always adds +1, so a normal
+		// sub-bullet stores Indent=0) and content with no leading
+		// whitespace.
+		want := BulletLine{Indent: 0, Text: "- Detail"}
+		if item.BulletLines[0] != want {
+			t.Errorf("Expected bullet line %+v, got %+v", want, item.BulletLines[0])
 		}
 	})
 
@@ -541,7 +554,9 @@ func TestProcessAssociatedLine(t *testing.T) {
 		state.currentItemStack = []*TodoItem{item}
 		state.currentIndentStack = []int{2}
 
-		// Line with tabs that should be normalized
+		// Line with tabs that should be normalized.
+		// "\t\t" is 2 tabs at TabSpaces=2 spaces each = 4 spaces of indent,
+		// which is 1 IndentSpaces level beyond the parent at indent 2.
 		line := "\t\t- Detail with tabs"
 		matches := []string{line, "\t\t", "Detail with tabs"}
 		err := processAssociatedLine(state, line, matches)
@@ -553,9 +568,9 @@ func TestProcessAssociatedLine(t *testing.T) {
 		if len(item.BulletLines) != 1 {
 			t.Errorf("Expected 1 bullet line, got %d", len(item.BulletLines))
 		}
-		// Should not contain tabs anymore
-		if strings.Contains(item.BulletLines[0], "\t") {
-			t.Error("Expected tabs to be normalized to spaces")
+		// Should not contain tabs in the stored Text
+		if strings.Contains(item.BulletLines[0].Text, "\t") {
+			t.Error("Expected tabs to be normalized to spaces in Text")
 		}
 	})
 }
@@ -567,7 +582,7 @@ func TestFindTargetItemForBullet(t *testing.T) {
 		itemStack := []*TodoItem{item1, item2}
 		indentStack := []int{0, 2}
 
-		target := findTargetItemForBullet(itemStack, indentStack, 4)
+		target, _ := findTargetItemForBullet(itemStack, indentStack, 4)
 		if target != item2 {
 			t.Error("Expected to find item2 as target for bullet with indent 4")
 		}
@@ -579,7 +594,7 @@ func TestFindTargetItemForBullet(t *testing.T) {
 		itemStack := []*TodoItem{item1, item2}
 		indentStack := []int{0, 4}
 
-		target := findTargetItemForBullet(itemStack, indentStack, 2)
+		target, _ := findTargetItemForBullet(itemStack, indentStack, 2)
 		if target != item1 {
 			t.Error("Expected to find item1 as target for bullet with indent 2")
 		}
@@ -591,14 +606,14 @@ func TestFindTargetItemForBullet(t *testing.T) {
 		itemStack := []*TodoItem{item1, item2}
 		indentStack := []int{4, 6}
 
-		target := findTargetItemForBullet(itemStack, indentStack, 2)
+		target, _ := findTargetItemForBullet(itemStack, indentStack, 2)
 		if target != item2 {
 			t.Error("Expected to find item2 as fallback target")
 		}
 	})
 
 	t.Run("should return nil for empty stacks", func(t *testing.T) {
-		target := findTargetItemForBullet([]*TodoItem{}, []int{}, 2)
+		target, _ := findTargetItemForBullet([]*TodoItem{}, []int{}, 2)
 		if target != nil {
 			t.Error("Expected nil target for empty stacks")
 		}
@@ -609,9 +624,25 @@ func TestFindTargetItemForBullet(t *testing.T) {
 		itemStack := []*TodoItem{item1}
 		indentStack := []int{0, 2, 4} // longer than item stack
 
-		target := findTargetItemForBullet(itemStack, indentStack, 6)
+		target, _ := findTargetItemForBullet(itemStack, indentStack, 6)
 		if target != item1 {
 			t.Error("Expected to find item1 as fallback target")
+		}
+	})
+
+	t.Run("should return parent indent alongside the parent item", func(t *testing.T) {
+		// Used by the caller to compute the bullet's relative indent.
+		item1 := createTestTodoItem("Item 1", false)
+		item2 := createTestTodoItem("Item 2", false)
+		itemStack := []*TodoItem{item1, item2}
+		indentStack := []int{0, 2}
+
+		target, parentIndent := findTargetItemForBullet(itemStack, indentStack, 6)
+		if target != item2 {
+			t.Fatalf("Expected item2 as target, got %v", target)
+		}
+		if parentIndent != 2 {
+			t.Errorf("Expected parentIndent=2, got %d", parentIndent)
 		}
 	})
 }

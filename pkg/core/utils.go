@@ -60,10 +60,10 @@ func DeepCopyItem(item *TodoItem) *TodoItem {
 		Completed:   item.Completed,
 		Text:        item.Text,
 		SubItems:    make([]*TodoItem, 0, len(item.SubItems)),
-		BulletLines: make([]string, 0, len(item.BulletLines)),
+		BulletLines: make([]BulletLine, len(item.BulletLines)),
 	}
 
-	dst.BulletLines = append(dst.BulletLines, item.BulletLines...)
+	copy(dst.BulletLines, item.BulletLines)
 
 	// Copy subitems recursively
 	for _, subItem := range item.SubItems {

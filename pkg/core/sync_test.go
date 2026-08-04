@@ -173,7 +173,7 @@ func TestMergeCarryover_ReRunIsIdempotent(t *testing.T) {
 func TestMergeCarryover_BulletLinesKept(t *testing.T) {
 	source := &TodoJournal{Days: []*DaySection{
 		{Date: "2026-03-16", Items: []*TodoItem{
-			{Text: "task", BulletLines: []string{"  * detail"}},
+			{Text: "task", BulletLines: []BulletLine{{Indent: 0, Text: "* detail"}}},
 		}},
 	}}
 	target := &TodoJournal{}

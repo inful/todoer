@@ -189,9 +189,15 @@ func writeItemToString(builder *strings.Builder, item *TodoItem, depth int) {
 	builder.WriteString(item.Text)
 	builder.WriteString("\n")
 
-	// Write bullet lines (preserve original indentation)
+	// Write bullet lines. Each BulletLine carries a relative indent
+	// (in IndentSpaces levels) beyond the parent; we add that on top
+	// of (depth + 1) so a bullet stays visually attached to its
+	// parent even when the parent's absolute depth changes between
+	// parse and write (e.g. during carryover into today's section).
 	for _, bulletLine := range item.BulletLines {
-		builder.WriteString(bulletLine)
+		totalDepth := depth + 1 + bulletLine.Indent
+		builder.WriteString(strings.Repeat(" ", totalDepth*IndentSpaces))
+		builder.WriteString(bulletLine.Text)
 		builder.WriteString("\n")
 	}
 

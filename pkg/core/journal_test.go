@@ -21,11 +21,11 @@ func createTestTodoItem(text string, completed bool, subitems ...*TodoItem) *Tod
 		Text:        text,
 		Completed:   completed,
 		SubItems:    subitems,
-		BulletLines: []string{},
+		BulletLines: []BulletLine{},
 	}
 }
 
-func createTestTodoItemWithBullets(text string, completed bool, bulletLines []string, subitems ...*TodoItem) *TodoItem {
+func createTestTodoItemWithBullets(text string, completed bool, bulletLines []BulletLine, subitems ...*TodoItem) *TodoItem {
 	return &TodoItem{
 		Text:        text,
 		Completed:   completed,
@@ -501,7 +501,10 @@ func TestJournalToString(t *testing.T) {
 	})
 
 	t.Run("journal with bullet lines should include bullet lines", func(t *testing.T) {
-		bulletLines := []string{"    * Additional info", "    * More details"}
+		bulletLines := []BulletLine{
+			{Indent: 0, Text: "* Additional info"},
+			{Indent: 0, Text: "* More details"},
+		}
 		item := createTestTodoItemWithBullets("Task 1", true, bulletLines)
 		day := createTestDaySection("2023-01-01", item)
 		journal := createTestJournal(day)
@@ -631,7 +634,10 @@ func TestWriteItemToString(t *testing.T) {
 
 	t.Run("item with bullet lines should include bullet lines", func(t *testing.T) {
 		var builder strings.Builder
-		bulletLines := []string{"    * Detail 1", "    * Detail 2"}
+		bulletLines := []BulletLine{
+			{Indent: 0, Text: "* Detail 1"},
+			{Indent: 0, Text: "* Detail 2"},
+		}
 		item := createTestTodoItemWithBullets("Task 1", true, bulletLines)
 		writeItemToString(&builder, item, 1)
 
@@ -658,7 +664,10 @@ func TestWriteItemToString(t *testing.T) {
 
 		// Create nested structure with bullet lines
 		deepSubitem := createTestTodoItem("Deep Task", true)
-		bulletLines := []string{"      * Some detail"}
+		// The bullet lives one IndentSpaces level beyond Middle Task;
+		// the writer adds +1, so we store Indent=0 here. The bullet
+		// ends up at the same depth as the Deep Task subitem.
+		bulletLines := []BulletLine{{Indent: 0, Text: "* Some detail"}}
 		subitem := createTestTodoItemWithBullets("Middle Task", false, bulletLines, deepSubitem)
 		item := createTestTodoItem("Top Task", true, subitem)
 
@@ -1009,4 +1018,104 @@ func TestJournalRoundTripFromTestdata(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestIssue13_BulletLineIndentPreservedAcrossCarryover is the
+// regression test for issue #13: a todo with an associated bullet
+// line or continuation was losing its indentation when the parent
+// was moved into today's section (which adds one IndentSpaces level
+// to the parent's depth). The fix stores each BulletLine with its
+// indent relative to the parent so the writer can re-indent it
+// when the parent's depth changes.
+func TestIssue13_BulletLineIndentPreservedAcrossCarryover(t *testing.T) {
+	t.Run("bullet under top-level todo stays nested after carryover", func(t *testing.T) {
+		input := `- [[2026-03-17]]
+- [ ] issue
+  - subitem
+`
+		completed, uncompleted, _, err := ProcessTodosSectionWithStats(input, "2026-03-17", "2026-03-18")
+		if err != nil {
+			t.Fatalf("ProcessTodosSectionWithStats: %v", err)
+		}
+		_ = completed // empty completed side is fine
+		want := "- [[2026-03-17]]\n  - [ ] issue\n    - subitem"
+		if uncompleted != want {
+			t.Errorf("bullet indent lost during carryover.\nwant:\n%s\ngot:\n%s", want, uncompleted)
+		}
+	})
+
+	t.Run("continuation lines stay nested after carryover", func(t *testing.T) {
+		input := `- [[2026-03-17]]
+- [ ] issue
+  continuation text
+  more continuation
+`
+		completed, uncompleted, _, err := ProcessTodosSectionWithStats(input, "2026-03-17", "2026-03-18")
+		if err != nil {
+			t.Fatalf("ProcessTodosSectionWithStats: %v", err)
+		}
+		_ = completed
+		want := "- [[2026-03-17]]\n  - [ ] issue\n    continuation text\n    more continuation"
+		if uncompleted != want {
+			t.Errorf("continuation indent lost during carryover.\nwant:\n%s\ngot:\n%s", want, uncompleted)
+		}
+	})
+
+	t.Run("nested bullets under nested bullets preserve relative depth", func(t *testing.T) {
+		// A bullet that is one IndentSpaces level deeper than the
+		// parent bullet stays one level deeper than the parent in the
+		// output, even though the parent's absolute depth changes.
+		input := `- [[2026-03-17]]
+- [ ] parent
+  - bullet level 1
+    - bullet level 2
+`
+		completed, uncompleted, _, err := ProcessTodosSectionWithStats(input, "2026-03-17", "2026-03-18")
+		if err != nil {
+			t.Fatalf("ProcessTodosSectionWithStats: %v", err)
+		}
+		_ = completed
+		want := "- [[2026-03-17]]\n  - [ ] parent\n    - bullet level 1\n      - bullet level 2"
+		if uncompleted != want {
+			t.Errorf("nested bullet relative depth lost.\nwant:\n%s\ngot:\n%s", want, uncompleted)
+		}
+	})
+
+	t.Run("bullet under subitem is re-indented when subitem moves", func(t *testing.T) {
+		// Subitems are written with depth+1 = 3 levels. A bullet on
+		// that subitem should also be at one IndentSpaces level beyond
+		// the subitem (i.e., level 4).
+		item := createTestTodoItem("Top Task", false)
+		subBullet := []BulletLine{{Indent: 0, Text: "* note under subitem"}}
+		subitem := createTestTodoItemWithBullets("Middle", false, subBullet)
+		item.SubItems = append(item.SubItems, subitem)
+
+		day := createTestDaySection("2026-03-18", item)
+		journal := createTestJournal(day)
+		got := JournalToString(journal)
+		want := "- [[2026-03-18]]\n  - [ ] Top Task\n    - [ ] Middle\n      * note under subitem"
+		if got != want {
+			t.Errorf("bullet-under-subitem indent wrong.\nwant:\n%s\ngot:\n%s", want, got)
+		}
+	})
+
+	t.Run("parse -> write -> parse round-trips bullet indent", func(t *testing.T) {
+		input := `- [[2026-03-17]]
+  - [ ] issue
+    - subitem
+      - sub-subitem
+`
+		first, err := ParseTodosSection(input)
+		if err != nil {
+			t.Fatalf("first parse: %v", err)
+		}
+		serialized := JournalToString(first)
+		second, err := ParseTodosSection(serialized)
+		if err != nil {
+			t.Fatalf("second parse: %v\nserialized:\n%s", err, serialized)
+		}
+		if !journalEqual(first, second) {
+			t.Errorf("bullet indent not stable across round-trip.\nfirst:\n%+v\nsecond:\n%+v\nserialized:\n%s", first, second, serialized)
+		}
+	})
 }

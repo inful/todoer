@@ -49,13 +49,27 @@ var (
 	DateTagRegex = regexp.MustCompile(`#\d{4}-\d{2}-\d{2}`)
 )
 
+// BulletLine is a non-todo note or continuation line attached to a
+// TodoItem. Indent is the number of IndentSpaces levels deeper than
+// the parent item (0 = one IndentSpaces level deeper than the parent's
+// bullet marker — the position of a normal sub-bullet; 1 = one level
+// deeper than that, etc.). Text is the line content with no leading
+// whitespace. Storing the indent relative to the parent lets the
+// writer re-indent the line correctly when the parent is moved to a
+// different position in the output (e.g. carried over into today's
+// section, which adds one level of depth).
+type BulletLine struct {
+	Indent int
+	Text   string
+}
+
 // TodoItem represents a todo item with its completion status, text, and hierarchical structure.
 // It supports nested subitems and associated bullet points or continuation lines.
 type TodoItem struct {
-	Completed   bool        // Whether the todo item is completed
-	Text        string      // The main text of the todo item
-	SubItems    []*TodoItem // Nested todo items (hierarchical structure)
-	BulletLines []string    // Non-todo bullet entries and multiline content associated with this item
+	Completed   bool         // Whether the todo item is completed
+	Text        string       // The main text of the todo item
+	SubItems    []*TodoItem  // Nested todo items (hierarchical structure)
+	BulletLines []BulletLine // Non-todo bullet entries and multiline content associated with this item
 }
 
 // IsEmpty returns true if the todo item has no meaningful content

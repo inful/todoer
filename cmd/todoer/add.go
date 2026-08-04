@@ -66,7 +66,7 @@ func appendTodoToJournal(journalPath, today, todoText string, config *Config) er
 		Completed:   false,
 		Text:        todoText,
 		SubItems:    []*core.TodoItem{},
-		BulletLines: []string{},
+		BulletLines: []core.BulletLine{},
 	})
 
 	newTodos := core.JournalToString(journal)

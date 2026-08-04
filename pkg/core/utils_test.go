@@ -158,7 +158,7 @@ func TestDeepCopyItem(t *testing.T) {
 	t.Run("item with bullet lines should be copied", func(t *testing.T) {
 		original := &TodoItem{
 			Text:        "Task with notes",
-			BulletLines: []string{"- Note 1", "- Note 2"},
+			BulletLines: []BulletLine{{Indent: 0, Text: "- Note 1"}, {Indent: 0, Text: "- Note 2"}},
 		}
 
 		copied := DeepCopyItem(original)
@@ -173,12 +173,12 @@ func TestDeepCopyItem(t *testing.T) {
 
 		for i, line := range copied.BulletLines {
 			if line != original.BulletLines[i] {
-				t.Errorf("BulletLines[%d] mismatch: got %q, expected %q", i, line, original.BulletLines[i])
+				t.Errorf("BulletLines[%d] mismatch: got %+v, expected %+v", i, line, original.BulletLines[i])
 			}
 		}
 
 		// Test independence
-		original.BulletLines[0] = "Modified"
+		original.BulletLines[0] = BulletLine{Indent: 99, Text: "Modified"}
 		if copied.BulletLines[0] == original.BulletLines[0] {
 			t.Error("BulletLines slice is not independent")
 		}
