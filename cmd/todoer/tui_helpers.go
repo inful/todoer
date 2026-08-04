@@ -34,11 +34,11 @@ func (m *tuiModel) refreshItems() {
 	}
 }
 
-// pickInitialDisplayDay chooses which day the model should show on first
-// load: today's section when it has items, otherwise the most recent
-// non-empty day. The result is sticky for the lifetime of the model until
-// the next reload, which is what keeps the carryover view visible after
-// the user adds an item to today's section.
+// pickInitialDisplayDay initializes the sticky displayDay mode
+// marker on first load: today's section when it has items,
+// otherwise the most recent non-empty day. The value persists
+// until the next reload and is consulted by isCarryoverView() to
+// choose the post-add status message wording.
 func (m *tuiModel) pickInitialDisplayDay() *core.DaySection {
 	if m.todayDay != nil && len(m.todayDay.Items) > 0 {
 		return m.todayDay
@@ -51,12 +51,12 @@ func (m *tuiModel) pickInitialDisplayDay() *core.DaySection {
 	return nil
 }
 
-// isCarryoverView reports whether the model is showing a previous
-// day (the carryover fallback) rather than today's section. The
-// carryover view shows items from ALL days (not just the most
-// recent) and is editable: the user can mark items complete or
-// delete them, and the change is written back to the correct day
-// in the journal. New todos still go to today.
+// isCarryoverView reports whether displayDay is pinned to a
+// previous (non-today) day. It does not change which items are
+// rendered — the view always shows items from every day, and
+// toggles/deletes always write back to the correct day in the
+// journal. It is only consulted to choose the post-add status
+// message wording in updateInputMode.
 func (m *tuiModel) isCarryoverView() bool {
 	return m.displayDay != m.todayDay
 }

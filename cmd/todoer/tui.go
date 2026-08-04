@@ -41,7 +41,12 @@ type tuiModel struct {
 	afterTodos  string
 	journal     *core.TodoJournal
 	todayDay    *core.DaySection
-	displayDay  *core.DaySection // the day currently shown in the view; sticky after first set
+	// displayDay is a sticky mode marker: todayDay when the user is
+	// on today, otherwise the previous day they were viewing. The
+	// view no longer filters by it; refreshItems() always shows all
+	// days. Consulted by isCarryoverView() to choose the post-add
+	// status message wording in updateInputMode.
+	displayDay *core.DaySection
 
 	items    []tuiItem
 	selected int

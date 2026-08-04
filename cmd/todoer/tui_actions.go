@@ -31,11 +31,11 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			SubItems:    []*core.TodoItem{},
 			BulletLines: []string{},
 		})
-		// Keep the display day sticky. If the user was in a carryover view
-		// they should still see the carryover items; the new todo is in
-		// today's section and will appear after the next save+reload.
-		// If the user was already on today, the new todo is appended to
-		// the displayed day and is visible immediately.
+		// Keep displayDay sticky so isCarryoverView() reports the same
+		// mode the user was in before the add. The view always shows all
+		// days, so the new today item is visible immediately either way;
+		// we only update displayDay when the user was already on today,
+		// so isCarryoverView() returns false in that case.
 		if !wasCarryoverView {
 			m.displayDay = m.todayDay
 		}
@@ -48,7 +48,7 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.inputMode = false
 		m.inputText = ""
 		if wasCarryoverView {
-			m.status = "Added to today (carryover still shown); press r after save to see today"
+			m.status = "Added to today (carryover items still shown)"
 		} else {
 			m.status = "Todo added"
 		}
