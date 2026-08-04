@@ -38,7 +38,15 @@ func (ps *parserState) reset() {
 	ps.currentItemStack = []*TodoItem{}
 }
 
-// ParseTodosSection parses the Todos section into a structured format
+// ParseTodosSection parses the Todos section into a structured
+// format. The parser creates a separate DaySection for every
+// [[YYYY-MM-DD]] header it sees, so a file with two same-date
+// headers would otherwise yield two same-date sections; the
+// returned journal is canonicalised by merging those duplicates
+// into the first occurrence (items appended in source order).
+// Empty-Date sections are not merged with each other or with
+// dated sections — an empty Date is a distinct "undated"
+// semantic, see MoveUndatedTodosToCurrentDate.
 func ParseTodosSection(content string) (*TodoJournal, error) {
 	journal := &TodoJournal{
 		Days: []*DaySection{},
@@ -57,6 +65,8 @@ func ParseTodosSection(content string) (*TodoJournal, error) {
 	if state.currentDay != nil {
 		journal.Days = append(journal.Days, state.currentDay)
 	}
+
+	dedupeSameDateDays(journal)
 
 	return journal, nil
 }

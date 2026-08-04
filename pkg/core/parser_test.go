@@ -2,6 +2,7 @@
 package core
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -824,4 +825,196 @@ func TestAddItemToHierarchy(t *testing.T) {
 	})
 
 	// removed: should handle complex nesting with multiple level changes (removed: artificial test case that does not reflect real parser usage)
+}
+
+// TestDedupeSameDateDays pins the contract of the post-parse
+// canonicalisation helper: sections that share a non-empty Date
+// are merged into the first occurrence (items appended in source
+// order), nil entries are dropped, undated sections are left
+// alone, and a nil journal is a no-op.
+func TestDedupeSameDateDays(t *testing.T) {
+	t.Run("nil journal is a no-op", func(t *testing.T) {
+		var j *TodoJournal
+		dedupeSameDateDays(j) // must not panic
+		if j != nil {
+			t.Errorf("expected journal to remain nil, got %v", j)
+		}
+	})
+
+	t.Run("merges same-date sections in source order", func(t *testing.T) {
+		a := createTestDaySection("2026-08-04", createTestTodoItem("first-occurrence", false))
+		b := createTestDaySection("2026-08-04", createTestTodoItem("second-occurrence", false), createTestTodoItem("third-occurrence", false))
+		c := createTestDaySection("2026-08-03", createTestTodoItem("unique", false))
+		j := createTestJournal(a, b, c)
+
+		dedupeSameDateDays(j)
+
+		if got, want := len(j.Days), 2; got != want {
+			t.Fatalf("Days len = %d, want %d", got, want)
+		}
+		if j.Days[0] != a {
+			t.Errorf("Days[0] should be the first occurrence (a), got %p (want %p)", j.Days[0], a)
+		}
+		if j.Days[1] != c {
+			t.Errorf("Days[1] should be c (untouched), got %p (want %p)", j.Days[1], c)
+		}
+		gotTexts := []string{j.Days[0].Items[0].Text, j.Days[0].Items[1].Text, j.Days[0].Items[2].Text}
+		wantTexts := []string{"first-occurrence", "second-occurrence", "third-occurrence"}
+		if !reflect.DeepEqual(gotTexts, wantTexts) {
+			t.Errorf("merged items in source order: got %v, want %v", gotTexts, wantTexts)
+		}
+	})
+
+	t.Run("leaves undated sections alone", func(t *testing.T) {
+		und1 := createTestDaySection("", createTestTodoItem("u1", false))
+		und2 := createTestDaySection("", createTestTodoItem("u2", false))
+		dated := createTestDaySection("2026-08-04", createTestTodoItem("d", false))
+		j := createTestJournal(und1, dated, und2)
+
+		dedupeSameDateDays(j)
+
+		if got, want := len(j.Days), 3; got != want {
+			t.Fatalf("Days len = %d, want %d (undated sections must NOT merge with each other or with dated sections)", got, want)
+		}
+		if j.Days[0].Date != "" || j.Days[1].Date != "2026-08-04" || j.Days[2].Date != "" {
+			t.Errorf("section order changed: %q, %q, %q", j.Days[0].Date, j.Days[1].Date, j.Days[2].Date)
+		}
+	})
+
+	t.Run("drops nil entries", func(t *testing.T) {
+		d := createTestDaySection("2026-08-04", createTestTodoItem("d", false))
+		j := createTestJournal(nil, d, nil)
+
+		dedupeSameDateDays(j)
+
+		if got, want := len(j.Days), 1; got != want {
+			t.Errorf("Days len = %d, want %d (nil entries should be dropped)", got, want)
+		}
+	})
+}
+
+// TestParseTodosSectionCollapsesDuplicateDateSections is the
+// regression test for issue #5 from the TUI code review: the
+// parser used to create a separate DaySection for every
+// [[YYYY-MM-DD]] header it saw, so a file with two same-date
+// headers produced two same-date sections. The TUI's
+// refreshItems then rendered the first unlabelled and the
+// second labelled with today's date, and adding a new todo only
+// wrote to the unlabelled section. ParseTodosSection now
+// canonicalises the journal by merging duplicates.
+//
+// The parser does not sort by date (SortJournalDays does that
+// separately), so Days is in source order: today (the duplicate
+// header) comes before the older date.
+func TestParseTodosSectionCollapsesDuplicateDateSections(t *testing.T) {
+	content := `- [[2026-08-04]]
+- [ ] task A
+
+- [[2026-08-04]]
+- [ ] task B
+- [ ] task C
+
+- [[2026-08-03]]
+- [ ] older task
+`
+	journal, err := ParseTodosSection(content)
+	if err != nil {
+		t.Fatalf("ParseTodosSection: %v", err)
+	}
+	if got, want := len(journal.Days), 2; got != want {
+		t.Fatalf("Days len = %d, want %d (duplicate-date sections should merge)", got, want)
+	}
+	if got, want := journal.Days[0].Date, "2026-08-04"; got != want {
+		t.Errorf("Days[0].Date = %q, want %q (today, the duplicate header, comes first in source order)", got, want)
+	}
+	if got, want := len(journal.Days[0].Items), 3; got != want {
+		t.Fatalf("merged today section item count = %d, want %d", got, want)
+	}
+	gotTexts := []string{
+		journal.Days[0].Items[0].Text,
+		journal.Days[0].Items[1].Text,
+		journal.Days[0].Items[2].Text,
+	}
+	wantTexts := []string{"task A", "task B", "task C"}
+	if !reflect.DeepEqual(gotTexts, wantTexts) {
+		t.Errorf("merged items = %v, want %v (source order preserved)", gotTexts, wantTexts)
+	}
+	if got, want := journal.Days[1].Date, "2026-08-03"; got != want {
+		t.Errorf("Days[1].Date = %q, want %q (older day, untouched)", got, want)
+	}
+	if got, want := len(journal.Days[1].Items), 1; got != want {
+		t.Errorf("older section item count = %d, want %d", got, want)
+	}
+}
+
+// TestParseTodosSectionPreservesUndatedSectionsAcrossDedup pins
+// that the dedup pass does not merge an undated section with a
+// dated section: an empty Date is a distinct "undated" semantic
+// that MoveUndatedTodosToCurrentDate relies on. A subsequent
+// todo item after a dated header gets appended to that dated
+// section rather than starting a new undated section, so the
+// input below produces 1 undated + 1 merged-dated = 2 sections.
+func TestParseTodosSectionPreservesUndatedSectionsAcrossDedup(t *testing.T) {
+	content := `- [ ] orphan undated A
+
+- [[2026-08-04]]
+- [ ] dated task A
+
+- [[2026-08-04]]
+- [ ] dated task B
+
+- [[2026-08-03]]
+- [ ] older task
+`
+	journal, err := ParseTodosSection(content)
+	if err != nil {
+		t.Fatalf("ParseTodosSection: %v", err)
+	}
+	if got, want := len(journal.Days), 3; got != want {
+		t.Fatalf("Days len = %d, want %d", got, want)
+	}
+	if got, want := journal.Days[0].Date, ""; got != want {
+		t.Errorf("Days[0].Date = %q, want %q (undated section preserved)", got, want)
+	}
+	if got, want := len(journal.Days[0].Items), 1; got != want {
+		t.Errorf("undated section item count = %d, want %d (must NOT merge with dated sections)", got, want)
+	}
+	if got, want := journal.Days[1].Date, "2026-08-04"; got != want {
+		t.Errorf("Days[1].Date = %q, want %q", got, want)
+	}
+	if got, want := len(journal.Days[1].Items), 2; got != want {
+		t.Errorf("merged dated item count = %d, want %d", got, want)
+	}
+	if got, want := journal.Days[2].Date, "2026-08-03"; got != want {
+		t.Errorf("Days[2].Date = %q, want %q (older dated section preserved)", got, want)
+	}
+}
+
+// TestParseTodosSectionRoundTripCollapsesDuplicates pins that a
+// parse -> JournalToString -> parse round-trip converges to a
+// single section per date. Without the dedup pass the round-trip
+// would preserve the duplicate sections forever, since the
+// writer emits each section separately with no blank lines.
+func TestParseTodosSectionRoundTripCollapsesDuplicates(t *testing.T) {
+	content := `- [[2026-08-04]]
+- [ ] task A
+
+- [[2026-08-04]]
+- [ ] task B
+`
+	first, err := ParseTodosSection(content)
+	if err != nil {
+		t.Fatalf("first parse: %v", err)
+	}
+	serialized := JournalToString(first)
+	second, err := ParseTodosSection(serialized)
+	if err != nil {
+		t.Fatalf("second parse: %v", err)
+	}
+	if got, want := len(first.Days), 1; got != want {
+		t.Errorf("first.Days len = %d, want %d", got, want)
+	}
+	if got, want := len(second.Days), 1; got != want {
+		t.Errorf("second.Days len = %d, want %d (round-trip must converge)", got, want)
+	}
 }

@@ -201,6 +201,48 @@ func writeItemToString(builder *strings.Builder, item *TodoItem, depth int) {
 	}
 }
 
+// dedupeSameDateDays merges day sections that share the same Date
+// into the first occurrence in the journal. Items from later
+// duplicates are appended to the first section's Items slice in
+// their original order. Sections with an empty Date are left
+// alone because an empty Date is a distinct "undated" semantic —
+// see MoveUndatedTodosToCurrentDate.
+//
+// This is called by ParseTodosSection to canonicalise the journal
+// after parsing: the parser otherwise produces a separate
+// DaySection for every [[YYYY-MM-DD]] header it sees, so a file
+// with two same-date headers would yield two same-date sections.
+// Downstream code that keys on date (FindDaySection,
+// MergeCarryover, MoveUndatedTodosToCurrentDate, the TUI's
+// refreshItems) picks the first match and ignores the others, so
+// duplicates present as orphaned sections that the user sees as a
+// labelled "carryover" while the original appears unlabelled,
+// and adding a new todo writes only to the original. The journal
+// is modified in place.
+func dedupeSameDateDays(journal *TodoJournal) {
+	if journal == nil {
+		return
+	}
+	firstByDate := make(map[string]*DaySection)
+	keep := journal.Days[:0]
+	for _, day := range journal.Days {
+		if day == nil {
+			continue
+		}
+		if day.Date == "" {
+			keep = append(keep, day)
+			continue
+		}
+		if first, ok := firstByDate[day.Date]; ok {
+			first.Items = append(first.Items, day.Items...)
+			continue
+		}
+		firstByDate[day.Date] = day
+		keep = append(keep, day)
+	}
+	journal.Days = keep
+}
+
 // FindDaySection returns the day section in the journal whose Date matches
 // the given date string, or nil if no such day exists. A nil journal is
 // tolerated.
