@@ -85,8 +85,22 @@ func processLine(journal *TodoJournal, state *parserState, line string, lineNum 
 
 	// Check for todo item first
 	if todoMatch := TodoItemRegex.FindStringSubmatch(line); todoMatch != nil {
-		// If we don't have a current day, create an undated section
-		if state.currentDay == nil {
+		// A top-level todo (no leading whitespace) belongs to the
+		// file's date, not the most recent day header. If the
+		// current section is a dated day, flush it and start a new
+		// undated section so MoveUndatedTodosToCurrentDate can
+		// relocate the top-level item to the file's date. If the
+		// current section is already undated, keep using it so
+		// consecutive top-level items stay together.
+		isTopLevel := todoMatch[1] == ""
+		switch {
+		case state.currentDay == nil:
+			state.currentDay = &DaySection{
+				Date:  "",
+				Items: []*TodoItem{},
+			}
+		case isTopLevel && state.currentDay.Date != "":
+			journal.Days = append(journal.Days, state.currentDay)
 			state.currentDay = &DaySection{
 				Date:  "",
 				Items: []*TodoItem{},

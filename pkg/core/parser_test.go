@@ -322,6 +322,132 @@ unparseable line`
 			t.Errorf("Expected 1 item in dated section, got %d", len(journal.Days[1].Items))
 		}
 	})
+
+	t.Run("top-level todo after a day header starts an undated section", func(t *testing.T) {
+		// Regression test for issue #14. A top-level todo (no
+		// leading whitespace) belongs to the file's date, not the
+		// previous day header. The parser previously attached it to
+		// the most recent dated section, which put it in the wrong
+		// day after MoveUndatedTodosToCurrentDate.
+		content := `- [[2023-01-02]]
+  - [ ] Task A
+- [ ] Task B`
+		journal, err := ParseTodosSection(content)
+		if err != nil {
+			t.Fatalf("ParseTodosSection: %v", err)
+		}
+
+		// Two sections: dated 2023-01-02 with Task A, then undated
+		// with Task B.
+		if len(journal.Days) != 2 {
+			t.Fatalf("Expected 2 days (dated + undated), got %d", len(journal.Days))
+		}
+		if journal.Days[0].Date != "2023-01-02" {
+			t.Errorf("Days[0].Date = %q, want %q", journal.Days[0].Date, "2023-01-02")
+		}
+		if len(journal.Days[0].Items) != 1 || journal.Days[0].Items[0].Text != "Task A" {
+			t.Errorf("Days[0].Items = %+v, want [Task A]", journal.Days[0].Items)
+		}
+		if journal.Days[1].Date != "" {
+			t.Errorf("Days[1].Date = %q, want \"\" (undated section for the top-level todo)", journal.Days[1].Date)
+		}
+		if len(journal.Days[1].Items) != 1 || journal.Days[1].Items[0].Text != "Task B" {
+			t.Errorf("Days[1].Items = %+v, want [Task B]", journal.Days[1].Items)
+		}
+	})
+
+	t.Run("consecutive top-level todos stay in one undated section", func(t *testing.T) {
+		// Multiple top-level items in a row should not produce
+		// multiple undated sections; they all belong to the file's
+		// date as a single group.
+		content := `- [[2023-01-02]]
+  - [ ] Nested
+- [ ] Top A
+- [ ] Top B
+- [ ] Top C`
+		journal, err := ParseTodosSection(content)
+		if err != nil {
+			t.Fatalf("ParseTodosSection: %v", err)
+		}
+		if len(journal.Days) != 2 {
+			t.Fatalf("Expected 2 days (dated + one undated), got %d", len(journal.Days))
+		}
+		if journal.Days[1].Date != "" {
+			t.Errorf("Days[1].Date = %q, want \"\" (single undated section)", journal.Days[1].Date)
+		}
+		if got, want := len(journal.Days[1].Items), 3; got != want {
+			t.Fatalf("undated item count = %d, want %d (consecutive top-level todos should stay together)", got, want)
+		}
+		gotTexts := []string{
+			journal.Days[1].Items[0].Text,
+			journal.Days[1].Items[1].Text,
+			journal.Days[1].Items[2].Text,
+		}
+		wantTexts := []string{"Top A", "Top B", "Top C"}
+		if !reflect.DeepEqual(gotTexts, wantTexts) {
+			t.Errorf("undated items = %v, want %v (source order)", gotTexts, wantTexts)
+		}
+	})
+
+	t.Run("subitem of top-level todo goes into the same undated section", func(t *testing.T) {
+		// A nested item under a top-level todo should attach to that
+		// top-level item (in the undated section), not stray into a
+		// separate section.
+		content := `- [[2023-01-02]]
+  - [ ] Nested
+- [ ] Top
+  - [ ] Sub of Top`
+		journal, err := ParseTodosSection(content)
+		if err != nil {
+			t.Fatalf("ParseTodosSection: %v", err)
+		}
+		if len(journal.Days) != 2 {
+			t.Fatalf("Expected 2 days, got %d", len(journal.Days))
+		}
+		if journal.Days[1].Date != "" {
+			t.Errorf("Days[1].Date = %q, want \"\"", journal.Days[1].Date)
+		}
+		if len(journal.Days[1].Items) != 1 {
+			t.Fatalf("undated top-level count = %d, want 1", len(journal.Days[1].Items))
+		}
+		top := journal.Days[1].Items[0]
+		if top.Text != "Top" {
+			t.Errorf("top-level text = %q, want %q", top.Text, "Top")
+		}
+		if len(top.SubItems) != 1 || top.SubItems[0].Text != "Sub of Top" {
+			t.Errorf("SubItems = %+v, want [Sub of Top]", top.SubItems)
+		}
+	})
+
+	t.Run("top-level todo between two date headers separates the day sections", func(t *testing.T) {
+		// After a top-level todo starts an undated section, the next
+		// date header should flush it and start a fresh dated
+		// section. The undated section is preserved separately.
+		content := `- [[2023-01-02]]
+  - [ ] Carry from 02
+- [ ] Top-level
+- [[2023-01-04]]
+  - [ ] Fresh`
+		journal, err := ParseTodosSection(content)
+		if err != nil {
+			t.Fatalf("ParseTodosSection: %v", err)
+		}
+		if len(journal.Days) != 3 {
+			t.Fatalf("Expected 3 days (02 / undated / 04), got %d", len(journal.Days))
+		}
+		if journal.Days[0].Date != "2023-01-02" {
+			t.Errorf("Days[0].Date = %q, want 2023-01-02", journal.Days[0].Date)
+		}
+		if journal.Days[1].Date != "" {
+			t.Errorf("Days[1].Date = %q, want \"\"", journal.Days[1].Date)
+		}
+		if len(journal.Days[1].Items) != 1 || journal.Days[1].Items[0].Text != "Top-level" {
+			t.Errorf("Days[1].Items = %+v, want [Top-level]", journal.Days[1].Items)
+		}
+		if journal.Days[2].Date != "2023-01-04" {
+			t.Errorf("Days[2].Date = %q, want 2023-01-04", journal.Days[2].Date)
+		}
+	})
 }
 
 func TestProcessLine(t *testing.T) {
@@ -934,19 +1060,23 @@ func TestDedupeSameDateDays(t *testing.T) {
 // wrote to the unlabelled section. ParseTodosSection now
 // canonicalises the journal by merging duplicates.
 //
+// Items are indented so they belong to the day header above
+// them (top-level items, per the issue #14 convention, go to
+// an undated section instead).
+//
 // The parser does not sort by date (SortJournalDays does that
-// separately), so Days is in source order: today (the duplicate
-// header) comes before the older date.
+// separately), so Days is in source order: the duplicate header
+// comes before the older date.
 func TestParseTodosSectionCollapsesDuplicateDateSections(t *testing.T) {
 	content := `- [[2026-08-04]]
-- [ ] task A
+  - [ ] task A
 
 - [[2026-08-04]]
-- [ ] task B
-- [ ] task C
+  - [ ] task B
+  - [ ] task C
 
 - [[2026-08-03]]
-- [ ] older task
+  - [ ] older task
 `
 	journal, err := ParseTodosSection(content)
 	if err != nil {
@@ -981,21 +1111,24 @@ func TestParseTodosSectionCollapsesDuplicateDateSections(t *testing.T) {
 // TestParseTodosSectionPreservesUndatedSectionsAcrossDedup pins
 // that the dedup pass does not merge an undated section with a
 // dated section: an empty Date is a distinct "undated" semantic
-// that MoveUndatedTodosToCurrentDate relies on. A subsequent
-// todo item after a dated header gets appended to that dated
-// section rather than starting a new undated section, so the
-// input below produces 1 undated + 1 merged-dated = 2 sections.
+// that MoveUndatedTodosToCurrentDate relies on. The input has an
+// explicit undated run (consecutive top-level items, which stay
+// in one undated section), then two duplicate-date headers with
+// nested items, then an older dated header.
+//
+// Expected: 1 undated + 1 merged-dated + 1 older-dated = 3.
 func TestParseTodosSectionPreservesUndatedSectionsAcrossDedup(t *testing.T) {
 	content := `- [ ] orphan undated A
+- [ ] orphan undated B
 
 - [[2026-08-04]]
-- [ ] dated task A
+  - [ ] dated task A
 
 - [[2026-08-04]]
-- [ ] dated task B
+  - [ ] dated task B
 
 - [[2026-08-03]]
-- [ ] older task
+  - [ ] older task
 `
 	journal, err := ParseTodosSection(content)
 	if err != nil {
@@ -1007,7 +1140,7 @@ func TestParseTodosSectionPreservesUndatedSectionsAcrossDedup(t *testing.T) {
 	if got, want := journal.Days[0].Date, ""; got != want {
 		t.Errorf("Days[0].Date = %q, want %q (undated section preserved)", got, want)
 	}
-	if got, want := len(journal.Days[0].Items), 1; got != want {
+	if got, want := len(journal.Days[0].Items), 2; got != want {
 		t.Errorf("undated section item count = %d, want %d (must NOT merge with dated sections)", got, want)
 	}
 	if got, want := journal.Days[1].Date, "2026-08-04"; got != want {
@@ -1026,12 +1159,14 @@ func TestParseTodosSectionPreservesUndatedSectionsAcrossDedup(t *testing.T) {
 // single section per date. Without the dedup pass the round-trip
 // would preserve the duplicate sections forever, since the
 // writer emits each section separately with no blank lines.
+//
+// Items are nested so they belong to the day header above them.
 func TestParseTodosSectionRoundTripCollapsesDuplicates(t *testing.T) {
 	content := `- [[2026-08-04]]
-- [ ] task A
+  - [ ] task A
 
 - [[2026-08-04]]
-- [ ] task B
+  - [ ] task B
 `
 	first, err := ParseTodosSection(content)
 	if err != nil {

@@ -1119,3 +1119,57 @@ func TestIssue13_BulletLineIndentPreservedAcrossCarryover(t *testing.T) {
 		}
 	})
 }
+
+// TestIssue14_TopLevelTodoGoesToFileDateSection is the
+// regression test for issue #14: a todo written without a day
+// header (top-level) belongs to the file's date, not to the
+// most recent dated section. The parser previously attached it
+// to the prior day header, so `Todo two` ended up in the wrong
+// section after `todoer new`.
+//
+// The carryover pipeline (MoveUndatedTodosToCurrentDate with
+// target = the file's date) correctly relocates top-level items
+// to a section for the file's date — but only if the parser
+// keeps them in an undated section to begin with.
+func TestIssue14_TopLevelTodoGoesToFileDateSection(t *testing.T) {
+	input := `- [[2026-08-03]]
+  - [x] Todo one
+- [x] Todo two
+`
+	// Run the full process pipeline: originalDate is the file's
+	// date (2026-08-04), currentDate is the day `todoer new` is
+	// being invoked on (2026-08-05).
+	completed, _, _, err := ProcessTodosSectionWithStats(input, "2026-08-04", "2026-08-05")
+	if err != nil {
+		t.Fatalf("ProcessTodosSectionWithStats: %v", err)
+	}
+
+	want := "- [[2026-08-03]]\n  - [x] Todo one #2026-08-04\n- [[2026-08-04]]\n  - [x] Todo two #2026-08-04"
+	if completed != want {
+		t.Errorf("top-level todo lost in wrong section.\nwant:\n%s\ngot:\n%s", want, completed)
+	}
+}
+
+// TestIssue14_TopLevelTodosAcrossMultipleDayHeaders pins that
+// top-level items interleaved with several day headers each end
+// up in the file's date section (not stranded in the nearest
+// dated section).
+func TestIssue14_TopLevelTodosAcrossMultipleDayHeaders(t *testing.T) {
+	input := `- [[2026-08-02]]
+  - [x] Older carry
+- [[2026-08-03]]
+  - [x] Recent carry
+- [x] Today's task A
+- [x] Today's task B
+`
+	completed, uncompleted, _, err := ProcessTodosSectionWithStats(input, "2026-08-04", "2026-08-05")
+	if err != nil {
+		t.Fatalf("ProcessTodosSectionWithStats: %v", err)
+	}
+
+	_ = uncompleted
+	want := "- [[2026-08-02]]\n  - [x] Older carry #2026-08-04\n- [[2026-08-03]]\n  - [x] Recent carry #2026-08-04\n- [[2026-08-04]]\n  - [x] Today's task A #2026-08-04\n  - [x] Today's task B #2026-08-04"
+	if completed != want {
+		t.Errorf("top-level todos not grouped in file date section.\nwant:\n%s\ngot:\n%s", want, completed)
+	}
+}
