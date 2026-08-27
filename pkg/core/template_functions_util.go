@@ -2,7 +2,7 @@
 package core
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"strings"
 	"text/template"
 )
