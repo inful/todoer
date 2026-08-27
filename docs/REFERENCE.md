@@ -340,7 +340,7 @@ for detailed examples.
 Package import path:
 
 ```go
-"git.luguber.info/inful/todoer/pkg/generator"
+"github.com/inful/todoer/pkg/generator"
 ```
 
 Key types and functions:
@@ -366,7 +366,7 @@ Key types and functions:
 Package import path:
 
 ```go
-"git.luguber.info/inful/todoer/pkg/core"
+"github.com/inful/todoer/pkg/core"
 ```
 
 Main entry points for template rendering and journal manipulation:
