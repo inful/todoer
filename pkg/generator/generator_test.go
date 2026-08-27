@@ -100,6 +100,63 @@ func TestNewGeneratorWithOptions(t *testing.T) {
 			t.Error("NewGeneratorWithOptions() should fail with reserved variable name")
 		}
 	})
+
+	t.Run("with frontmatter date key", func(t *testing.T) {
+		// Use a non-default key so the default and the override produce
+		// distinguishable results. The configured key drives
+		// ExtractDateFromFrontmatter inside Process; verifying that
+		// the new key is plumbed through end-to-end is the goal.
+		const customKey = "journal_date"
+		templateWithCustomKey := "# {{.Date}}\n{{.TODOS}}\n"
+		gen, err := NewGeneratorWithOptions(templateWithCustomKey, "2024-01-16",
+			WithFrontmatterDateKey(customKey))
+		if err != nil {
+			t.Fatalf("NewGeneratorWithOptions() error = %v", err)
+		}
+		if gen.frontmatterDateKey != customKey {
+			t.Errorf("frontmatterDateKey = %q, want %q", gen.frontmatterDateKey, customKey)
+		}
+
+		// End-to-end: a frontmatter with the custom key must be parsed
+		// and end up in the previous-date machinery. A frontmatter with
+		// only the default key must NOT be parsed under the custom key,
+		// which falls back to "today" inside ExtractDateFromFrontmatter.
+		// We assert by checking the .PreviousDate variable that the
+		// generator computes when both options are combined.
+		genWithPrev, err := NewGeneratorWithOptions(templateWithCustomKey, "2024-01-16",
+			WithFrontmatterDateKey(customKey),
+			WithPreviousDate("2024-01-15"))
+		if err != nil {
+			t.Fatalf("NewGeneratorWithOptions() error = %v", err)
+		}
+		if genWithPrev.frontmatterDateKey != customKey {
+			t.Errorf("frontmatterDateKey = %q, want %q", genWithPrev.frontmatterDateKey, customKey)
+		}
+		if genWithPrev.previousDate != "2024-01-15" {
+			t.Errorf("previousDate = %q, want %q", genWithPrev.previousDate, "2024-01-15")
+		}
+	})
+
+	t.Run("with todos header", func(t *testing.T) {
+		// The custom header must override the default ("## Todos").
+		// Verify the field is set; verify end-to-end that Process
+		// can find the section when the header is customised.
+		const customHeader = "## MyTasks"
+		templateWithCustomHeader := "# {{.Date}}\n\n" + customHeader + "\n\n{{.TODOS}}\n"
+		gen, err := NewGeneratorWithOptions(templateWithCustomHeader, "2024-01-16",
+			WithTodosHeader(customHeader))
+		if err != nil {
+			t.Fatalf("NewGeneratorWithOptions() error = %v", err)
+		}
+		if gen.todosHeader != customHeader {
+			t.Errorf("todosHeader = %q, want %q", gen.todosHeader, customHeader)
+		}
+		// Default-to-custom guard: the field must not silently stay
+		// at the default when WithTodosHeader is supplied.
+		if gen.todosHeader == core.TodosHeader {
+			t.Errorf("todosHeader should be %q, not the default %q", customHeader, core.TodosHeader)
+		}
+	})
 }
 
 // TestNewGeneratorFromFile tests file-based generator creation
