@@ -14,11 +14,14 @@ func safeWriteFile(filename string, data []byte, perm os.FileMode) error {
 		return fmt.Errorf("failed to create temporary file: %w", err)
 	}
 
+	closed := false
 	defer func() {
 		// Best effort: the file was either renamed (the remove is a
 		// no-op) or abandoned. Neither failure can be acted on here.
-		if err := tmpFile.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "todoer: warning: closing temp file: %v\n", err)
+		if !closed {
+			if err := tmpFile.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "todoer: warning: closing temp file: %v\n", err)
+			}
 		}
 		if err := os.Remove(tmpFile.Name()); err != nil && !os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "todoer: warning: removing temp file %s: %v\n", tmpFile.Name(), err)
@@ -36,6 +39,7 @@ func safeWriteFile(filename string, data []byte, perm os.FileMode) error {
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
+	closed = true
 
 	if err := os.Rename(tmpFile.Name(), filename); err != nil {
 		return fmt.Errorf("failed to move temporary file to target: %w", err)
