@@ -133,19 +133,19 @@ You can derive a new generator from an existing one by applying
 additional options:
 
 ```go
-gen1, err := generator.NewGeneratorWithOptions(templateContent, "2025-03-01")
-if err != nil {
-    log.Fatal(err)
-}
-
-// Create a new generator with extra configuration
-gen2, err := gen1.WithOptions(
+gen, err := generator.NewGeneratorWithOptions(
+    templateContent,
+    "2025-03-01",
     generator.WithPreviousDate("2025-02-28"),
+    generator.WithTodosHeader("## Todos"),
 )
 if err != nil {
     log.Fatal(err)
 }
 ```
+
+Pass every option to the constructor; there is no separate
+reconfigure step.
 
 ## API Reference (Library)
 
@@ -203,13 +203,6 @@ and the newly generated file content.
 #### `func (g *Generator) ProcessFile(filename string) (*ProcessResult, error)`
 
 Reads a journal file from disk, processes it, and returns the results.
-
-### Reconfiguration
-
-#### `func (g *Generator) WithOptions(opts ...Option) (*Generator, error)`
-
-Returns a new `Generator` based on `g` with additional options applied.
-The original generator is not modified.
 
 ### Results
 
@@ -311,7 +304,7 @@ functions are part of the supported surface.
 ### Constants and regexes
 
 - `core.TodosHeader` (default `"## Todos"`), `core.DateFormat`
-  (`"2006-01-02"`), `core.CompletedMarker`, `core.UncompletedMarker`.
+  (`"2006-01-02"`).
 - Compiled regexes: `core.NextSectionRegex`, `core.DayHeaderRegex`,
   `core.TodoItemRegex`, `core.BulletEntryRegex`,
   `core.ContinuationRegex`, `core.DateTagRegex`.
@@ -321,13 +314,8 @@ functions are part of the supported surface.
 - `core.ExtractDateFromFrontmatter(content, dateKey) (string, error)` —
   reads the configured date key (default `title`) from the YAML-style
   frontmatter; falls back to today's date if missing.
-- `core.BuildFrontmatterDateRegex(key) *regexp.Regexp` — returns the
-  compiled regex used internally; useful for downstream tooling.
-- `core.ExtractFrontmatterMetadata(content) (map[string]string, bool, error)`
+- `core.MatchLineEndings(content, reference string) string`
   — reads simple `key: value` pairs.
-- `core.UpsertFrontmatterMetadata(content, updates) (string, error)` —
-  idempotently updates or inserts keys; preserves line ending style
-  (LF or CRLF) and unrelated keys.
 - `core.ExtractTodosSectionWithHeader(content, header) (before, body, after string, err error)`
   — splits a file around the todos section.
 - `core.CreateFromTemplate(core.TemplateOptions) (string, error)` —
@@ -365,13 +353,12 @@ functions are part of the supported surface.
 
 - `core.GetIndentLevel`, `core.NormalizeIndentation`,
   `core.DeepCopyItem`, `core.IsCompleted`, `core.HasDateTag`,
-  `core.CountTotalItems`, `core.CountCompletedItems`,
-  `core.CountUncompletedTopLevelItems`.
+  `core.CountTotalItems`, `core.CountUncompletedTopLevelItems`.
 - `core.FormatDateVariables(date) core.DateVariables` — long/short,
   weekday, ISO week, etc.
 - `core.CalculateTodoStatistics(journal, currentDate) core.TodoStatistics`.
 - `core.MergeCustomVariables`, `core.ValidateCustomVariables`.
-- `core.ValidateDate`, `core.BuildFrontmatterDateRegex`.
+- `core.ValidateDate`.
 
 ### Template functions
 

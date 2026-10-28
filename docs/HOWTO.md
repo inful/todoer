@@ -86,7 +86,9 @@ Behavior:
   the same transfer behavior as `new`.
 - You can move, toggle, add, and delete todos interactively.
 - You can filter/search visible todos by text with `/` and clear with `c`.
-- `s` saves changes, `r` reloads from disk, and `q` saves (if dirty) and quits.
+- `s` saves changes, `r` reloads from disk, and both `q` and `ctrl+c` save (if dirty) and quit. A save that fails still quits, and prints the reason to stderr.
+- `d` deletes: press it twice. The first press only arms the delete, so a slip on the key next to `j`/`k` cannot drop a task.
+- Every save keeps the previous version next to the journal as `<file>.bak`.
 
 Behavior:
 
@@ -94,9 +96,9 @@ Behavior:
 - Locates the most recent journal before today in the same root.
 - Moves incomplete todos to the new file.
 - Leaves completed todos in the previous file, tagged with the completion date.
-- If today's journal already exists, the new carryover items are
-  merged into the existing file (no overwrite, no duplication).
-  Re-running `todoer new` is therefore safe and idempotent.
+- If today's journal already exists, `todoer new` does nothing: it
+  reports the path and stops. Carryover is not re-applied, and nothing is
+  merged. To carry over again, delete today's file first.
 - By default, the source journal is updated in place without a
   backup. Pass `--backup` to keep a `.bak` copy of the source
   journal next to the original (handy before large manual edits).
@@ -197,8 +199,8 @@ The parser is strict: inside the `## Todos` (or configured) section, only
 the following line shapes are accepted:
 
 - A day header: `- [[YYYY-MM-DD]]`
-- A todo item: `- [ ]` (unchecked) or `- [x]` (checked), with optional
-  sub-items at greater indentation.
+- A todo item: `- [ ]` (unchecked), or `- [x]` / `- [X]` / `- [-]` (all
+  count as done), with optional sub-items at greater indentation.
 - A bullet entry: `- text` (non-todo lines, associated with the nearest
   preceding todo item).
 - A continuation line: indented text associated with the nearest
@@ -212,6 +214,10 @@ journal) will fail with `unparseable line N: "<line>"`.
 If you want a notes section, put it under a different `##` header. The
 parser only processes the configured todos header and preserves all
 other sections verbatim.
+
+`todoer tui` is the exception: it opens read-only on a journal it cannot
+parse (the header shows `read-only`) rather than refusing to start, because
+a write would rewrite the section without that line.
 
 ## Use custom template variables
 
@@ -249,11 +255,11 @@ Use the `preview` command to see how a template renders with a sample todos sect
 ```bash
 todoer --template-file "template.md" preview --date "2025-06-20"
 
-# Provide a specific todos section file
-todoer preview --todos-file "todos_sample.md"
-
 # Provide todos content directly
 todoer preview --todos-string "- [ ] Example task"
+
+# Or a file that contains a todos section (a section, not a whole journal)
+todoer preview --todos-file "my_todos.md"
 
 # Provide custom variables as JSON
 todoer preview --custom-vars '{"ProjectName":"My Project"}'

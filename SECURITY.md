@@ -24,8 +24,8 @@ todoer is a CLI that reads and writes markdown files on the local filesystem. Th
 - **Path handling** — user-supplied paths flow through `validateFilePath` (`cmd/todoer/validation.go`), which rejects `..` traversal at component boundaries before normalisation. Symlinks are not dereferenced through trust boundaries.
 - **Template execution** — `text/template` is used with the data shape exposed in `pkg/core/types.go::TemplateData`. Users control the template content and custom variables; template authors control the variables they reference. There is no `text/template/htmlescape` need because the output is markdown.
 - **Frontmatter parsing** — YAML-ish `key: value` lines only. The configurable date key is escaped with `regexp.QuoteMeta` before being embedded into the date regex.
-- **File writes** — every disk write goes through `cmd/todoer/fs.go::safeWriteFile` (temp file + rename + chmod `0o644`). A failed source write leaves the target untouched (the daily flow writes source first, then target).
-- **Dependencies** — the dependency tree is intentionally small. The fingerprint spike depends on `github.com/inful/mdfp` (SHA-256 of the markdown body). No network calls are made at runtime.
+- **File writes** — every disk write goes through `cmd/todoer/fs.go::safeWriteFile` (temp file + rename + chmod `0o644`). The daily flow writes the **target first, then the source**, so a failed target write leaves the source (and the unfinished tasks in it) untouched.
+- **Dependencies** — the dependency tree is intentionally small: `kong` (CLI), `bubbletea`/`lipgloss` (TUI), `BurntSushi/toml` (config). No network calls are made at runtime.
 
 ## Out-of-scope
 

@@ -1,0 +1,9 @@
+- [[2025-06-18]]
+  - [x] Review team feedback
+  - [ ] Complete project documentation
+    - [ ] Draft the API section
+- [[2025-06-19]]
+  - [x] Fix bug in authentication
+  - [ ] Update README file
+  - [ ] Schedule team meeting
+    - [ ] Send the invite

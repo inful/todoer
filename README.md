@@ -46,7 +46,7 @@ By default, journals are stored under `ROOT/YYYY/MM/YYYY-MM-DD.md` and only the 
 ./todoer --root-dir "~/Documents/journals" new
 ```
 
-This creates `YYYY/MM/YYYY-MM-DD.md`, finds the most recent previous journal, moves incomplete todos to today, and tags completed todos in the previous file. Re-running `new` is safe: if today's journal already exists, the new carryover items are merged in instead of duplicated.
+This creates `YYYY/MM/YYYY-MM-DD.md`, finds the most recent previous journal, moves incomplete todos to today, and tags completed todos in the previous file. Re-running `new` on the same day does nothing — it only reports that today's journal already exists. To re-apply carryover, delete today's file first or use the `process` subcommand.
 
 The TUI (`./todoer tui`) shows today's todos interactively. If today's section is empty, it falls back to the most recent non-empty day in read-only mode — useful for reviewing carryover before deciding what to bring into today.
 
@@ -64,7 +64,7 @@ The TUI (`./todoer tui`) shows today's todos interactively. If today's section i
 
 ## Backup policy
 
-The daily flow (`new`, `tui`, `add`) does not create a `.bak` of
+The daily flow (`new`, `add`) does not create a `.bak` of
 yesterday's journal by default — most users find the
 in-place update cleaner. Pass `--backup` to opt in to a
 `.bak` next to the source file:
@@ -72,8 +72,10 @@ in-place update cleaner. Pass `--backup` to opt in to a
 ```bash
 ./todoer new --backup
 ./todoer add "review PR notes" --backup
-./todoer tui --backup
 ```
+
+`tui` always writes the previous version to `<journal>.bak` before each
+save, because it rewrites the whole file on every keypress-driven change.
 
 ## Configuration and templates
 

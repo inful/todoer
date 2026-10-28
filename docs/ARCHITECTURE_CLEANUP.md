@@ -71,7 +71,8 @@ architecture review.
   the library surface is unchanged. The cleanup is contained to
   `cmd/todoer/` (CLI/TUI), test organisation, and one structural
   improvement in `cmd/todoer/journal.go` (the `ProcessOptions` struct).
-- Public API: `pkg/core` and `pkg/generator` are stable. The fingerprint
-  spike behind `TODOER_FINGERPRINT` is untouched.
+- Public API: `pkg/core` and `pkg/generator` are stable. (Later
+  superseded: the fingerprint spike was removed entirely and a few
+  unused exported helpers went with it.)
 - The `tests/` directory layout is unchanged; only a `tests/README.md`
   was added.

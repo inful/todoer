@@ -170,7 +170,12 @@ title: "YYYY-MM-DD"
 Rules:
 
 - Todos are grouped under date headers of the form `- [[YYYY-MM-DD]]`.
-- Incomplete tasks use `[ ]` and completed tasks use `[x]` checkboxes.
+- Incomplete tasks use `[ ]`. Completed tasks use `[x]`, and `[X]`
+  and `[-]` (the cancelled checkbox some note apps write) count as
+  completed too.
+- A line inside the todos section that is not a day header, a task, or
+  a bullet belonging to one is an error: the command stops and leaves
+  the file untouched rather than writing the section back without it.
 - Indentation determines hierarchy of tasks and subtasks.
 - Only the configured todos section (default header `## Todos`) is
   processed. Other sections are preserved.
@@ -221,7 +226,8 @@ creating a new journal.
 - `{{.CompletedTodos}}` - number of completed todos in the source
   journal.
 - `{{.UncompletedTodos}}` - number of uncompleted todos in the source
-  journal.
+  journal. Same number as `{{.TotalTodos}}`; kept for existing
+  templates.
 - `{{.UncompletedTopLevelTodos}}` - number of uncompleted top-level
   todos.
 - `{{.TodoDates}}` - list of unique dates that todos came from.
@@ -353,7 +359,6 @@ Key types and functions:
 - `WithTodosHeader(header string) Option`
 - `(*Generator) Process(originalContent string) (*ProcessResult, error)`
 - `(*Generator) ProcessFile(filename string) (*ProcessResult, error)`
-- `(*Generator) WithOptions(opts ...Option) (*Generator, error)`
 
 `ProcessResult` has the fields:
 
@@ -372,8 +377,9 @@ Package import path:
 Main entry points for template rendering and journal manipulation:
 
 - `CreateFromTemplate(opts TemplateOptions) (string, error)`
-- `ExtractFrontmatterMetadata(content string) (map[string]string, bool, error)`
-- `UpsertFrontmatterMetadata(content string, updates map[string]string) (string, error)`
+- `MatchLineEndings(content, reference string) string` — rewrites `content`
+  to use the line ending of `reference`, for callers that splice
+  model-built sections into a file that may be CRLF.
 - `ParseTodosSection(content string) (*TodoJournal, error)`
 - `JournalToString(journal *TodoJournal) string`
 - `SplitJournal(journal *TodoJournal) (completed, uncompleted *TodoJournal)`
@@ -403,38 +409,11 @@ idempotent by construction.
 
 ## Frontmatter metadata
 
-The carryover metadata lives in the journal's YAML frontmatter
-block. Todoer writes and reads these keys; the `core`
-package provides `ExtractFrontmatterMetadata` and
-`UpsertFrontmatterMetadata` helpers that preserve unrelated
-keys, their order, and the document's line ending style
-(LF or CRLF).
-
-| Key | When | Purpose |
-| --- | --- | --- |
-| `todoer_carryover_to` | Future (ADR-0001 acceptance) | Target date the source carried into. |
-| `todoer_carryover_updated_at` | Future (ADR-0001 acceptance) | Timestamp of the last carryover sync. |
-| `fingerprint` | Only with `TODOER_FINGERPRINT=1` (spike) | SHA-256 of the source's frontmatter (with any existing `fingerprint` field stripped) and body, computed by `github.com/inful/mdfp`. Used to detect external changes to the source between syncs. |
-
-The fingerprint spike is off by default. With the toggle on,
-`processJournal` logs a `Fingerprint mismatch` message when
-the recorded fingerprint does not match the current source
-content. Per ADR-0001, the fingerprint is a hint, not a
-gating check: a mismatch does not fail the sync, it just
-forces a conservative re-merge (the default behaviour).
-
-Changes to any non-fingerprint frontmatter field (title, date,
-tags, custom keys) change the fingerprint and trigger a
-mismatch log on the next sync. Only the `fingerprint` field
-itself is excluded from the hash, so re-runs on the same
-body+metadata are stable.
-
-> **Note:** before v0.4.0 the spike recorded `todoer_source_fingerprint`
-> and `todoer_source_fingerprint_algo`. Upgrading to v0.4.0+ while
-> the spike is on will write the new `fingerprint` key alongside any
-> existing `todoer_source_fingerprint` key; the old key is harmless
-> but stale. The `todoer_source_fingerprint_at` key documented in
-> earlier revisions was never implemented and has been removed.
+Todoer does not read or write frontmatter metadata. Frontmatter is
+passed through untouched, apart from the date key
+(`frontmatter_date_key`, default `title`). A leftover key from an
+earlier fingerprint spike is treated as ordinary user metadata and
+preserved as-is.
 
 ## Environment variables
 
@@ -442,9 +421,4 @@ body+metadata are stable.
 - `TODOER_TEMPLATE_FILE` - override the configured template file.
 - `XDG_CONFIG_HOME` - XDG-style config directory; falls back to
   `~/.config` when unset.
-- `TODOER_FINGERPRINT` - set to `1` to enable the fingerprint spike.
-- `TODOER_FINGERPRINT_WRITE` - set to `0` to suppress the write side
-  of the fingerprint spike (no `fingerprint:` key in the target's
-  frontmatter) while keeping the read-side mismatch detection
-  active. Default is "write enabled" (unset or unparseable).
 

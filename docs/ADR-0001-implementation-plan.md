@@ -72,7 +72,7 @@ Status: **DONE** (commit `db665ac`).
 ### 4) Fingerprint Spike (`mdfp`) Behind Feature Toggle
 Goal: evaluate fingerprinting as a safety/optimization hint, not identity.
 
-Status: **DONE** (initial spike at commit `c5aeb03`; mdfp library
+Status: **REMOVED** — the spike shipped, was never enabled by default, and was deleted after review; `github.com/inful/mdfp` is no longer a dependency. (initial spike at commit `c5aeb03`; mdfp library
 integrated in v0.4.0 follow-up).
 
 - Feature toggle: `TODOER_FINGERPRINT=1` enables the spike; off
