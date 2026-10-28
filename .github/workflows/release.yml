@@ -28,10 +28,15 @@ jobs:
         - name: Install ko
           uses: ko-build/setup-ko@v0.9
 
+        - name: Lint
+          uses: golangci/golangci-lint-action@v6
+          with:
+            version: v2.14.0
+
         - name: Set up GoReleaser
           uses: goreleaser/goreleaser-action@v7
           with:
-            version: latest
+            version: "~> v2"
             args: release --clean
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
