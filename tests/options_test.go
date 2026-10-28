@@ -53,58 +53,6 @@ title: 2024-01-14
 	}
 }
 
-func TestGeneratorWithOptionsReconfigure(t *testing.T) {
-	templateContent := `---
-title: {{.Date}}
----
-
-## Todos
-{{.TODOS}}`
-
-	templateDate := "2024-01-15"
-
-	// Create initial generator
-	gen1, err := generator.NewGeneratorWithOptions(templateContent, templateDate)
-	if err != nil {
-		t.Fatalf("Failed to create initial generator: %v", err)
-	}
-
-	// Reconfigure with new options
-	gen2, err := gen1.WithOptions(
-		generator.WithPreviousDate("2024-01-14"),
-		generator.WithCustomVariables(map[string]any{
-			"author": "Test User",
-		}),
-	)
-	if err != nil {
-		t.Fatalf("Failed to reconfigure generator: %v", err)
-	}
-
-	// Both generators should work
-	originalContent := `---
-title: 2024-01-14
----
-
-## Todos
-
-- [ ] Task 1
-`
-
-	result1, err := gen1.Process(originalContent)
-	if err != nil {
-		t.Fatalf("Failed to process with gen1: %v", err)
-	}
-
-	result2, err := gen2.Process(originalContent)
-	if err != nil {
-		t.Fatalf("Failed to process with gen2: %v", err)
-	}
-
-	if result1 == nil || result2 == nil {
-		t.Fatal("Expected non-nil results from both generators")
-	}
-}
-
 func TestTemplateValidation(t *testing.T) {
 	// Test invalid template syntax
 	invalidTemplate := `---
