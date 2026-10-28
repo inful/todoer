@@ -214,8 +214,12 @@ func ExtractTodosSectionWithHeader(content string, todosHeader string) (string, 
 	// has to be checked before searching for the next header — otherwise
 	// the search would find the heading *after* that one and report its
 	// name as todos content.
+	//
+	// The blank line goes back in front of the trailing content: it is
+	// what separates the todos section from the section after it, and
+	// without it the last todo ends up glued to the next heading.
 	if strings.HasPrefix(strings.TrimLeft(afterHeaderContent, " \t"), "## ") {
-		return beforeTodos, "", afterHeaderContent, nil
+		return beforeTodos, "", blankLine + afterHeaderContent, nil
 	}
 
 	nextSectionMatch := NextSectionRegex.FindStringIndex(afterHeaderContent)

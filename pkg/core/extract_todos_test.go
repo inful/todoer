@@ -73,12 +73,10 @@ More content here.`,
 			header:           TodosHeader,
 			wantBeforeTodos:  TodosHeader + "\n\n",
 			wantTodosSection: "",
-			// When the next section immediately follows the
-			// mandatory blank line after the header, afterTodos
-			// starts at the section header (no leading blank
-			// line). The blank line was already consumed as the
-			// header separator.
-			wantAfterTodos: "## Other Section\n\nMore content here.",
+			// The blank line goes back in front of the trailing
+			// section, exactly as it is in the case above: it is what
+			// separates the todos section from the next heading.
+			wantAfterTodos: "\n\n## Other Section\n\nMore content here.",
 		},
 		{
 			name: "Todos is the last section",

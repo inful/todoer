@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -168,4 +169,63 @@ func TestExtractPicksTheTodosHeaderNotAPrefix(t *testing.T) {
 	if strings.Contains(section, "archived task") {
 		t.Fatalf("archive section was treated as the todos section: %q", section)
 	}
+}
+
+// TestEmptyTodosSectionKeepsTheNextHeading pins that a journal whose todos
+// section is empty keeps the blank line in front of the next heading. The
+// heading used to end up glued to the last todo line, and 'process' wrote
+// that into the user's source file.
+func TestEmptyTodosSectionKeepsTheNextHeading(t *testing.T) {
+	t.Run("add", func(t *testing.T) {
+		tempDir := setupTempDir(t)
+		today := time.Now().Format(core.DateFormat)
+		journalPath := buildJournalPath(tempDir, today)
+
+		createTestFile(t, journalPath, "---\ntitle: "+today+"\n---\n\n# Daily\n\n## Todos\n\n## Notes\n\nkeep me\n")
+
+		config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+		if err := cmdAdd(tempDir, "", "a todo", false, false, config, NewLogger(ModeQuiet)); err != nil {
+			t.Fatalf("cmdAdd: %v", err)
+		}
+
+		after, err := os.ReadFile(journalPath)
+		if err != nil {
+			t.Fatalf("read journal: %v", err)
+		}
+		got := string(after)
+		if !strings.Contains(got, "- [ ] a todo\n\n## Notes") {
+			t.Errorf("the next heading must stay on its own line, got:\n%q", got)
+		}
+		if !strings.Contains(got, "keep me") {
+			t.Errorf("the notes section was lost:\n%q", got)
+		}
+	})
+
+	t.Run("process", func(t *testing.T) {
+		tempDir := setupTempDir(t)
+		source := filepath.Join(tempDir, "src.md")
+		target := filepath.Join(tempDir, "out.md")
+		createTestFile(t, source, "---\ntitle: 2025-06-20\n---\n\n## Todos\n\n## Notes\n\nkeep me\n")
+
+		config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
+		if err := processJournal(ProcessOptions{
+			SourceFile:   source,
+			TargetFile:   target,
+			TemplateDate: "2025-06-21",
+		}, config, NewLogger(ModeQuiet)); err != nil {
+			t.Fatalf("processJournal: %v", err)
+		}
+
+		after, err := os.ReadFile(source)
+		if err != nil {
+			t.Fatalf("read source: %v", err)
+		}
+		got := string(after)
+		if !strings.Contains(got, "]]\n\n## Notes") {
+			t.Errorf("the next heading must stay on its own line, got:\n%q", got)
+		}
+		if !strings.Contains(got, "keep me") {
+			t.Errorf("the notes section was lost:\n%q", got)
+		}
+	})
 }
