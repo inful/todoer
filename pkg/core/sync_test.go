@@ -236,16 +236,6 @@ func TestMergeCarryover_DaysSortedAcrossMerge(t *testing.T) {
 	}
 }
 
-func TestSortDays_EmptyAndNil(_ *testing.T) {
-	sortDays(nil)            // no panic
-	sortDays(&TodoJournal{}) // no panic
-	sortDays(&TodoJournal{Days: []*DaySection{
-		{Date: "2026-03-16", Items: []*TodoItem{}},
-		nil,
-		{Date: "2026-03-15", Items: []*TodoItem{}},
-	}})
-}
-
 func TestSortJournalDays_OutOfOrderInput(t *testing.T) {
 	j := &TodoJournal{Days: []*DaySection{
 		{Date: "2026-03-18", Items: []*TodoItem{{Text: "later"}}},
@@ -265,4 +255,23 @@ func TestSortJournalDays_NilAndEmpty(_ *testing.T) {
 	SortJournalDays(nil)                                    // no panic
 	SortJournalDays(&TodoJournal{})                         // no panic
 	SortJournalDays(&TodoJournal{Days: []*DaySection{nil}}) // no panic
+}
+
+// TestMergeCarryover_FillsTheFirstSectionOfADate pins that a target with two
+// sections for the same date gets the merged item in the first one, the way
+// it did when the days were scanned in order.
+func TestMergeCarryover_FillsTheFirstSectionOfADate(t *testing.T) {
+	first := &DaySection{Date: "2025-06-20", Items: []*TodoItem{{Text: "already here"}}}
+	second := &DaySection{Date: "2025-06-20", Items: []*TodoItem{{Text: "second section"}}}
+	target := &TodoJournal{Days: []*DaySection{first, second}}
+	source := &TodoJournal{Days: []*DaySection{{Date: "2025-06-20", Items: []*TodoItem{{Text: "new item"}}}}}
+
+	MergeCarryover(source, target)
+
+	if len(first.Items) != 2 || first.Items[1].Text != "new item" {
+		t.Errorf("the merged item must go into the first section, got %d items there", len(first.Items))
+	}
+	if len(second.Items) != 1 {
+		t.Errorf("the second section must be untouched, got %d items", len(second.Items))
+	}
 }

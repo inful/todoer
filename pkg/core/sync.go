@@ -78,20 +78,33 @@ func MergeCarryover(source, target *TodoJournal) *TodoJournal {
 		target = &TodoJournal{Days: []*DaySection{}}
 	}
 	if source == nil {
-		sortDays(target)
+		SortJournalDays(target)
 		return target
 	}
 
 	existing := collectCarryoverKeys(target)
+	// Index the target's days once: looking a day up by date for every
+	// source day would be O(days²).
+	targetDays := make(map[string]*DaySection, len(target.Days))
+	for _, d := range target.Days {
+		if d == nil {
+			continue
+		}
+		// First section with a date wins, as it did when the days were
+		// scanned in order.
+		if _, seen := targetDays[d.Date]; !seen {
+			targetDays[d.Date] = d
+		}
+	}
 
 	for _, day := range source.Days {
 		if day == nil {
 			continue
 		}
-		mergeDayInto(day, target, existing)
+		mergeDayInto(day, target, targetDays, existing)
 	}
 
-	sortDays(target)
+	SortJournalDays(target)
 	return target
 }
 
@@ -104,14 +117,8 @@ func MergeCarryover(source, target *TodoJournal) *TodoJournal {
 // dedup subitems across different parents; that would require
 // walking the target's tree on every insert and is out of scope for
 // the ADR's 'markdown-only task matching' heuristic.
-func mergeDayInto(srcDay *DaySection, target *TodoJournal, existing map[string]bool) *DaySection {
-	var targetDay *DaySection
-	for _, d := range target.Days {
-		if d != nil && d.Date == srcDay.Date {
-			targetDay = d
-			break
-		}
-	}
+func mergeDayInto(srcDay *DaySection, target *TodoJournal, targetDays map[string]*DaySection, existing map[string]bool) *DaySection {
+	targetDay := targetDays[srcDay.Date]
 
 	var added bool
 	for _, item := range srcDay.Items {
@@ -125,6 +132,7 @@ func mergeDayInto(srcDay *DaySection, target *TodoJournal, existing map[string]b
 		if targetDay == nil {
 			targetDay = &DaySection{Date: srcDay.Date, Items: []*TodoItem{}}
 			target.Days = append(target.Days, targetDay)
+			targetDays[srcDay.Date] = targetDay
 		}
 		targetDay.Items = append(targetDay.Items, cloned)
 		existing[carryoverItemKey(srcDay.Date, item)] = true
@@ -160,11 +168,4 @@ func SortJournalDays(journal *TodoJournal) {
 		}
 		return journal.Days[i].Date < journal.Days[j].Date
 	})
-}
-
-// sortDays is a private alias used by MergeCarryover so the
-// sort helper is callable from the same package without
-// touching the exported name.
-func sortDays(journal *TodoJournal) {
-	SortJournalDays(journal)
 }

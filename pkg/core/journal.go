@@ -5,13 +5,8 @@ import (
 	"strings"
 )
 
-// Constants for journal operations
-const (
-	// DefaultBuilderCapacity is the initial capacity for string builders
-	DefaultBuilderCapacity = 1024
-	// IndentSpaces is the number of spaces per indentation level
-	IndentSpaces = 2
-)
+// IndentSpaces is the number of spaces per indentation level
+const IndentSpaces = 2
 
 // SplitJournal splits the journal into completed and uncompleted tasks.
 // It returns two separate journals: one containing only completed items and their
