@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"text/template"
@@ -675,5 +676,41 @@ func TestDaysDiffCalendarMath(t *testing.T) {
 				t.Errorf("daysDiff(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestTemplateFunctionsUnicode pins the template helpers on non-ASCII input:
+// `title` used to slice a single byte, turning "über" into a broken rune,
+// and `default` only recognised empty strings.
+func TestTemplateFunctionsUnicode(t *testing.T) {
+	tests := []struct {
+		template string
+		data     any
+		want     string
+	}{
+		{`{{title "über straße"}}`, nil, "Über Straße"},
+		{`{{title "日本語 test"}}`, nil, "日本語 Test"},
+		{`{{title "hello world"}}`, nil, "Hello World"},
+		{`{{default "fallback" .Custom.Empty}}`, TemplateData{Custom: map[string]any{"Empty": []string{}}}, "fallback"},
+		{`{{default "fallback" .TotalTodos}}`, TemplateData{TotalTodos: 0}, "fallback"},
+		{`{{default "fallback" .TodoDates}}`, TemplateData{TodoDates: []string{"2026-01-01"}}, "[2026-01-01]"},
+	}
+
+	for _, tt := range tests {
+		tmpl, err := template.New("t").Funcs(CreateTemplateFunctions()).Parse(tt.template)
+		if err != nil {
+			t.Fatalf("parse %q: %v", tt.template, err)
+		}
+		var buf bytes.Buffer
+		data := tt.data
+		if data == nil {
+			data = struct{}{}
+		}
+		if err := tmpl.Execute(&buf, data); err != nil {
+			t.Fatalf("execute %q: %v", tt.template, err)
+		}
+		if buf.String() != tt.want {
+			t.Errorf("%s => %q, want %q", tt.template, buf.String(), tt.want)
+		}
 	}
 }

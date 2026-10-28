@@ -17,10 +17,20 @@ func isEmptyValue(val any) bool {
 		return v == ""
 	case []string:
 		return len(v) == 0
+	case []int:
+		return len(v) == 0
+	case []any:
+		return len(v) == 0
 	case map[string]any:
 		return len(v) == 0
 	case int:
 		return v == 0
+	case int64:
+		return v == 0
+	case float64:
+		return v == 0
+	case bool:
+		return !v
 	default:
 		return false
 	}
@@ -37,7 +47,10 @@ func createUtilityFunctions() template.FuncMap {
 	return template.FuncMap{
 		// Conditional and default values
 		"default": func(defaultVal any, val any) any {
-			if val == nil || val == "" {
+			// isEmptyValue, not a `== ""` test: an empty list or map
+			// never compares equal to a string, so `default "x" .TodoDates`
+			// used to render an empty list instead of the fallback.
+			if isEmptyValue(val) {
 				return defaultVal
 			}
 			return val

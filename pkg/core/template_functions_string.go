@@ -4,6 +4,7 @@ package core
 import (
 	"strings"
 	"text/template"
+	"unicode/utf8"
 )
 
 // createStringFunctions returns a map of string manipulation template functions.
@@ -14,15 +15,20 @@ func createStringFunctions() template.FuncMap {
 		"upper": strings.ToUpper,
 		"lower": strings.ToLower,
 		"title": func(s string) string {
-			// Simple title case implementation - capitalize first letter of each word
+			// Capitalise the first rune of each word. Iterating runes
+			// (not slicing word[:1]) matters: a byte slice of a
+			// multi-byte letter produces a broken character.
 			if s == "" {
 				return s
 			}
 			words := strings.Fields(s)
 			for i, word := range words {
-				if len(word) > 0 {
-					words[i] = strings.ToUpper(word[:1]) + strings.ToLower(word[1:])
+				lower := strings.ToLower(word)
+				r, size := utf8.DecodeRuneInString(lower)
+				if r == utf8.RuneError && size <= 1 {
+					continue
 				}
+				words[i] = strings.ToUpper(string(r)) + lower[size:]
 			}
 			return strings.Join(words, " ")
 		},
