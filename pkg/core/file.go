@@ -5,228 +5,154 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
-	"sort"
 	"strings"
 	"text/template"
-	"time"
 )
 
 // Constants for file processing
 const (
 	// BlankLineSeparator is the sequence that separates sections
 	BlankLineSeparator = "\n\n"
-	// MovedToTemplate is the template for moved todos message
-	MovedToTemplate = "Moved to [[%s]]"
+	// MovedToTemplate is the placeholder written into a source journal that
+	// has nothing left completed. It is shaped like a completed todo so the
+	// file stays parseable: a bare note line here would make every later run
+	// on this file fail with "unparseable line".
+	MovedToTemplate = "- [x] Moved to [[%s]]"
 )
 
 // Pre-compiled regex for better performance
 var (
 	excessiveBlankLinesRegex = regexp.MustCompile(`\n{3,}`)
+	// dateShape matches a date value in a frontmatter line.
+	dateShape = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 )
 
 // ExtractDateFromFrontmatter extracts the date from the frontmatter using a configurable key.
-// If no date is found, it returns today's date as a fallback.
+// Only the frontmatter block is searched, so a body line such as
+// "created_date: 2019-01-01" is never mistaken for the file's date.
+//
+// If the key is not in the frontmatter, the other common key ("date", then
+// "title") is tried before giving up: the built-in template writes both, but
+// a hand-written journal usually has only one.
+//
+// If no date is found it returns an empty string: callers that need a value
+// decide what to use. Falling back to today here made {{.PreviousDate}} and
+// the "Moved to" marker silently claim a date the file never had.
 func ExtractDateFromFrontmatter(content string, dateKey string) (string, error) {
 	if content == "" {
-		return time.Now().Format(DateFormat), nil
+		return "", nil
 	}
 
-	// Use dynamic regex for the configured key
-	regex := BuildFrontmatterDateRegex(dateKey)
-	matches := regex.FindStringSubmatch(content)
-
-	if len(matches) < 2 {
-		// If no date found in frontmatter, use today's date
-		return time.Now().Format(DateFormat), nil
-	}
-
-	// Validate the extracted date
-	extractedDate := matches[1]
-	if err := ValidateDate(extractedDate); err != nil {
-		return "", fmt.Errorf("invalid date in frontmatter: %w", err)
-	}
-
-	return extractedDate, nil
-}
-
-// ExtractFrontmatterMetadata reads simple "key: value" pairs from the document frontmatter.
-// It returns metadata, whether a frontmatter block exists, and an error for malformed frontmatter.
-func ExtractFrontmatterMetadata(content string) (map[string]string, bool, error) {
-	fmLines, _, _, hasFrontmatter, malformed := splitFrontmatter(content)
-	if malformed {
-		return map[string]string{}, true, fmt.Errorf("malformed frontmatter: missing closing delimiter")
-	}
-	if !hasFrontmatter {
-		return map[string]string{}, false, nil
-	}
-
-	metadata := make(map[string]string)
-	for _, line := range fmLines {
-		key, value, ok := parseFrontmatterLine(line)
-		if ok {
-			metadata[key] = value
+	lines := frontmatterLines(content)
+	for _, key := range dateKeyOrder(dateKey) {
+		for _, line := range lines {
+			k, value, ok := frontmatterValue(line)
+			if !ok || k != key {
+				continue
+			}
+			if !dateShape.MatchString(value) {
+				continue
+			}
+			if err := ValidateDate(value); err != nil {
+				return "", fmt.Errorf("invalid date in frontmatter: %w", err)
+			}
+			return value, nil
 		}
 	}
 
-	return metadata, true, nil
+	return "", nil
 }
 
-// UpsertFrontmatterMetadata updates or inserts simple metadata in a document frontmatter block.
-// If the document has malformed frontmatter, a new metadata block is prepended as a safe fallback.
-// The document's original line ending style (LF or CRLF) is preserved.
-func UpsertFrontmatterMetadata(content string, updates map[string]string) (string, error) {
-	if len(updates) == 0 {
-		return content, nil
-	}
-
-	fmLines, body, sep, hasFrontmatter, malformed := splitFrontmatter(content)
-	if malformed || !hasFrontmatter {
-		return prependFrontmatterBlock(content, updates, sep), nil
-	}
-
-	lineByKey := make(map[string]int)
-	for i, line := range fmLines {
-		key, _, ok := parseFrontmatterLine(line)
-		if ok {
-			lineByKey[key] = i
+// dateKeyOrder returns the keys to try: the configured one first, then the
+// other common ones, without repeats.
+func dateKeyOrder(dateKey string) []string {
+	keys := []string{dateKey}
+	for _, alt := range []string{"date", "title"} {
+		if alt != dateKey {
+			keys = append(keys, alt)
 		}
 	}
-
-	keys := sortedMetadataKeys(updates)
-	for _, key := range keys {
-		line := key + ": " + updates[key]
-		if idx, exists := lineByKey[key]; exists {
-			fmLines[idx] = line
-		} else {
-			fmLines = append(fmLines, line)
-		}
-	}
-
-	return joinFrontmatterAndBody(fmLines, body, sep), nil
+	return keys
 }
 
-// DeleteFrontmatterMetadata removes the listed keys from a document's
-// frontmatter block. Other keys (and their order) and the body's line
-// ending style are preserved. Missing keys are no-ops. A document
-// without a frontmatter block, or with a malformed block, is returned
-// unchanged. An empty keys list is a no-op.
-func DeleteFrontmatterMetadata(content string, keys []string) (string, error) {
-	if len(keys) == 0 {
-		return content, nil
-	}
-	keySet := make(map[string]bool, len(keys))
-	for _, k := range keys {
-		keySet[k] = true
-	}
-
-	fmLines, body, sep, hasFM, malformed := splitFrontmatter(content)
-	if malformed || !hasFM {
-		return content, nil
-	}
-
-	filtered := fmLines[:0:0]
-	for _, line := range fmLines {
-		key, _, ok := parseFrontmatterLine(line)
-		if ok && keySet[key] {
-			continue
-		}
-		filtered = append(filtered, line)
-	}
-
-	return joinFrontmatterAndBody(filtered, body, sep), nil
-}
-
-// splitFrontmatter splits a document into its frontmatter lines and the
-// body, preserving the line ending style. The returned separator is the
-// one detected in the input (LF or CRLF); it is used by the re-emit
-// helpers so a roundtrip on a CRLF file does not silently rewrite line
-// endings.
-func splitFrontmatter(content string) ([]string, string, string, bool, bool) {
+// frontmatterLines returns the lines of the leading frontmatter block, or
+// nil when the document has none.
+func frontmatterLines(content string) []string {
 	if content == "" {
-		return nil, "", "\n", false, false
+		return nil
 	}
-
 	sep := "\n"
 	if strings.Contains(content, "\r\n") {
 		sep = "\r\n"
 	}
-
 	lines := strings.Split(content, sep)
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
-		return nil, content, sep, false, false
+		return nil
 	}
-
 	for i := 1; i < len(lines); i++ {
 		if strings.TrimSpace(lines[i]) == "---" {
-			return lines[1:i], strings.Join(lines[i+1:], sep), sep, true, false
+			return lines[1:i]
 		}
 	}
-
-	return nil, content, sep, true, true
+	return nil
 }
 
-func parseFrontmatterLine(line string) (string, string, bool) {
+// frontmatterValue splits a "key: value" line of a frontmatter block.
+func frontmatterValue(line string) (string, string, bool) {
 	trimmed := strings.TrimSpace(line)
 	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 		return "", "", false
 	}
-
 	parts := strings.SplitN(trimmed, ":", 2)
 	if len(parts) != 2 {
 		return "", "", false
 	}
-
 	key := strings.TrimSpace(parts[0])
 	value := strings.TrimSpace(parts[1])
 	if key == "" {
 		return "", "", false
 	}
-
 	return key, value, true
 }
 
-func prependFrontmatterBlock(content string, updates map[string]string, sep string) string {
-	keys := sortedMetadataKeys(updates)
-	var builder strings.Builder
-	builder.WriteString("---")
-	builder.WriteString(sep)
-	for _, key := range keys {
-		builder.WriteString(key)
-		builder.WriteString(": ")
-		builder.WriteString(updates[key])
-		builder.WriteString(sep)
+// lineSeparator returns the dominant line ending of content. Counting both
+// endings (instead of testing for any CRLF) keeps a file with a stray
+// Windows line ending working: it is written back the way it came in.
+func lineSeparator(content string) string {
+	crlf := strings.Count(content, "\r\n")
+	lf := strings.Count(content, "\n") - crlf
+	if crlf > lf {
+		return "\r\n"
 	}
-	builder.WriteString("---")
-	if content != "" {
-		builder.WriteString(sep)
-		builder.WriteString(content)
-	}
-	return builder.String()
+	return "\n"
 }
 
-func joinFrontmatterAndBody(fmLines []string, body string, sep string) string {
-	var builder strings.Builder
-	builder.WriteString("---")
-	builder.WriteString(sep)
-	for _, line := range fmLines {
-		builder.WriteString(line)
-		builder.WriteString(sep)
+// MatchLineEndings rewrites content to use the same line ending as
+// reference. Callers splice a section built from the model or from a
+// template (both always use "\n") together with slices of a file that may
+// be CRLF; without this the written file mixes both endings. Reference may
+// be the file the content came from.
+func MatchLineEndings(content, reference string) string {
+	sep := lineSeparator(reference)
+	if sep == "\n" {
+		return content
 	}
-	builder.WriteString("---")
-	if body != "" {
-		builder.WriteString(sep)
-		builder.WriteString(body)
-	}
-	return builder.String()
+	const crlf = "\r\n"
+	// Protect existing CRLFs, convert the bare LFs, then restore.
+	guarded := strings.ReplaceAll(content, crlf, "\x00")
+	guarded = strings.ReplaceAll(guarded, "\n", crlf)
+	return strings.ReplaceAll(guarded, "\x00", crlf)
 }
 
-func sortedMetadataKeys(values map[string]string) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
+// todosHeaderPattern builds the pattern that locates the todos section
+// header as a whole markdown heading. Anchoring at the line start and
+// requiring the line to end after the header keeps a different section
+// whose name merely starts with the same word (e.g. "## Todos Archive")
+// or the words appearing inside a note from being treated as the todos
+// section: rewriting the wrong section would move the user's items out
+// of it.
+func todosHeaderPattern(todosHeader string) string {
+	return `(?m)^` + regexp.QuoteMeta(todosHeader) + `[ \t]*\r?$`
 }
 
 // ExtractTodosSectionWithHeader extracts the TODOS section using a configurable header.
@@ -236,33 +162,62 @@ func ExtractTodosSectionWithHeader(content string, todosHeader string) (string, 
 	if content == "" {
 		return "", "", "", fmt.Errorf("content cannot be empty")
 	}
+	if todosHeader == "" {
+		return "", "", "", fmt.Errorf("todos header cannot be empty")
+	}
 
-	// Find the Todos section header
-	todosHeaderIndex := strings.Index(content, todosHeader)
-	if todosHeaderIndex == -1 {
+	// Find the Todos section header as its own heading line
+	headerRange := regexp.MustCompile(todosHeaderPattern(todosHeader)).FindStringIndex(content)
+	if headerRange == nil {
 		return "", "", "", fmt.Errorf("could not find '%s' section in file", todosHeader)
 	}
 
-	// Calculate the end of the header
-	headerEndIndex := todosHeaderIndex + len(todosHeader)
+	// Calculate the end of the header. The pattern allows a trailing \r
+	// (so the anchor matches before the \n of a CRLF line); step back over
+	// it so the section search starts at the same place an LF file would.
+	headerEndIndex := headerRange[1]
+	if headerEndIndex > headerRange[0] && content[headerEndIndex-1] == '\r' {
+		headerEndIndex--
+	}
 	if headerEndIndex >= len(content) {
 		return "", "", "", fmt.Errorf("incomplete %s section: no content after header", todosHeader)
 	}
 
 	contentAfterHeader := content[headerEndIndex:]
 
-	// Find the first blank line after the header
-	blankLineIndex := strings.Index(contentAfterHeader, BlankLineSeparator)
-	if blankLineIndex == -1 {
+	// Find the first blank line after the header. Both endings are looked
+	// for and the earlier one wins: a file with a stray CRLF among LF
+	// lines must keep working, so the whole file's style must not decide
+	// this.
+	lfIndex := strings.Index(contentAfterHeader, "\n\n")
+	crlfIndex := strings.Index(contentAfterHeader, "\r\n\r\n")
+	var blankLine string
+	var blankLineIndex int
+	switch {
+	case lfIndex >= 0 && (crlfIndex < 0 || lfIndex <= crlfIndex):
+		blankLine, blankLineIndex = "\n\n", lfIndex
+	case crlfIndex >= 0:
+		blankLine, blankLineIndex = "\r\n\r\n", crlfIndex
+	default:
 		return "", "", "", fmt.Errorf("invalid %s section format: expected blank line after header", todosHeader)
 	}
 
 	// Calculate section boundaries
-	beforeTodosEnd := headerEndIndex + blankLineIndex + len(BlankLineSeparator)
+	beforeTodosEnd := headerEndIndex + blankLineIndex + len(blankLine)
 	beforeTodos := content[:beforeTodosEnd]
 
 	// Find the next section header (if any)
 	afterHeaderContent := content[beforeTodosEnd:]
+
+	// An empty todos section: the next heading follows the blank line
+	// directly, so everything from here on is a trailing section. This
+	// has to be checked before searching for the next header — otherwise
+	// the search would find the heading *after* that one and report its
+	// name as todos content.
+	if strings.HasPrefix(strings.TrimLeft(afterHeaderContent, " \t"), "## ") {
+		return beforeTodos, "", afterHeaderContent, nil
+	}
+
 	nextSectionMatch := NextSectionRegex.FindStringIndex(afterHeaderContent)
 
 	var todosSection string
@@ -281,14 +236,6 @@ func ExtractTodosSectionWithHeader(content string, todosHeader string) (string, 
 		}
 		todosSection = content[beforeTodosEnd:todosEndIndex]
 		afterTodos = content[todosEndIndex:]
-	} else if strings.HasPrefix(strings.TrimLeft(afterHeaderContent, " \t"), "## ") {
-		// afterHeaderContent begins with a section header but the
-		// next-section regex did not match (no preceding newline
-		// because the next header is on the same line as the
-		// blank-line separator). Treat the whole remainder as the
-		// trailing section(s), not as Todos content.
-		todosSection = ""
-		afterTodos = afterHeaderContent
 	} else {
 		// Todos is the last section
 		todosSection = afterHeaderContent
@@ -416,9 +363,10 @@ func CreateFromTemplate(opts TemplateOptions) (string, error) {
 		PreviousWeekNumber: previousDateVars.WeekNumber,
 
 		// Todo statistics (will be zero values if journal not provided)
-		TotalTodos:               todoStats.TotalTodos,
-		CompletedTodos:           todoStats.CompletedTodos,
-		UncompletedTodos:         todoStats.UncompletedTodos,
+		TotalTodos:     todoStats.TotalTodos,
+		CompletedTodos: todoStats.CompletedTodos,
+		// Kept for existing templates; same value as TotalTodos.
+		UncompletedTodos:         todoStats.TotalTodos,
 		UncompletedTopLevelTodos: todoStats.UncompletedTopLevelTodos,
 		TodoDates:                todoStats.TodoDates,
 		OldestTodoDate:           todoStats.OldestTodoDate,

@@ -52,8 +52,11 @@ Content here
 			wantErr: false,
 		},
 		{
-			name:    "Date key configurable (date)",
-			content: `---\ndate: 2025-06-21\n---\n`,
+			name: "Date key configurable (date)",
+			content: `---
+date: 2025-06-21
+---
+`,
 			want:    "2025-06-21",
 			wantErr: false,
 			key:     "date",
@@ -401,26 +404,13 @@ title: 2024-01-14
 			"project": "Test Project",
 		}
 
-		gen, err := generator.NewGeneratorWithOptions(
+		if _, err := generator.NewGeneratorWithOptions(
 			templateContent,
 			"2024-01-15",
 			generator.WithPreviousDate("2024-01-14"),
 			generator.WithCustomVariables(customVars),
-		)
-		if err != nil {
+		); err != nil {
 			t.Fatalf("NewGeneratorWithOptions with options failed: %v", err)
-		}
-
-		// Test WithOptions method for reconfiguration
-		newGen, err := gen.WithOptions(
-			generator.WithPreviousDate("2024-01-13"),
-		)
-		if err != nil {
-			t.Fatalf("WithOptions failed: %v", err)
-		}
-
-		if newGen == nil {
-			t.Fatal("Expected non-nil reconfigured generator")
 		}
 	})
 

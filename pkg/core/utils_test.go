@@ -370,50 +370,6 @@ func TestCountTotalItems(t *testing.T) {
 	})
 }
 
-// Test CountCompletedItems function
-func TestCountCompletedItems(t *testing.T) {
-	t.Run("empty slice should return 0", func(t *testing.T) {
-		result := CountCompletedItems([]*TodoItem{})
-		if result != 0 {
-			t.Errorf("CountCompletedItems([]) = %d, expected 0", result)
-		}
-	})
-
-	t.Run("no completed items should return 0", func(t *testing.T) {
-		items := []*TodoItem{
-			{Completed: false, Text: "Task 1"},
-			{Completed: false, Text: "Task 2"},
-		}
-		result := CountCompletedItems(items)
-		if result != 0 {
-			t.Errorf("CountCompletedItems with no completed items = %d, expected 0", result)
-		}
-	})
-
-	t.Run("all completed items should return correct count", func(t *testing.T) {
-		items := []*TodoItem{
-			{Completed: true, Text: "Task 1"},
-			{Completed: true, Text: "Task 2"},
-		}
-		result := CountCompletedItems(items)
-		if result != 2 {
-			t.Errorf("CountCompletedItems with all completed = %d, expected 2", result)
-		}
-	})
-
-	t.Run("mixed completion status should count correctly", func(t *testing.T) {
-		items := []*TodoItem{
-			{Completed: true, Text: "Task 1"},
-			{Completed: false, Text: "Task 2"},
-			{Completed: true, Text: "Task 3"},
-		}
-		result := CountCompletedItems(items)
-		if result != 2 {
-			t.Errorf("CountCompletedItems with mixed status = %d, expected 2", result)
-		}
-	})
-}
-
 // Test TabSpaces constant
 func TestTabSpacesConstant(t *testing.T) {
 	if TabSpaces != 2 {
