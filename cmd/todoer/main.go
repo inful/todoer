@@ -10,11 +10,16 @@ import (
 	"github.com/alecthomas/kong"
 )
 
+// version is set at build time (see .goreleaser.yaml). It is empty in a
+// plain "go build".
+var version = "dev"
+
 type cliOptions struct {
-	Debug        bool   `help:"Enable debug logging"`
-	RootDir      string `help:"Root directory for journals (overrides config/env)"`
-	TemplateFile string `help:"Template file override (applies to commands that render/create journals)"`
-	PrintPath    bool   `help:"Print resulting journal path to stdout (for composability, where applicable)"`
+	Version      kong.VersionFlag `help:"Print the version and quit."`
+	Debug        bool             `help:"Enable debug logging"`
+	RootDir      string           `help:"Root directory for journals (overrides config/env)"`
+	TemplateFile string           `help:"Template file override (applies to commands that render/create journals)"`
+	PrintPath    bool             `help:"Print resulting journal path to stdout (for composability, where applicable)"`
 
 	Process processCmd `cmd:"" help:"Process a journal file"`
 	New     newCmd     `cmd:"new" help:"Create a new daily journal file"`
@@ -60,9 +65,17 @@ func loggerForCommand(baseLogger *Logger, printPath bool) *Logger {
 	return baseLogger
 }
 
+// sharedPaths resolves the root and template paths, preferring the CLI
+// flag over the config file. An empty flag means "not set".
 func sharedPaths(cli *cliOptions, config *Config) (string, string) {
-	rootDir := getConfigValue(cli.RootDir, config.RootDir)
-	templateFile := getConfigValue(cli.TemplateFile, config.TemplateFile)
+	rootDir := config.RootDir
+	if cli.RootDir != "" {
+		rootDir = cli.RootDir
+	}
+	templateFile := config.TemplateFile
+	if cli.TemplateFile != "" {
+		templateFile = cli.TemplateFile
+	}
 	return rootDir, templateFile
 }
 
@@ -148,6 +161,7 @@ func main() {
 		kong.Name("todoer"),
 		kong.Description("Process daily journal files, carrying over unfinished tasks in the TODO section."),
 		kong.UsageOnError(),
+		kong.Vars{"version": version},
 	)
 
 	// Determine output mode and construct logger

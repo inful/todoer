@@ -41,11 +41,3 @@ func safeWriteFile(filename string, data []byte, perm os.FileMode) error {
 
 	return nil
 }
-
-// getConfigValue prefers the CLI value over the config value.
-func getConfigValue(cliValue, configValue string) string {
-	if cliValue != "" {
-		return cliValue
-	}
-	return configValue
-}

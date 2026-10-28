@@ -64,11 +64,6 @@ func loadConfig() (*Config, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	// Create any required directories that don't yet exist
-	if err := ensureDirectories(config); err != nil {
-		return nil, err
-	}
-
 	return config, nil
 }
 

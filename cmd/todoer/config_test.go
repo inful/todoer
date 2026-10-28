@@ -461,14 +461,18 @@ func TestEnsureDirectories_NilConfig(t *testing.T) {
 	}
 }
 
-func TestGetConfigValue(t *testing.T) {
-	if got := getConfigValue("cli", "cfg"); got != "cli" {
-		t.Fatalf("expected CLI value to win, got %q", got)
+func TestSharedPaths_CLIOverridesConfig(t *testing.T) {
+	cli := &cliOptions{RootDir: "cli-root", TemplateFile: "cli-template"}
+	config := &Config{RootDir: "cfg-root", TemplateFile: "cfg-template"}
+
+	rootDir, templateFile := sharedPaths(cli, config)
+	if rootDir != "cli-root" || templateFile != "cli-template" {
+		t.Fatalf("expected CLI values to win, got root=%q template=%q", rootDir, templateFile)
 	}
-	if got := getConfigValue("", "cfg"); got != "cfg" {
-		t.Fatalf("expected config value when CLI is empty, got %q", got)
-	}
-	if got := getConfigValue("", ""); got != "" {
-		t.Fatalf("expected empty when both are empty, got %q", got)
+
+	// Empty flags fall back to the config values.
+	rootDir, templateFile = sharedPaths(&cliOptions{}, config)
+	if rootDir != "cfg-root" || templateFile != "cfg-template" {
+		t.Fatalf("expected config values, got root=%q template=%q", rootDir, templateFile)
 	}
 }

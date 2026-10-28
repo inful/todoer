@@ -17,7 +17,6 @@ var (
 	ErrSameSourceTarget = errors.New("source and target files cannot be the same")
 	ErrInvalidDate      = errors.New("invalid date format")
 	ErrInvalidConfig    = errors.New("invalid configuration")
-	ErrConfigNotFound   = errors.New("configuration file not found")
 	ErrPermissionDenied = errors.New("permission denied")
 	ErrTemplateNotFound = errors.New("template file not found")
 )
@@ -173,7 +172,9 @@ func validateConfig(config *Config) error {
 	return nil
 }
 
-// ensureDirectories creates any directories required by the configuration that do not yet exist.
+// ensureDirectories creates the journals root if it does not exist. Only the
+// commands that write a journal call it: `preview` and `process` must not
+// create a directory as a side effect of reading.
 func ensureDirectories(config *Config) error {
 	if config == nil {
 		return nil
