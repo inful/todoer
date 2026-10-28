@@ -15,8 +15,14 @@ func safeWriteFile(filename string, data []byte, perm os.FileMode) error {
 	}
 
 	defer func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpFile.Name()) // no-op after successful Rename; removes the tmp file on any earlier failure
+		// Best effort: the file was either renamed (the remove is a
+		// no-op) or abandoned. Neither failure can be acted on here.
+		if err := tmpFile.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "todoer: warning: closing temp file: %v\n", err)
+		}
+		if err := os.Remove(tmpFile.Name()); err != nil && !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "todoer: warning: removing temp file %s: %v\n", tmpFile.Name(), err)
+		}
 	}()
 
 	if _, err := tmpFile.Write(data); err != nil {
