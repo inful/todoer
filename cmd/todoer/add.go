@@ -48,7 +48,12 @@ func appendTodoToJournal(journalPath, today, todoText string, config *Config) er
 
 	beforeTodos, todosSection, afterTodos, err := core.ExtractTodosSectionWithHeader(string(content), config.TodosHeader)
 	if err != nil {
-		return fmt.Errorf("failed to locate todos section in %s: %w", journalPath, err)
+		if strings.TrimSpace(string(content)) != "" {
+			return fmt.Errorf("failed to locate todos section in %s: %w (add a '%s' section to the file, or set todos_header in the config)",
+				journalPath, err, config.TodosHeader)
+		}
+		// An empty file has no section yet: start one.
+		beforeTodos, todosSection, afterTodos = config.TodosHeader+"\n\n", "", "\n"
 	}
 
 	journal, err := core.ParseTodosSection(todosSection)
@@ -69,8 +74,11 @@ func appendTodoToJournal(journalPath, today, todoText string, config *Config) er
 		BulletLines: []core.BulletLine{},
 	})
 
+	// Keep the day sections in date order, the way the TUI writes them.
+	core.SortJournalDays(journal)
+
 	newTodos := core.JournalToString(journal)
-	newContent := beforeTodos + newTodos + afterTodos
+	newContent := core.MatchLineEndings(beforeTodos+newTodos+afterTodos, string(content))
 
 	if err := safeWriteFile(journalPath, []byte(newContent), FilePermissions); err != nil {
 		return fmt.Errorf("failed to write updated journal file %s: %w", journalPath, err)

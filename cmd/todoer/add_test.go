@@ -146,7 +146,7 @@ date: `+today+`
 
 func TestCmdAdd_EmptyTextReturnsError(t *testing.T) {
 	tempDir := setupTempDir(t)
-	config := &Config{RootDir: tempDir}
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 
 	logger := NewLogger(ModeQuiet)
 	if err := cmdAdd(tempDir, "", "   ", false, false, config, logger); err == nil {
