@@ -865,9 +865,9 @@ func TestCreateTodoItem(t *testing.T) {
 			expected bool
 		}{
 			{"x", true},
-			{"X", false}, // only lowercase x is treated as completed
+			{"X", true}, // capital X, as markdown note apps write it
 			{" ", false},
-			{"-", false},
+			{"-", true}, // cancelled checkbox counts as done
 			{"o", false},
 		}
 

@@ -3,6 +3,7 @@ package core
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -22,6 +23,10 @@ type parserState struct {
 	currentIndentStack []int       // A stack of indentation levels for the current hierarchy of todo items
 	currentItemStack   []*TodoItem // A stack of todo items corresponding to the indent stack
 }
+
+// lineBreakRegex matches any line ending, so a journal that mixes LF and
+// CRLF is split the same way a file with one ending is.
+var lineBreakRegex = regexp.MustCompile(`\r?\n`)
 
 // newParserState creates a new parser state
 func newParserState() *parserState {
@@ -52,7 +57,9 @@ func ParseTodosSection(content string) (*TodoJournal, error) {
 		Days: []*DaySection{},
 	}
 
-	lines := strings.Split(content, "\n")
+	// Split on any line ending, so a file that mixes LF and CRLF is read
+	// the same way as a file that uses only one of them.
+	lines := lineBreakRegex.Split(content, -1)
 	state := newParserState()
 
 	for lineNum, line := range lines {
@@ -109,39 +116,33 @@ func processLine(journal *TodoJournal, state *parserState, line string, lineNum 
 		return processTodoItem(state, todoMatch)
 	}
 
-	// Check for bullet entry (- something that's not a todo)
-	if bulletMatch := BulletEntryRegex.FindStringSubmatch(line); bulletMatch != nil {
-		// Only process if we have a current day (otherwise skip)
-		if state.currentDay != nil {
+	// Check for bullet entry (- something that's not a todo) and for
+	// continuation lines (indented text belonging to a bullet or todo).
+	// Both need a day to attach to; without one we fall through to the
+	// error below rather than dropping the line on the floor.
+	if state.currentDay != nil {
+		if bulletMatch := BulletEntryRegex.FindStringSubmatch(line); bulletMatch != nil {
 			return processAssociatedLine(state, line, bulletMatch)
 		}
-		return nil
-	}
-
-	// Check for continuation line (indented text that's part of a bullet or todo)
-	if contMatch := ContinuationRegex.FindStringSubmatch(line); contMatch != nil {
-		// Only process if we have a current day (otherwise skip)
-		if state.currentDay != nil {
+		if contMatch := ContinuationRegex.FindStringSubmatch(line); contMatch != nil {
 			return processAssociatedLine(state, line, contMatch)
 		}
-		return nil
 	}
 
-	// If we have a current day and the line is not empty but doesn't match any pattern,
-	// it's an unparseable line.
-	if state.currentDay != nil {
-		return fmt.Errorf("unparseable line %d: %q", lineNum, line)
-	}
-
-	// If we don't have a current day yet, skip this line (it's before any todos)
-	return nil
+	// Every other non-empty line is an error. Callers rewrite the whole
+	// todos section from the parsed model, so a line we skip here would
+	// be silently deleted from the user's file on the next write.
+	return fmt.Errorf("unparseable line %d: %q (expected a '- [[YYYY-MM-DD]]' day header, a '- [ ]'/'- [x]' todo, or a bullet belonging to one)", lineNum, line)
 }
 
 // processDayHeader processes a day header line
 func processDayHeader(journal *TodoJournal, state *parserState, dateStr string) error {
-	// Validate the date format
-	if err := ValidateDate(dateStr); err != nil {
-		return fmt.Errorf("invalid date in day header: %w", err)
+	// Validate the date format. An empty date is the "undated" section
+	// JournalToString writes for items that have no day yet.
+	if dateStr != "" {
+		if err := ValidateDate(dateStr); err != nil {
+			return fmt.Errorf("invalid date in day header: %w", err)
+		}
 	}
 
 	state.currentDay = createNewDaySection(journal, state.currentDay, dateStr)
@@ -240,8 +241,10 @@ func createNewDaySection(journal *TodoJournal, currentDay *DaySection, date stri
 
 // createTodoItem creates a TodoItem from regex matches
 func createTodoItem(matches []string) *TodoItem {
+	// "x", "X" and "-" all mean done; "-" is the cancelled-checkbox
+	// spelling markdown note apps write.
 	return &TodoItem{
-		Completed:   matches[2] == "x",
+		Completed:   matches[2] == "x" || matches[2] == "X" || matches[2] == "-",
 		Text:        matches[3],
 		SubItems:    []*TodoItem{},
 		BulletLines: []BulletLine{},
