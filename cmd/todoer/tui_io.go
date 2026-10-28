@@ -8,6 +8,13 @@ import (
 	"github.com/inful/todoer/pkg/core"
 )
 
+// reloadFromDisk re-reads the journal into the model.
+//
+// A parse failure is not fatal: the journal has a line the model cannot
+// represent, so the TUI opens read-only with the reason in the status line
+// rather than refusing to start. Writing would rewrite the todos section
+// from the model and drop that line, so every write is refused until the
+// user reloads a file that parses.
 func (m *tuiModel) reloadFromDisk() error {
 	content, err := os.ReadFile(m.journalPath)
 	if err != nil {
@@ -21,9 +28,15 @@ func (m *tuiModel) reloadFromDisk() error {
 
 	journal, err := core.ParseTodosSection(todosSection)
 	if err != nil {
-		return fmt.Errorf("failed to parse todos section in %s: %w", m.journalPath, err)
+		m.readOnly = true
+		m.status = fmt.Sprintf("Read-only: %v", err)
+		// Remember the hash anyway: otherwise the periodic check sees a
+		// "change" every tick and re-parses the file forever.
+		m.fileHash = hashBytes(content)
+		return nil
 	}
 
+	m.readOnly = false
 	m.beforeTodos = beforeTodos
 	m.afterTodos = afterTodos
 	m.journal = journal
@@ -47,6 +60,9 @@ func (m *tuiModel) saveToDisk() error {
 	if !m.dirty {
 		return nil
 	}
+	if m.readOnly {
+		return fmt.Errorf("journal has a line todoer cannot parse; not writing. Fix the file and press r")
+	}
 
 	currentContent, err := os.ReadFile(m.journalPath)
 	if err != nil {
@@ -60,7 +76,13 @@ func (m *tuiModel) saveToDisk() error {
 	}
 
 	newTodos := core.JournalToString(m.journal)
-	newContent := []byte(m.beforeTodos + newTodos + m.afterTodos)
+	newContent := []byte(core.MatchLineEndings(m.beforeTodos+newTodos+m.afterTodos, string(currentContent)))
+
+	// Keep the pre-save bytes next to the file: the TUI rewrites the
+	// whole journal on every save, so this is the only undo.
+	if err := safeWriteFile(m.journalPath+".bak", currentContent, FilePermissions); err != nil {
+		return fmt.Errorf("failed to back up journal file %s: %w", m.journalPath, err)
+	}
 
 	if err := safeWriteFile(m.journalPath, newContent, FilePermissions); err != nil {
 		return fmt.Errorf("failed to write updated journal file %s: %w", m.journalPath, err)
@@ -91,6 +113,10 @@ func (m *tuiModel) checkExternalChanges() {
 	}
 
 	if err := m.reloadFromDisk(); err == nil {
+		if m.readOnly {
+			// reloadFromDisk set the reason; do not overwrite it.
+			return
+		}
 		m.status = "External change detected and reloaded"
 	}
 }

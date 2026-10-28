@@ -127,7 +127,17 @@ func TestCarryoverView_AllowsDeleteOnOldDay(t *testing.T) {
 	m.displayDay = m.pickInitialDisplayDay()
 	m.refreshItems()
 
+	// First press arms the delete; nothing is removed yet.
 	updated, _ := m.updateNormalMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	m1 := updated.(tuiModel)
+	if len(oldDay.Items) != 1 {
+		t.Errorf("first d must not delete anything, got %d items", len(oldDay.Items))
+	}
+	if m1.status != "Press d again to delete" {
+		t.Errorf("expected delete-armed status, got %q", m1.status)
+	}
+
+	updated, _ = m1.updateNormalMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
 	m2 := updated.(tuiModel)
 
 	if len(oldDay.Items) != 0 {

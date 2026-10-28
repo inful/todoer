@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -74,14 +75,31 @@ func (m tuiModel) updateInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	filtered := m.filteredItems()
 
-	switch msg.String() {
+	// Any key other than "d" cancels a pending delete.
+	key := msg.String()
+	if key != "d" {
+		m.deleteArmed = false
+	}
+
+	// In read-only mode nothing can be written back, so do not pretend
+	// edits were made.
+	if m.readOnly {
+		switch key {
+		case " ", "x", "d", "a":
+			m.status = "Read-only journal; fix the file and press r to reload"
+			return m, nil
+		}
+	}
+
+	switch key {
 	case "ctrl+c", "q":
-		if msg.String() == "q" && m.dirty {
+		// Both quit keys save. A failed save still quits — refusing to
+		// quit leaves the user stuck with unsaved edits — so the error
+		// goes to stderr where it survives the exit.
+		if m.dirty {
 			if err := m.saveToDisk(); err != nil {
-				m.status = fmt.Sprintf("Save failed: %v", err)
-				return m, nil
+				fmt.Fprintf(os.Stderr, "todoer: save failed, changes NOT written: %v\n", err)
 			}
-			m.status = "Saved"
 		}
 		return m, tea.Quit
 	case "j", "down":
@@ -114,6 +132,14 @@ func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.status = "No todo selected"
 			return m, nil
 		}
+		// Delete needs a second "d": one keypress next to the j/k
+		// navigation keys should not remove a task for good.
+		if !m.deleteArmed {
+			m.deleteArmed = true
+			m.status = "Press d again to delete"
+			return m, nil
+		}
+		m.deleteArmed = false
 		target := filtered[m.selected].item
 		m.journal.Days = core.RemoveItemFromDays(m.journal.Days, target)
 		m.todayDay = core.FindDaySection(m.journal, m.today)
@@ -135,12 +161,17 @@ func (m tuiModel) updateNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "s":
 		if err := m.saveToDisk(); err != nil {
 			m.status = fmt.Sprintf("Save failed: %v", err)
+		} else if m.readOnly {
+			m.status = "Nothing to save: the journal is read-only"
 		} else {
 			m.status = "Saved"
 		}
 	case "r":
 		if err := m.reloadFromDisk(); err != nil {
 			m.status = fmt.Sprintf("Reload failed: %v", err)
+		} else if m.readOnly {
+			// reloadFromDisk set the reason; do not overwrite it.
+			return m, nil
 		} else {
 			m.status = "Reloaded from disk"
 		}

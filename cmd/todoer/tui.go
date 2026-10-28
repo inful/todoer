@@ -63,6 +63,15 @@ type tuiModel struct {
 	externalChanged bool
 	status          string
 
+	// deleteArmed is true after the first "d" press, so the delete
+	// needs two presses.
+	deleteArmed bool
+
+	// readOnly is set when the journal on disk has a line the model
+	// cannot represent. The view still loads, but nothing is written:
+	// a write would rewrite the section without that line.
+	readOnly bool
+
 	inputMode bool
 	inputText string
 
@@ -162,6 +171,10 @@ func (m tuiModel) viewHeader() string {
 	}
 	if m.externalChanged {
 		stateText += ", external-changed"
+		stateStyle = tuiTheme.stateChanged
+	}
+	if m.readOnly {
+		stateText += ", read-only"
 		stateStyle = tuiTheme.stateChanged
 	}
 
