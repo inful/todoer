@@ -343,61 +343,6 @@ title: 2024-01-15
 	}
 }
 
-// TestGeneratorWithOptions tests the WithOptions method for reconfiguration
-func TestGeneratorWithOptions(t *testing.T) {
-	template := "# {{.Date}}\n{{if .PreviousDate}}Previous: {{.PreviousDate}}{{end}}\n{{.TODOS}}\n"
-
-	gen, err := NewGeneratorWithOptions(template, "2024-01-15")
-	if err != nil {
-		t.Fatalf("Failed to create generator: %v", err)
-	}
-
-	// Reconfigure with new options
-	newGen, err := gen.WithOptions(
-		WithPreviousDate("2024-01-14"),
-		WithCustomVariables(map[string]any{
-			"author": "Test User",
-		}))
-
-	if err != nil {
-		t.Fatalf("WithOptions() error = %v", err)
-	}
-
-	if newGen.previousDate != "2024-01-14" {
-		t.Errorf("WithOptions() previousDate = %v, want %v", newGen.previousDate, "2024-01-14")
-	}
-
-	if newGen.customVars["author"] != "Test User" {
-		t.Errorf("WithOptions() customVars[author] = %v, want %v", newGen.customVars["author"], "Test User")
-	}
-
-	// Original generator should be unchanged
-	if gen.previousDate != "" {
-		t.Errorf("Original generator should be unchanged")
-	}
-
-	// Test that the reconfigured generator can process content
-	content := `---
-title: 2024-01-14
----
-
-## Todos
-
-- [ ] Task 1`
-
-	result, err := newGen.Process(content)
-	if err != nil {
-		t.Fatalf("Failed to process with newGen: %v", err)
-	}
-
-	if _, err := io.ReadAll(result.ModifiedOriginal); err != nil {
-		t.Fatalf("Failed to read modified original: %v", err)
-	}
-	if _, err := io.ReadAll(result.NewFile); err != nil {
-		t.Fatalf("Failed to read new file: %v", err)
-	}
-}
-
 // TestGeneratorEdgeCases tests edge cases and error conditions
 func TestGeneratorEdgeCases(t *testing.T) {
 	template := "# {{.Date}}\n{{.TODOS}}\n"

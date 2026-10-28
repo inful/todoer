@@ -91,10 +91,15 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 	if strings.TrimSpace(originalContent) == "" {
 		return nil, fmt.Errorf("original content cannot be empty")
 	}
-	// Extract the date from frontmatter using the configured key
+	// Extract the date from frontmatter using the configured key. A source
+	// with no date under that key (or no frontmatter at all) falls back to
+	// the template date, which is today unless the caller overrode it.
 	date, err := core.ExtractDateFromFrontmatter(originalContent, g.frontmatterDateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract date from frontmatter: %w", err)
+	}
+	if date == "" {
+		date = g.templateDate
 	}
 
 	// Extract TODOS section
@@ -125,9 +130,11 @@ func (g *Generator) Process(originalContent string) (*ProcessResult, error) {
 		return nil, fmt.Errorf("failed to create content from template: %w", err)
 	}
 
+	// The model and the template both write "\n"; keep the source's
+	// own line endings so a CRLF journal stays CRLF.
 	return &ProcessResult{
-		ModifiedOriginal: strings.NewReader(completedFileContent),
-		NewFile:          strings.NewReader(uncompletedFileContent),
+		ModifiedOriginal: strings.NewReader(core.MatchLineEndings(completedFileContent, originalContent)),
+		NewFile:          strings.NewReader(core.MatchLineEndings(uncompletedFileContent, originalContent)),
 	}, nil
 }
 
@@ -201,45 +208,4 @@ func WithTodosHeader(header string) Option {
 	return func(config *options) {
 		config.todosHeader = header
 	}
-}
-
-// WithOptions creates a new Generator based on the current one but with modified options.
-// Fields not covered by the supplied opts retain the current generator's values.
-func (g *Generator) WithOptions(opts ...Option) (*Generator, error) {
-	// Seed config with all current values so callers only need to supply changes.
-	config := &options{
-		previousDate:       g.previousDate,
-		customVars:         g.customVars,
-		frontmatterDateKey: g.frontmatterDateKey,
-		todosHeader:        g.todosHeader,
-	}
-
-	// Apply new options
-	for _, opt := range opts {
-		opt(config)
-	}
-
-	// Validate custom variables if provided
-	if config.customVars != nil {
-		if err := core.ValidateCustomVariables(config.customVars); err != nil {
-			return nil, fmt.Errorf("invalid custom variables: %w", err)
-		}
-	}
-
-	// Create new generator with updated configuration
-	newGen := &Generator{
-		templateContent:    g.templateContent,
-		templateDate:       g.templateDate,
-		previousDate:       config.previousDate,
-		customVars:         config.customVars,
-		frontmatterDateKey: config.frontmatterDateKey,
-		todosHeader:        config.todosHeader, // Always set
-	}
-
-	// Validate template syntax (should pass since original was valid, but safety first)
-	if err := newGen.validateTemplate(); err != nil {
-		return nil, err
-	}
-
-	return newGen, nil
 }
