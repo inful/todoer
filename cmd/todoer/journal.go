@@ -64,6 +64,11 @@ type ProcessOptions struct {
 	// that processJournal would otherwise write before updating
 	// the source.
 	SkipBackup bool
+	// SkipSourceWrite suppresses the rewrite of the source file. It is
+	// set when the source is a throwaway — the empty journal used when
+	// there is no previous journal — so the log does not name a file
+	// that is deleted right after.
+	SkipSourceWrite bool
 	// PrintPath, when true, writes TargetFile to stdout on success
 	// so the command can be composed in shell pipelines.
 	PrintPath bool
@@ -150,7 +155,11 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 		}
 	}
 
-	logger.Info("Successfully processed %s -> %s (template: %s)", sourceFile, targetFile, templateSource)
+	if opts.SkipSourceWrite {
+		logger.Info("Created %s from the template", targetFile)
+	} else {
+		logger.Info("Successfully processed %s -> %s (template: %s)", sourceFile, targetFile, templateSource)
+	}
 
 	if printPath {
 		fmt.Println(targetFile)
@@ -187,7 +196,7 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 	}
 	logger.Debug("Wrote %d bytes to target file: %s", len(newContentBytes), targetFile)
 
-	if len(modifiedContentBytes) > 0 {
+	if len(modifiedContentBytes) > 0 && !opts.SkipSourceWrite {
 		if !skipBackup {
 			backupFile := sourceFile + ".bak"
 			if err := safeWriteFile(backupFile, sourceContent, FilePermissions); err != nil {
@@ -203,7 +212,7 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 		if skipBackup {
 			logger.Info("Source file updated without backup: %s", sourceFile)
 		}
-	} else {
+	} else if !opts.SkipSourceWrite {
 		logger.Info("No modifications found in the original file.")
 	}
 
@@ -336,6 +345,7 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 	closest, err := findClosestJournalFile(rootDir, today)
 	tmpJournalName := ""
 	skipBackup := !preserveSourceBackup
+	skipSourceWrite := false
 	if err != nil {
 		logger.Info("No previous journal found, creating a new one from template.")
 
@@ -363,6 +373,7 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 		closest = tmpFile.Name()
 		tmpJournalName = closest
 		skipBackup = true
+		skipSourceWrite = true
 	}
 
 	if closest == tmpJournalName {
@@ -376,13 +387,14 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 	// hand or by an earlier run), the source's uncompleted items are
 	// merged in instead of overwriting the target.
 	if err := processJournal(ProcessOptions{
-		SourceFile:    closest,
-		TargetFile:    journalPath,
-		TemplateFile:  templateFile,
-		TemplateDate:  today,
-		MergeIfExists: true,
-		SkipBackup:    skipBackup,
-		PrintPath:     printPath,
+		SourceFile:      closest,
+		TargetFile:      journalPath,
+		TemplateFile:    templateFile,
+		TemplateDate:    today,
+		MergeIfExists:   true,
+		SkipBackup:      skipBackup,
+		SkipSourceWrite: skipSourceWrite,
+		PrintPath:       printPath,
 	}, config, logger); err != nil {
 		return err
 	}
