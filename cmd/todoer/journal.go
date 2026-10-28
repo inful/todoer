@@ -5,80 +5,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/inful/mdfp"
 	"github.com/inful/todoer/pkg/core"
 	"github.com/inful/todoer/pkg/generator"
 )
-
-// Fingerprint keys (ADR-0001 spike; off by default).
-//
-// TODOER_FINGERPRINT=1 enables the spike. When on, the daily flow
-// records the source's fingerprint in the target's frontmatter, and
-// on the next sync logs a 'Fingerprint mismatch' message if the
-// stored value does not match the current source's fingerprint. The
-// fingerprint is computed by the github.com/inful/mdfp library
-// (SHA-256 of the markdown body, excluding frontmatter — see ADR-0001).
-//
-// TODOER_FINGERPRINT_WRITE=0 suppresses the write side of the spike
-// (the frontmatter upsert) while keeping the read side (the mismatch
-// check) active. This lets users detect external source changes
-// without polluting their frontmatter. The default is "write enabled"
-// to preserve the original behavior; the toggle is checked only when
-// TODOER_FINGERPRINT is also on.
-const (
-	fingerprintEnabledEnv = "TODOER_FINGERPRINT"
-	fingerprintWriteEnv   = "TODOER_FINGERPRINT_WRITE"
-	fingerprintKeyValue   = mdfp.FingerprintField // "fingerprint"
-)
-
-// fingerprintEnabled reports whether the ADR-0001 fingerprint spike
-// is turned on. The toggle is TODOER_FINGERPRINT and accepts the
-// usual truthy spellings: "1", "t", "T", "true", "TRUE", "0", "f",
-// "F", "false", "FALSE". Anything else (including unset) is treated
-// as off.
-func fingerprintEnabled() bool {
-	v, err := strconv.ParseBool(os.Getenv(fingerprintEnabledEnv))
-	return err == nil && v
-}
-
-// fingerprintWriteEnabled reports whether the daily flow should
-// upsert the source's fingerprint into the target's frontmatter.
-// It is gated on TODOER_FINGERPRINT_WRITE. The default (unset or
-// unparseable) is "write enabled" to preserve the original behavior.
-// The spike itself (fingerprintEnabled) is a prerequisite.
-func fingerprintWriteEnabled() bool {
-	v := os.Getenv(fingerprintWriteEnv)
-	if v == "" {
-		return true
-	}
-	parsed, err := strconv.ParseBool(v)
-	if err != nil {
-		return true
-	}
-	return parsed
-}
-
-// computeFingerprint returns the mdfp fingerprint of the given journal
-// content. mdfp.CalculateFingerprintFromParts hashes a canonical
-// virtual document consisting of the frontmatter (with any existing
-// 'fingerprint' field stripped) plus the body. Changes to
-// non-fingerprint frontmatter fields (title, date, tags, custom
-// user keys) therefore DO change the fingerprint and trigger a
-// 'Fingerprint mismatch' log on the next sync. The fingerprint
-// field itself is stripped from the input before hashing, so
-// re-running on the same body+metadata produces the same hash.
-// See github.com/inful/mdfp and ADR-0001.
-func computeFingerprint(content []byte) (string, error) {
-	frontmatter, body, err := mdfp.ParseMarkdown(string(content))
-	if err != nil {
-		return "", fmt.Errorf("parse markdown for fingerprint: %w", err)
-	}
-	return mdfp.CalculateFingerprintFromParts(frontmatter, body), nil
-}
 
 // getGenerator builds a Generator from CLI/config, resolving template and
 // previous date. The previous date is supplied by the caller (typically
@@ -209,9 +141,6 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 	// items for the carryover.
 	if mergeIfExists {
 		if existing, err := os.ReadFile(targetFile); err == nil {
-			if fingerprintEnabled() {
-				checkFingerprintMismatch(existing, modifiedContentBytes, targetFile, logger)
-			}
 			merged, mergeErr := mergeIntoExistingTarget(existing, newContentBytes, config)
 			if mergeErr != nil {
 				return fmt.Errorf("error merging into existing target %s: %w", targetFile, mergeErr)
@@ -221,33 +150,43 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 		}
 	}
 
-	// When the fingerprint spike is enabled, record the source's
-	// fingerprint in the target's frontmatter so a future run can
-	// detect external changes to the source. The fingerprint is the
-	// SHA-256 of the post-processed source content (the same bytes
-	// checkFingerprintMismatch compares against), so a re-run on an
-	// unchanged source will match. The write side can be suppressed
-	// with TODOER_FINGERPRINT_WRITE=0 to keep the read-only mismatch
-	// detection without polluting the frontmatter.
-	if mergeIfExists && fingerprintEnabled() && fingerprintWriteEnabled() {
-		annotated, err := annotateTargetWithFingerprint(newContentBytes, modifiedContentBytes)
-		if err != nil {
-			return fmt.Errorf("error recording source fingerprint: %w", err)
-		}
-		newContentBytes = annotated
-	}
-
 	logger.Info("Successfully processed %s -> %s (template: %s)", sourceFile, targetFile, templateSource)
 
 	if printPath {
 		fmt.Println(targetFile)
 	}
 
-	// Write the source first, then the target. This ordering means a
-	// failed source write leaves the target untouched, which is a
-	// strictly better failure mode than the previous target-first
-	// order (where a failed source write would leave the target
-	// updated but the source inconsistent).
+	// Write the target first, then the source. The unfinished tasks
+	// only exist in the target until it lands on disk, so rewriting
+	// the source first would delete them if this write failed — and
+	// 'new' skips the backup, so there would be nothing to restore
+	// from. The other order can only duplicate tasks, which the
+	// carryover merge already collapses.
+	//
+	// 'process' replaces the target wholesale, and the target may be
+	// the user's real journal, so keep a copy of what was there. The
+	// merge path above keeps the target's content and needs no copy.
+	if !mergeIfExists {
+		if existing, err := os.ReadFile(targetFile); err == nil && len(existing) > 0 {
+			backupFile := targetFile + ".bak"
+			if _, err := os.Stat(backupFile); err == nil {
+				// A backup is already there: keep the first one, so a
+				// second run cannot overwrite the copy of the file the
+				// user actually had.
+				logger.Info("Backup of the original target file already exists, keeping it: %s", backupFile)
+			} else if err := safeWriteFile(backupFile, existing, FilePermissions); err != nil {
+				return fmt.Errorf("error creating backup file %s: %w", backupFile, err)
+			} else {
+				logger.Info("Backup of original target file created: %s", backupFile)
+			}
+		}
+	}
+
+	if err := safeWriteFile(targetFile, newContentBytes, FilePermissions); err != nil {
+		return fmt.Errorf("error writing to target file %s: %w", targetFile, err)
+	}
+	logger.Debug("Wrote %d bytes to target file: %s", len(newContentBytes), targetFile)
+
 	if len(modifiedContentBytes) > 0 {
 		if !skipBackup {
 			backupFile := sourceFile + ".bak"
@@ -266,11 +205,6 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 		}
 	} else {
 		logger.Info("No modifications found in the original file.")
-	}
-
-	logger.Debug("Writing %d bytes to target file: %s", len(newContentBytes), targetFile)
-	if err := safeWriteFile(targetFile, newContentBytes, FilePermissions); err != nil {
-		return fmt.Errorf("error writing to target file %s: %w", targetFile, err)
 	}
 
 	return nil
@@ -301,75 +235,16 @@ func mergeIntoExistingTarget(existingTarget, newContent []byte, config *Config) 
 
 	merged := core.MergeCarryover(newJournal, existingJournal)
 	newTodos := core.JournalToString(merged)
-	return []byte(beforeTodos + newTodos + afterTodos), nil
-}
-
-// checkFingerprintMismatch compares the source content's mdfp
-// fingerprint to the value recorded in the existing target's
-// frontmatter. If they differ, the source has changed since the last
-// sync and a mismatch is logged. The function never returns an error
-// or fails the sync; the fingerprint is a hint, per ADR-0001.
-// Parse failures are silently treated as "no fingerprint to compare
-// against" so a malformed source doesn't block the merge.
-func checkFingerprintMismatch(existingTarget, sourceContent []byte, targetFile string, logger *Logger) {
-	metadata, hasFM, err := core.ExtractFrontmatterMetadata(string(existingTarget))
-	if err != nil || !hasFM {
-		// No prior fingerprint recorded; treat as a fresh sync.
-		return
-	}
-	stored := metadata[fingerprintKeyValue]
-	if stored == "" {
-		return
-	}
-	current, err := computeFingerprint(sourceContent)
-	if err != nil {
-		// Source couldn't be parsed for fingerprinting; skip the
-		// mismatch check rather than failing the sync.
-		return
-	}
-	if stored != current {
-		logger.Info("Fingerprint mismatch on %s (stored=%s..., current=%s...)", targetFile, shortHash(stored), shortHash(current))
-	}
-}
-
-// annotateTargetWithFingerprint upserts the source's mdfp fingerprint
-// into the target's frontmatter. The key/value are added (or
-// replaced) and unrelated keys are preserved. As a one-time
-// migration, any pre-v0.4.0 spike fields (todoer_source_fingerprint,
-// todoer_source_fingerprint_algo) are also removed so target files
-// don't accumulate stale keys after upgrading. Returns the annotated
-// content, or an error if the frontmatter helpers fail or the source
-// cannot be parsed.
-func annotateTargetWithFingerprint(targetContent, sourceContent []byte) ([]byte, error) {
-	fingerprint, err := computeFingerprint(sourceContent)
-	if err != nil {
-		return nil, fmt.Errorf("compute source fingerprint: %w", err)
-	}
-	cleaned, err := core.DeleteFrontmatterMetadata(string(targetContent), []string{
-		"todoer_source_fingerprint",
-		"todoer_source_fingerprint_algo",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("strip legacy fingerprint fields: %w", err)
-	}
-	updates := map[string]string{
-		fingerprintKeyValue: fingerprint,
-	}
-	annotated, err := core.UpsertFrontmatterMetadata(cleaned, updates)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(annotated), nil
-}
-
-func shortHash(s string) string {
-	if len(s) <= 8 {
-		return s
-	}
-	return s[:8]
+	return []byte(core.MatchLineEndings(beforeTodos+newTodos+afterTodos, string(existingTarget))), nil
 }
 
 // findClosestJournalFile returns the most recent journal before the given date.
+//
+// Only files where todoer itself puts them are considered: ROOT/YYYY/MM/YYYY-MM-DD.md.
+// Anything else with a date-shaped name — a note in ROOT/meetings/, a copy in
+// ROOT/archive/ — is not a journal, and 'new' rewrites the file it picks, so
+// taking one of those would move tasks out of a file the user never meant to
+// hand over. Hidden directories are skipped for the same reason.
 func findClosestJournalFile(rootDir, today string) (string, error) {
 	var closestFile string
 	var minDiff time.Duration = -1
@@ -384,6 +259,9 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 			return err
 		}
 		if info.IsDir() {
+			if path != rootDir && strings.HasPrefix(filepath.Base(path), ".") {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
@@ -391,10 +269,16 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 		if len(base) != len("2006-01-02.md") || filepath.Ext(base) != ".md" {
 			return nil
 		}
-
 		dateStr := strings.TrimSuffix(base, ".md")
 		fileTime, err := time.Parse(core.DateFormat, dateStr)
 		if err != nil {
+			return nil
+		}
+
+		// Only files where todoer itself puts journals count. Comparing
+		// against the path the writer would use keeps this in step with
+		// buildJournalPath instead of restating the YYYY/MM layout.
+		if filepath.Dir(path) != filepath.Dir(buildJournalPath(rootDir, dateStr)) {
 			return nil
 		}
 
@@ -442,16 +326,24 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 		return nil
 	}
 
+	if err := ensureDirectories(config); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(journalPath), 0o755); err != nil {
 		return err
 	}
 
 	closest, err := findClosestJournalFile(rootDir, today)
+	tmpJournalName := ""
 	skipBackup := !preserveSourceBackup
 	if err != nil {
 		logger.Info("No previous journal found, creating a new one from template.")
 
-		tmpFile, err := os.CreateTemp(filepath.Dir(journalPath), "empty-journal-*.md")
+		// The placeholder source lives in the system temp directory, not
+		// in the journals folder: if this run is killed, the leftover
+		// file is cleaned up by the OS instead of sitting in the user's
+		// journal tree.
+		tmpFile, err := os.CreateTemp("", "todoer-empty-journal-*.md")
 		if err != nil {
 			return fmt.Errorf("failed to create temp file: %w", err)
 		}
@@ -469,10 +361,15 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 		}
 
 		closest = tmpFile.Name()
+		tmpJournalName = closest
 		skipBackup = true
 	}
 
-	logger.Info("Using '%s' as source to create new journal for today.", closest)
+	if closest == tmpJournalName {
+		logger.Info("No previous journal to carry over from; creating today's journal from the template.")
+	} else {
+		logger.Info("Using '%s' as source to create new journal for today.", closest)
+	}
 
 	// mergeIfExists=true: the daily flow must be idempotent and merge-into-existing
 	// per ADR-0001. If today's journal already exists (e.g. created by

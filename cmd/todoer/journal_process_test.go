@@ -13,7 +13,7 @@ import (
 func TestProcessJournal_ValidationErrors(t *testing.T) {
 	tempDir := setupTempDir(t)
 
-	config := &Config{RootDir: tempDir}
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 
 	tests := []struct {
 		name          string
@@ -95,7 +95,7 @@ Some notes here.
 	targetFile := filepath.Join(tempDir, "target.md")
 	createTestFile(t, sourceFile, sourceContent)
 
-	config := &Config{RootDir: tempDir}
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 
 	logger := NewLogger(ModeQuiet)
 	err := processJournal(ProcessOptions{
@@ -139,7 +139,7 @@ date: 2024-01-01
 	targetFile := filepath.Join(tempDir, "target.md")
 	createTestFile(t, sourceFile, sourceContent)
 
-	config := &Config{RootDir: tempDir}
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 	logger := NewLogger(ModeQuiet)
 
 	if err := processJournal(ProcessOptions{
@@ -164,8 +164,21 @@ date: 2024-01-01
 		t.Fatalf("expected source file to be updated when skipBackup=true")
 	}
 
-	if !strings.Contains(sourceAfterStr, "Moved to [[") {
-		t.Fatalf("expected source file to include moved marker after update, got:\n%s", sourceAfterStr)
+	// The source keeps the completed item, tagged with its own date, and
+	// loses the unfinished one (that item is now in the target).
+	if !strings.Contains(sourceAfterStr, "- [x] Already done #2024-01-01") {
+		t.Fatalf("expected completed item to stay in the source with a date tag, got:\n%s", sourceAfterStr)
+	}
+	if strings.Contains(sourceAfterStr, "Task to carry") {
+		t.Fatalf("expected unfinished item to leave the source, got:\n%s", sourceAfterStr)
+	}
+
+	targetAfter, err := os.ReadFile(targetFile)
+	if err != nil {
+		t.Fatalf("failed to read target file: %v", err)
+	}
+	if !strings.Contains(string(targetAfter), "Task to carry") {
+		t.Fatalf("expected unfinished item to carry into the target, got:\n%s", string(targetAfter))
 	}
 
 	if _, err := os.Stat(targetFile); err != nil {
@@ -369,57 +382,5 @@ func TestProcessJournal_MergeIsIdempotent(t *testing.T) {
 		}
 	} else {
 		t.Fatalf("expected carryover day %q in target, got:\n%s", day, content)
-	}
-}
-
-func TestProcessJournal_AnnotateTargetFingerprintHelper(t *testing.T) {
-	// Direct test of the helper: feed it a target without a fingerprint
-	// and confirm both keys are added.
-	target := "---\ndate: 2026-03-16\n---\n\n# J\n\n## Todos\n\n- [[2026-03-16]]\n  - [ ] x\n\n## Notes\n"
-	source := []byte("source content for fingerprinting")
-	out, err := annotateTargetWithFingerprint([]byte(target), source)
-	if err != nil {
-		t.Fatalf("annotateTargetWithFingerprint: %v", err)
-	}
-	got := string(out)
-	if !strings.Contains(got, "fingerprint:") {
-		t.Fatalf("expected fingerprint key, got:\n%s", got)
-	}
-	if strings.Contains(got, "todoer_source_fingerprint") {
-		t.Fatalf("expected old field name to be gone, got:\n%s", got)
-	}
-	// Calling it again should be idempotent: the value is replaced
-	// (not duplicated).
-	out2, err := annotateTargetWithFingerprint(out, source)
-	if err != nil {
-		t.Fatalf("annotateTargetWithFingerprint (second call): %v", err)
-	}
-	if strings.Count(string(out2), "fingerprint:") != 1 {
-		t.Fatalf("expected exactly one fingerprint key on idempotent call, got:\n%s", string(out2))
-	}
-}
-
-func TestProcessJournal_AnnotateStripsLegacyFingerprintFields(t *testing.T) {
-	// One-time migration: a target that still carries the pre-v0.4.0
-	// spike fields (todoer_source_fingerprint / todoer_source_fingerprint_algo)
-	// should have them stripped when the new fingerprint is written.
-	// This prevents stale frontmatter from accumulating forever
-	// after a user upgrades todoer with the spike enabled.
-	target := "---\ndate: 2026-03-16\ntodoer_source_fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ntodoer_source_fingerprint_algo: sha256\n---\n\n# J\n\n## Notes\n"
-	source := []byte("source content for fingerprinting")
-	out, err := annotateTargetWithFingerprint([]byte(target), source)
-	if err != nil {
-		t.Fatalf("annotateTargetWithFingerprint: %v", err)
-	}
-	got := string(out)
-	if strings.Contains(got, "todoer_source_fingerprint") {
-		t.Fatalf("expected legacy todoer_source_fingerprint to be stripped, got:\n%s", got)
-	}
-	if !strings.Contains(got, "fingerprint:") {
-		t.Fatalf("expected new fingerprint key to be present, got:\n%s", got)
-	}
-	// Non-fingerprint frontmatter fields must be preserved.
-	if !strings.Contains(got, "date: 2026-03-16") {
-		t.Fatalf("expected unrelated 'date' frontmatter key to be preserved, got:\n%s", got)
 	}
 }

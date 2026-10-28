@@ -13,7 +13,7 @@ import (
 func TestCmdNew(t *testing.T) {
 	tempDir := setupTempDir(t)
 
-	config := &Config{RootDir: tempDir}
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 
 	// Create a previous journal to use as source
 	prevJournal := filepath.Join(tempDir, "2024/01/2024-01-01.md")
@@ -71,7 +71,7 @@ Previous notes.
 func TestCmdNew_AlreadyExists(t *testing.T) {
 	tempDir := setupTempDir(t)
 
-	config := &Config{RootDir: tempDir}
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 
 	// Create journal for today
 	today := time.Now().Format("2006-01-02")
@@ -90,7 +90,7 @@ func TestCmdNew_AlreadyExists(t *testing.T) {
 
 func TestCmdNewWithOptions_DisableSourceBackup(t *testing.T) {
 	tempDir := setupTempDir(t)
-	config := &Config{RootDir: tempDir}
+	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 
 	today := time.Now().Format(core.DateFormat)
 	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
