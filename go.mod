@@ -7,7 +7,6 @@ require (
 	github.com/alecthomas/kong v1.16.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/inful/mdfp v1.2.0
 )
 
 // Test-only dependencies. These are imported exclusively by tests under
