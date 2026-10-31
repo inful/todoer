@@ -14,6 +14,10 @@ import (
 // plain "go build".
 var version = "dev"
 
+// newCmd creates today's journal. Previous versions are always kept in
+// ROOT/.backups, so there is no flag for it.
+type newCmd struct{}
+
 type cliOptions struct {
 	Version      kong.VersionFlag `help:"Print the version and quit."`
 	Debug        bool             `help:"Enable debug logging"`
@@ -34,17 +38,12 @@ type processCmd struct {
 	TemplateDate string `help:"Optional date for template rendering (YYYY-MM-DD)"`
 }
 
-type newCmd struct {
-	Backup bool `help:"Preserve a .bak copy of the source journal before applying the carryover update"`
-}
-
 func (cmd *newCmd) Help() string {
 	return "Date is always today. To process against a different date, use 'process' with --template-date."
 }
 
 type addCmd struct {
 	TodoWords []string `arg:"" name:"todo-text" help:"Todo text to add to today's journal (today's date is used; multi-word text is joined with spaces)"`
-	Backup    bool     `help:"Preserve a .bak copy of the source journal when creating today's journal for the first time"`
 }
 
 type previewCmd struct {
@@ -83,7 +82,7 @@ func (cmd *newCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) erro
 	logger := loggerForCommand(baseLogger, cli.PrintPath)
 	logger.Debug("Executing new command")
 	rootDir, templateFile := sharedPaths(cli, config)
-	return cmdNewWithOptions(rootDir, templateFile, cli.PrintPath, cmd.Backup, config, logger)
+	return cmdNewWithOptions(rootDir, templateFile, cli.PrintPath, config, logger)
 }
 
 func (cmd *addCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
@@ -91,7 +90,7 @@ func (cmd *addCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) erro
 	logger.Debug("Executing add command")
 	rootDir, templateFile := sharedPaths(cli, config)
 	todoText := strings.Join(cmd.TodoWords, " ")
-	return cmdAdd(rootDir, templateFile, todoText, cli.PrintPath, cmd.Backup, config, logger)
+	return cmdAdd(rootDir, templateFile, todoText, cli.PrintPath, config, logger)
 }
 
 func (cmd *processCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
@@ -175,6 +174,13 @@ func main() {
 	config, err := loadConfig()
 	if err != nil {
 		fatalError("Failed to load configuration: %v", err)
+	}
+
+	// The --root-dir flag wins over the configured root for every
+	// command, and everything downstream (including where backups are
+	// kept) works from the config.
+	if cli.RootDir != "" {
+		config.RootDir = cli.RootDir
 	}
 
 	if cli.Debug {

@@ -16,10 +16,6 @@ import (
 // 1 blank + 1 input line + 1 blank + 1 status line = N + 9.
 const nonItemLines = 9
 
-type tuiCmd struct {
-	Backup bool `help:"Preserve a .bak copy of the source journal when creating today's journal for the first time"`
-}
-
 type tuiItem struct {
 	item  *core.TodoItem
 	depth int
@@ -31,6 +27,9 @@ type tuiItem struct {
 }
 
 type tuiTickMsg struct{}
+
+// tuiCmd opens the interactive editor.
+type tuiCmd struct{}
 
 type tuiModel struct {
 	journalPath string
@@ -83,7 +82,7 @@ func (cmd *tuiCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) erro
 	rootDir, templateFile := sharedPaths(cli, config)
 	logger := baseLogger.WithMode(ModeQuiet)
 
-	if err := cmdNewWithOptions(rootDir, templateFile, false, cmd.Backup, config, logger); err != nil {
+	if err := cmdNewWithOptions(rootDir, templateFile, false, config, logger); err != nil {
 		return fmt.Errorf("failed to prepare today's journal for tui: %w", err)
 	}
 

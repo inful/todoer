@@ -60,10 +60,6 @@ type ProcessOptions struct {
 	// splices the source's uncompleted items into the target's
 	// todos via core.MergeCarryover instead of overwriting.
 	MergeIfExists bool
-	// SkipBackup, when true, suppresses the .bak copy of SourceFile
-	// that processJournal would otherwise write before updating
-	// the source.
-	SkipBackup bool
 	// SkipSourceWrite suppresses the rewrite of the source file. It is
 	// set when the source is a throwaway — the empty journal used when
 	// there is no previous journal — so the log does not name a file
@@ -91,7 +87,6 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 	targetFile := opts.TargetFile
 	templateFile := opts.TemplateFile
 	templateDate := opts.TemplateDate
-	skipBackup := opts.SkipBackup
 	printPath := opts.PrintPath
 	mergeIfExists := opts.MergeIfExists
 
@@ -176,18 +171,8 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 	// the user's real journal, so keep a copy of what was there. The
 	// merge path above keeps the target's content and needs no copy.
 	if !mergeIfExists {
-		if existing, err := os.ReadFile(targetFile); err == nil && len(existing) > 0 {
-			backupFile := targetFile + ".bak"
-			if _, err := os.Stat(backupFile); err == nil {
-				// A backup is already there: keep the first one, so a
-				// second run cannot overwrite the copy of the file the
-				// user actually had.
-				logger.Info("Backup of the original target file already exists, keeping it: %s", backupFile)
-			} else if err := safeWriteFile(backupFile, existing, FilePermissions); err != nil {
-				return fmt.Errorf("error creating backup file %s: %w", backupFile, err)
-			} else {
-				logger.Info("Backup of original target file created: %s", backupFile)
-			}
+		if err := backupFile(config.RootDir, targetFile, config.backups()); err != nil {
+			return fmt.Errorf("error backing up target file %s: %w", targetFile, err)
 		}
 	}
 
@@ -197,21 +182,15 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 	logger.Debug("Wrote %d bytes to target file: %s", len(newContentBytes), targetFile)
 
 	if len(modifiedContentBytes) > 0 && !opts.SkipSourceWrite {
-		if !skipBackup {
-			backupFile := sourceFile + ".bak"
-			if err := safeWriteFile(backupFile, sourceContent, FilePermissions); err != nil {
-				return fmt.Errorf("error creating backup file %s: %w", backupFile, err)
-			}
-			logger.Info("Backup of original file created: %s", backupFile)
+		if err := backupFile(config.RootDir, sourceFile, config.backups()); err != nil {
+			return fmt.Errorf("error backing up source file %s: %w", sourceFile, err)
 		}
 
 		if err := safeWriteFile(sourceFile, modifiedContentBytes, FilePermissions); err != nil {
 			return fmt.Errorf("error updating source file %s: %w", sourceFile, err)
 		}
 
-		if skipBackup {
-			logger.Info("Source file updated without backup: %s", sourceFile)
-		}
+		logger.Info("Source file updated: %s", sourceFile)
 	} else if !opts.SkipSourceWrite {
 		logger.Info("No modifications found in the original file.")
 	}
@@ -322,7 +301,7 @@ func findClosestJournalFile(rootDir, today string) (string, error) {
 // missing) depends on it. Callers that want to re-merge on every
 // invocation should delete the existing file first or use the `process`
 // subcommand with merge semantics.
-func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBackup bool, config *Config, logger *Logger) error {
+func cmdNewWithOptions(rootDir, templateFile string, printPath bool, config *Config, logger *Logger) error {
 	today := time.Now().Format(core.DateFormat)
 	journalPath := buildJournalPath(rootDir, today)
 
@@ -344,7 +323,6 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 
 	closest, err := findClosestJournalFile(rootDir, today)
 	tmpJournalName := ""
-	skipBackup := !preserveSourceBackup
 	skipSourceWrite := false
 	if err != nil {
 		logger.Info("No previous journal found, creating a new one from template.")
@@ -372,7 +350,6 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 
 		closest = tmpFile.Name()
 		tmpJournalName = closest
-		skipBackup = true
 		skipSourceWrite = true
 	}
 
@@ -392,7 +369,6 @@ func cmdNewWithOptions(rootDir, templateFile string, printPath, preserveSourceBa
 		TemplateFile:    templateFile,
 		TemplateDate:    today,
 		MergeIfExists:   true,
-		SkipBackup:      skipBackup,
 		SkipSourceWrite: skipSourceWrite,
 		PrintPath:       printPath,
 	}, config, logger); err != nil {
