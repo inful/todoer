@@ -11,26 +11,21 @@ import (
 // DefaultBackupCount is how many previous versions of a file are kept.
 const DefaultBackupCount = 3
 
-// backupFile saves the current content of path and rotates the older
-// copies, so a writer that keeps producing broken files cannot destroy
-// every good copy.
+// backupFile saves content as the previous version of path and rotates
+// the older copies, so a writer that keeps producing broken files cannot
+// destroy every good copy.
+//
+// The content is passed in: the callers have just read the file, and
+// reading it again would be a second read of the same bytes.
 //
 // Backups live in one place — ROOT/.backups/, mirroring the journal tree
 // — so the journal folder stays clean. A file outside ROOT has no tree to
 // mirror, so it keeps a single .bak next to it.
 //
 // A count of 0 keeps no backups at all.
-func backupFile(rootDir, path string, count int) error {
+func backupFile(rootDir, path string, content []byte, count int) error {
 	if count <= 0 {
 		return nil
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // nothing to back up
-		}
-		return fmt.Errorf("failed to read %s for backup: %w", path, err)
 	}
 
 	if rel, ok := pathUnder(rootDir, path); ok {

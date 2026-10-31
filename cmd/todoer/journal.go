@@ -171,7 +171,11 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 	// the user's real journal, so keep a copy of what was there. The
 	// merge path above keeps the target's content and needs no copy.
 	if !mergeIfExists {
-		if err := backupFile(config.RootDir, targetFile, config.backups()); err != nil {
+		existing, err := os.ReadFile(targetFile)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("error reading target file %s: %w", targetFile, err)
+		}
+		if err := backupFile(config.RootDir, targetFile, existing, config.backups()); err != nil {
 			return fmt.Errorf("error backing up target file %s: %w", targetFile, err)
 		}
 	}
@@ -182,7 +186,7 @@ func processJournal(opts ProcessOptions, config *Config, logger *Logger) error {
 	logger.Debug("Wrote %d bytes to target file: %s", len(newContentBytes), targetFile)
 
 	if len(modifiedContentBytes) > 0 && !opts.SkipSourceWrite {
-		if err := backupFile(config.RootDir, sourceFile, config.backups()); err != nil {
+		if err := backupFile(config.RootDir, sourceFile, sourceContent, config.backups()); err != nil {
 			return fmt.Errorf("error backing up source file %s: %w", sourceFile, err)
 		}
 

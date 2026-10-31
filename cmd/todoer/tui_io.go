@@ -80,7 +80,7 @@ func (m *tuiModel) saveToDisk() error {
 
 	// Keep the pre-save bytes: the TUI rewrites the whole journal on
 	// every save, so this is the only undo.
-	if err := backupFile(m.config.RootDir, m.journalPath, m.config.backups()); err != nil {
+	if err := backupFile(m.config.RootDir, m.journalPath, currentContent, m.config.backups()); err != nil {
 		return fmt.Errorf("failed to back up journal file %s: %w", m.journalPath, err)
 	}
 

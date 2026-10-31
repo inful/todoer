@@ -11,7 +11,8 @@ import (
 
 // cmdAdd ensures today's journal exists and appends a new unchecked todo item.
 // If today's journal has not yet been created, it first runs the same transfer flow as `new`.
-// When backup is true, a .bak of the source journal is preserved before the carryover update.
+// The previous version of the journal is kept in ROOT/.backups before it is
+// rewritten.
 func cmdAdd(rootDir, templateFile, todoText string, printPath bool, config *Config, logger *Logger) error {
 	trimmedTodo := strings.TrimSpace(todoText)
 	if trimmedTodo == "" {
@@ -82,7 +83,7 @@ func appendTodoToJournal(journalPath, today, todoText string, config *Config) er
 
 	// The whole file is rewritten from the model, so keep the previous
 	// version: a bug here would otherwise cost the user the day.
-	if err := backupFile(config.RootDir, journalPath, config.backups()); err != nil {
+	if err := backupFile(config.RootDir, journalPath, content, config.backups()); err != nil {
 		return fmt.Errorf("failed to back up journal file %s: %w", journalPath, err)
 	}
 

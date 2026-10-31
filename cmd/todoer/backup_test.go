@@ -20,7 +20,7 @@ func TestBackupFile_KeepsCopiesInOneDirectory(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	if err := backupFile(root, journal, DefaultBackupCount); err != nil {
+	if err := backupFile(root, journal, []byte("first"), DefaultBackupCount); err != nil {
 		t.Fatalf("backupFile: %v", err)
 	}
 
@@ -54,7 +54,7 @@ func TestBackupFile_RotatesCopies(t *testing.T) {
 		if err := os.WriteFile(journal, []byte(v), 0o644); err != nil {
 			t.Fatalf("write: %v", err)
 		}
-		if err := backupFile(root, journal, DefaultBackupCount); err != nil {
+		if err := backupFile(root, journal, []byte(v), DefaultBackupCount); err != nil {
 			t.Fatalf("backupFile: %v", err)
 		}
 	}
@@ -90,7 +90,7 @@ func TestBackupFile_OutsideTheTreeKeepsACopyNextToIt(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	if err := backupFile(root, elsewhere, DefaultBackupCount); err != nil {
+	if err := backupFile(root, elsewhere, []byte("hello"), DefaultBackupCount); err != nil {
 		t.Fatalf("backupFile: %v", err)
 	}
 
@@ -114,7 +114,7 @@ func TestBackupFile_CountZeroKeepsNothing(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	if err := backupFile(root, journal, 0); err != nil {
+	if err := backupFile(root, journal, []byte("x"), 0); err != nil {
 		t.Fatalf("backupFile: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, ".backups")); err == nil {
@@ -133,7 +133,7 @@ func TestBackupDirectoryIsNotAJournal(t *testing.T) {
 	if err := os.WriteFile(journal, []byte("x"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := backupFile(root, journal, DefaultBackupCount); err != nil {
+	if err := backupFile(root, journal, []byte("first"), DefaultBackupCount); err != nil {
 		t.Fatalf("backupFile: %v", err)
 	}
 
