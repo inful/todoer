@@ -18,3 +18,8 @@ root_dir = "~/Documents/journals"
 # 2. Built-in embedded template
 # Can be overridden with: TODOER_TEMPLATE_FILE environment variable or --template-file CLI flag
 template_file = "~/.config/todoer/my_template.md"
+
+# How many previous versions of a file are kept in ROOT/.backups/.
+# The copies rotate: .1 is the version before the last write, .2 the one
+# before that. 0 keeps no backups at all.
+backup_count = 3

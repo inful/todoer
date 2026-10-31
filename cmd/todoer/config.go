@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -18,6 +19,9 @@ type Config struct {
 	Custom             map[string]any `toml:"custom_variables"`
 	FrontmatterDateKey string         `toml:"frontmatter_date_key"`
 	TodosHeader        string         `toml:"todos_header"`
+	// BackupCount is how many previous versions of a file are kept in
+	// ROOT/.backups/. nil means the default; 0 keeps no backups.
+	BackupCount *int `toml:"backup_count"`
 }
 
 // loadConfig loads configuration from file, environment variables, and CLI flags
@@ -47,6 +51,13 @@ func loadConfig() (*Config, error) {
 	if templateFile := os.Getenv("TODOER_TEMPLATE_FILE"); templateFile != "" {
 		config.TemplateFile = expandPath(templateFile)
 	}
+	if count := os.Getenv("TODOER_BACKUP_COUNT"); count != "" {
+		n, err := strconv.Atoi(count)
+		if err != nil {
+			return nil, fmt.Errorf("TODOER_BACKUP_COUNT must be a number, got %q", count)
+		}
+		config.BackupCount = &n
+	}
 
 	// Set defaults if not specified
 	if config.RootDir == "" {
@@ -65,6 +76,15 @@ func loadConfig() (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// backups returns how many previous versions of a file are kept. A config
+// without the setting uses the default.
+func (c *Config) backups() int {
+	if c == nil || c.BackupCount == nil {
+		return DefaultBackupCount
+	}
+	return *c.BackupCount
 }
 
 // loadConfigFromFile loads configuration from a TOML file
