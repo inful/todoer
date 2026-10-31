@@ -512,6 +512,33 @@ func TestCalculateTodoStatistics(t *testing.T) {
 			},
 		},
 		{
+			name: "an old completed task does not make the oldest date older",
+			journal: &TodoJournal{
+				Days: []*DaySection{
+					{
+						Date: "2025-01-01",
+						Items: []*TodoItem{
+							{Completed: true, Text: "Old completed task"},
+						},
+					},
+					{
+						Date: "2025-06-19",
+						Items: []*TodoItem{
+							{Completed: false, Text: "Recent unfinished task"},
+						},
+					},
+				},
+			},
+			currentDate: "2025-06-20",
+			expected: TodoStatistics{
+				TotalTodos:     1,
+				CompletedTodos: 1,
+				TodoDates:      []string{"2025-01-01", "2025-06-19"},
+				OldestTodoDate: "2025-06-19",
+				TodoDaysSpan:   1,
+			},
+		},
+		{
 			name: "TodoDates should be returned in ascending sorted order",
 			journal: &TodoJournal{
 				Days: []*DaySection{

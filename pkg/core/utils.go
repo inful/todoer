@@ -219,13 +219,12 @@ func CalculateTodoStatistics(journal *TodoJournal, currentDate string) TodoStati
 		}
 	}
 
-	// Also add dates from completed todos for a complete picture
+	// Also add dates from completed todos for a complete picture. They
+	// do not count towards the oldest date: that is the oldest
+	// *incomplete* todo, which is what the template variables promise.
 	for _, day := range completed.Days {
 		if day != nil && !day.IsEmpty() {
 			dateSet[day.Date] = true
-			if oldestDate == "" || day.Date < oldestDate {
-				oldestDate = day.Date
-			}
 		}
 	}
 
@@ -306,7 +305,8 @@ func daysBetween(start, end time.Time) int {
 }
 
 // MergeCustomVariables merges custom variables from config into TemplateData.
-// Custom variables can override built-in variables if they have the same name.
+// They are reachable as .Custom.<Name>; the built-in names cannot be shadowed
+// (ValidateCustomVariables rejects them).
 func MergeCustomVariables(data *TemplateData, customVars map[string]any) {
 	if data == nil || customVars == nil {
 		return
