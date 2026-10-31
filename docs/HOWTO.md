@@ -88,7 +88,7 @@ Behavior:
 - You can filter/search visible todos by text with `/` and clear with `c`.
 - `s` saves changes, `r` reloads from disk, and both `q` and `ctrl+c` save (if dirty) and quit. A save that fails still quits, and prints the reason to stderr.
 - `d` deletes: press it twice. The first press only arms the delete, so a slip on the key next to `j`/`k` cannot drop a task.
-- Every save keeps the previous version next to the journal as `<file>.bak`.
+- Every save keeps the previous version of the journal in `ROOT/.backups/`.
 
 Behavior:
 
@@ -99,9 +99,8 @@ Behavior:
 - If today's journal already exists, `todoer new` does nothing: it
   reports the path and stops. Carryover is not re-applied, and nothing is
   merged. To carry over again, delete today's file first.
-- By default, the source journal is updated in place without a
-  backup. Pass `--backup` to keep a `.bak` copy of the source
-  journal next to the original (handy before large manual edits).
+- The source journal is updated in place. Its previous version is kept
+  in `ROOT/.backups/`, so it can be restored.
 - If no previous journal exists, creates the file from the configured or embedded template.
 
 ### Process an existing journal file
@@ -126,9 +125,8 @@ Behavior:
    idempotent "merge into existing" behavior, use `new` (or
    `tui` / `add`), which share the same code path with
    `merge=true`.
-5. The source file is updated in place without a backup. (The
-   `process` command is intended for one-shot use; the daily
-   flow has its own backup policy via `--backup`.)
+5. The source file is updated in place. Its previous version, and the
+   previous version of the target, are kept in `ROOT/.backups/`.
 
 ## Use custom templates
 
@@ -170,6 +168,19 @@ Notes here.
 ```
 
 If a template has a todos section header (default `## Todos`) without the `{{.TODOS}}` placeholder, uncompleted tasks are inserted into that section automatically.
+
+## Change how many backups are kept
+
+Every write keeps the previous version of the file in `ROOT/.backups/`
+(the copies rotate, so `.1` is the version before the last write). To
+keep a different number of copies:
+
+```toml
+backup_count = 5
+```
+
+`0` keeps no backups at all. The same can be set with the
+`TODOER_BACKUP_COUNT` environment variable.
 
 ## Change the todos section header
 

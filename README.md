@@ -64,18 +64,26 @@ The TUI (`./todoer tui`) shows today's todos interactively. If today's section i
 
 ## Backup policy
 
-The daily flow (`new`, `add`) does not create a `.bak` of
-yesterday's journal by default — most users find the
-in-place update cleaner. Pass `--backup` to opt in to a
-`.bak` next to the source file:
+Every write keeps the previous version of the file. The copies live in
+one place — `ROOT/.backups/`, mirroring the journal tree — so the journal
+folder itself stays clean:
 
-```bash
-./todoer new --backup
-./todoer add "review PR notes" --backup
+```
+ROOT/2026/10/2026-10-31.md              <- your journal
+ROOT/.backups/2026/10/2026-10-31.md.1   <- the version before the last write
+ROOT/.backups/2026/10/2026-10-31.md.2   <- the one before that
+ROOT/.backups/2026/10/2026-10-31.md.3   <- and that
 ```
 
-`tui` always writes the previous version to `<journal>.bak` before each
-save, because it rewrites the whole file on every keypress-driven change.
+Three copies are kept, so a bug that keeps writing broken files cannot
+destroy every good copy. To restore one:
+
+```bash
+cp ROOT/.backups/2026/10/2026-10-31.md.3 ROOT/2026/10/2026-10-31.md
+```
+
+Set `backup_count` in the config (or `TODOER_BACKUP_COUNT`) to keep a
+different number of copies; `0` keeps none.
 
 ## Configuration and templates
 

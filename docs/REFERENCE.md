@@ -14,6 +14,25 @@ the subcommand.
 - `--template-file PATH` - override the template file for this run.
 - `--print-path` - print only the resulting file path to standard
   output (where applicable).
+- `--version` - print the version and quit.
+
+### Backups
+
+Every write keeps the previous version of the file it overwrites. The
+copies live in one directory, `ROOT/.backups/`, mirroring the journal
+tree:
+
+```
+ROOT/2026/10/2026-10-31.md              <- the journal
+ROOT/.backups/2026/10/2026-10-31.md.1   <- the version before the last write
+ROOT/.backups/2026/10/2026-10-31.md.2   <- the one before that
+```
+
+The copies rotate on every write, so a bug that keeps writing broken
+files cannot destroy every good copy. `backup_count` in the config file
+(or `TODOER_BACKUP_COUNT`) sets how many are kept; `0` keeps none. A
+file outside the journals root has no tree to mirror, so it keeps a
+single `<file>.bak` next to it.
 
 ### `todoer new`
 
@@ -23,15 +42,13 @@ most recent previous journal.
 Synopsis:
 
 ```bash
-todoer [--root-dir PATH] [--template-file PATH] [--print-path] new [--backup]
+todoer [--root-dir PATH] [--template-file PATH] [--print-path] new
 ```
 
 Options:
 
-- `--backup` - preserve a `.bak` copy of the source journal before
-  applying the carryover update. The default is to update the source
-  in place without a backup; use this flag when you want a one-shot
-  safety net (e.g. before a large manual edit).
+The source journal is updated in place; its previous version is kept in
+`ROOT/.backups/` (see "Backups" below).
 
 If today's journal already exists, `new` still runs the carryover
 pipeline and merges any missing items into the existing target
@@ -49,16 +66,13 @@ same transfer behavior as `new`, then appends the todo item.
 Synopsis:
 
 ```bash
-todoer [--root-dir PATH] [--template-file PATH] [--print-path] add TODO_TEXT... [--backup]
+todoer [--root-dir PATH] [--template-file PATH] [--print-path] add TODO_TEXT...
 ```
 
 Options:
 
 - `TODO_TEXT...` - todo text to append (multi-word text can be passed
   without quotes).
-- `--backup` - preserve a `.bak` copy of the source journal when
-  today's journal has to be created for the first time (same
-  semantics as `new --backup`).
 
 ### `todoer process`
 
@@ -91,13 +105,11 @@ same transfer behavior as `new`, then opens the UI.
 Synopsis:
 
 ```bash
-todoer [--root-dir PATH] [--template-file PATH] tui [--backup]
+todoer [--root-dir PATH] [--template-file PATH] tui
 ```
 
 Options:
 
-- `--backup` - preserve a `.bak` copy of the source journal when
-  today's journal has to be created for the first time.
 
 Core keys:
 
