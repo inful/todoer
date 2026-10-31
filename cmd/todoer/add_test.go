@@ -31,7 +31,7 @@ date: `+yesterday+`
 `)
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdAdd(tempDir, "", "new todo", false, false, config, logger); err != nil {
+	if err := cmdAdd(tempDir, "", "new todo", false, config, logger); err != nil {
 		t.Fatalf("cmdAdd() unexpected error: %v", err)
 	}
 
@@ -49,7 +49,7 @@ date: `+yesterday+`
 	}
 }
 
-func TestCmdAdd_WithBackupCreatesBackup(t *testing.T) {
+func TestCmdAdd_KeepsThePreviousVersion(t *testing.T) {
 	tempDir := setupTempDir(t)
 	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 
@@ -71,13 +71,14 @@ date: `+yesterday+`
 `)
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdAdd(tempDir, "", "new todo", false, true, config, logger); err != nil {
+	if err := cmdAdd(tempDir, "", "new todo", false, config, logger); err != nil {
 		t.Fatalf("cmdAdd() unexpected error: %v", err)
 	}
 
-	backupPath := source + ".bak"
-	if _, err := os.Stat(backupPath); err != nil {
-		t.Fatalf("expected backup file when backup=true, got err=%v", err)
+	// Previous versions are always kept, in ROOT/.backups.
+	backup := backupPath(tempDir, source)
+	if _, err := os.Stat(backup); err != nil {
+		t.Fatalf("expected a backup at %s, got err=%v", backup, err)
 	}
 
 	target := buildJournalPath(tempDir, today)
@@ -113,7 +114,7 @@ date: `+today+`
 `)
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdAdd(tempDir, "", "fresh today item", false, false, config, logger); err != nil {
+	if err := cmdAdd(tempDir, "", "fresh today item", false, config, logger); err != nil {
 		t.Fatalf("cmdAdd() unexpected error: %v", err)
 	}
 
@@ -149,7 +150,7 @@ func TestCmdAdd_EmptyTextReturnsError(t *testing.T) {
 	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdAdd(tempDir, "", "   ", false, false, config, logger); err == nil {
+	if err := cmdAdd(tempDir, "", "   ", false, config, logger); err == nil {
 		t.Fatalf("expected error on empty todo text")
 	}
 }
@@ -163,7 +164,7 @@ func TestCmdAdd_PrintPath(t *testing.T) {
 	createTestFile(t, journalPath, "---\ndate: "+today+"\n---\n\n# J\n\n## Todos\n\n- [ ] existing\n\n## Notes\n")
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdAdd(tempDir, "", "new", true, false, config, logger); err != nil {
+	if err := cmdAdd(tempDir, "", "new", true, config, logger); err != nil {
 		t.Fatalf("cmdAdd: %v", err)
 	}
 }

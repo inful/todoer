@@ -91,7 +91,7 @@ func TestCRLFJournalSurvivesAdd(t *testing.T) {
 		"]]\r\n  - [ ] windows task\r\n\r\n## Notes\r\n\r\nkeep\r\n")
 
 	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
-	if err := cmdAdd(tempDir, "", "a todo", false, false, config, NewLogger(ModeQuiet)); err != nil {
+	if err := cmdAdd(tempDir, "", "a todo", false, config, NewLogger(ModeQuiet)); err != nil {
 		t.Fatalf("cmdAdd on a CRLF journal: %v", err)
 	}
 
@@ -181,7 +181,7 @@ func TestTUISaveKeepsBackup(t *testing.T) {
 		t.Fatalf("write journal: %v", err)
 	}
 
-	m, err := newTUIModel(journalPath, "2026-03-16", &Config{TodosHeader: core.TodosHeader})
+	m, err := newTUIModel(journalPath, "2026-03-16", &Config{RootDir: tempDir, TodosHeader: core.TodosHeader})
 	if err != nil {
 		t.Fatalf("newTUIModel: %v", err)
 	}
@@ -191,9 +191,9 @@ func TestTUISaveKeepsBackup(t *testing.T) {
 		t.Fatalf("saveToDisk: %v", err)
 	}
 
-	backup, err := os.ReadFile(journalPath + ".bak")
+	backup, err := os.ReadFile(backupPath(tempDir, journalPath))
 	if err != nil {
-		t.Fatalf("expected a .bak next to the journal: %v", err)
+		t.Fatalf("expected a backup of the journal: %v", err)
 	}
 	if string(backup) != original {
 		t.Fatalf("the .bak must hold the pre-save content, got:\n%s", backup)

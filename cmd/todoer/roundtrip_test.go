@@ -64,7 +64,7 @@ func TestRewriteKeepsEveryTodoLine(t *testing.T) {
 
 			config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 			logger := NewLogger(ModeQuiet)
-			if err := cmdAdd(tempDir, "", "new todo", false, false, config, logger); err != nil {
+			if err := cmdAdd(tempDir, "", "new todo", false, config, logger); err != nil {
 				t.Fatalf("cmdAdd: %v", err)
 			}
 
@@ -103,7 +103,7 @@ func TestRewriteRejectsUnparseableLines(t *testing.T) {
 
 	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 	logger := NewLogger(ModeQuiet)
-	err := cmdAdd(tempDir, "", "new todo", false, false, config, logger)
+	err := cmdAdd(tempDir, "", "new todo", false, config, logger)
 	if err == nil {
 		t.Fatal("expected an error for an unparseable line, got success")
 	}
@@ -184,7 +184,7 @@ func TestEmptyTodosSectionKeepsTheNextHeading(t *testing.T) {
 		createTestFile(t, journalPath, "---\ntitle: "+today+"\n---\n\n# Daily\n\n## Todos\n\n## Notes\n\nkeep me\n")
 
 		config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
-		if err := cmdAdd(tempDir, "", "a todo", false, false, config, NewLogger(ModeQuiet)); err != nil {
+		if err := cmdAdd(tempDir, "", "a todo", false, config, NewLogger(ModeQuiet)); err != nil {
 			t.Fatalf("cmdAdd: %v", err)
 		}
 

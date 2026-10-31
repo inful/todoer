@@ -111,10 +111,10 @@ Some notes here.
 		t.Errorf("Target file was not created: %v", err)
 	}
 
-	// Check that backup was created
-	backupFile := sourceFile + ".bak"
-	if _, err := os.Stat(backupFile); err != nil {
-		t.Errorf("Backup file was not created: %v", err)
+	// Check that a backup was created
+	backup := backupPath(tempDir, sourceFile)
+	if _, err := os.Stat(backup); err != nil {
+		t.Errorf("Backup file %s was not created: %v", backup, err)
 	}
 }
 
@@ -145,7 +145,6 @@ date: 2024-01-01
 	if err := processJournal(ProcessOptions{
 		SourceFile: sourceFile,
 		TargetFile: targetFile,
-		SkipBackup: true,
 	}, config, logger); err != nil {
 		t.Fatalf("processJournal() unexpected error: %v", err)
 	}

@@ -53,7 +53,7 @@ Previous notes.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := NewLogger(ModeQuiet)
-			err := cmdNewWithOptions(tt.rootDir, "", false, false, config, logger)
+			err := cmdNewWithOptions(tt.rootDir, "", false, config, logger)
 
 			if tt.expectError {
 				if err == nil {
@@ -82,7 +82,7 @@ func TestCmdNew_AlreadyExists(t *testing.T) {
 
 	// Should not error if file already exists
 	logger := NewLogger(ModeQuiet)
-	err := cmdNewWithOptions(tempDir, "", false, false, config, logger)
+	err := cmdNewWithOptions(tempDir, "", false, config, logger)
 	if err != nil {
 		t.Errorf("cmdNewWithOptions() unexpected error when file exists: %v", err)
 	}
@@ -110,7 +110,7 @@ date: `+yesterday+`
 `)
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+	if err := cmdNewWithOptions(tempDir, "", false, config, logger); err != nil {
 		t.Fatalf("cmdNewWithOptions() unexpected error: %v", err)
 	}
 
@@ -146,7 +146,7 @@ date: `+yesterday+`
 `)
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+	if err := cmdNewWithOptions(tempDir, "", false, config, logger); err != nil {
 		t.Fatalf("cmdNewWithOptions() unexpected error: %v", err)
 	}
 
@@ -203,7 +203,7 @@ date: `+yesterday+`
 `)
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+	if err := cmdNewWithOptions(tempDir, "", false, config, logger); err != nil {
 		t.Fatalf("cmdNewWithOptions() unexpected error: %v", err)
 	}
 
@@ -220,7 +220,7 @@ func TestCmdNewWithOptions_NoPreviousJournalCreatesEmpty(t *testing.T) {
 	journalPath := buildJournalPath(tempDir, today)
 
 	logger := NewLogger(ModeQuiet)
-	if err := cmdNewWithOptions(tempDir, "", false, false, config, logger); err != nil {
+	if err := cmdNewWithOptions(tempDir, "", false, config, logger); err != nil {
 		t.Fatalf("cmdNewWithOptions: %v", err)
 	}
 

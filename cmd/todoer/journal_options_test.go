@@ -36,8 +36,8 @@ func TestProcessJournalWithOptions_ShimIsEquivalent(t *testing.T) {
 		TemplateFile:  "",
 		TemplateDate:  today,
 		MergeIfExists: true,
-		SkipBackup:    false,
-		PrintPath:     false,
+
+		PrintPath: false,
 	}
 	if err := processJournal(opts, config, logger); err != nil {
 		t.Fatalf("processJournal: %v", err)
@@ -56,44 +56,10 @@ func TestProcessJournalWithOptions_ShimIsEquivalent(t *testing.T) {
 		}
 	}
 
-	// The .bak next to source should exist because SkipBackup=false.
-	bak := source + ".bak"
+	// The source is backed up in ROOT/.backups.
+	bak := backupPath(tempDir, source)
 	if _, err := os.Stat(bak); err != nil {
-		t.Errorf("expected .bak file next to source when SkipBackup=false: %v", err)
-	}
-}
-
-// TestProcessJournalWithOptions_NoBackupWhenSkipped verifies the
-// SkipBackup field on ProcessOptions is honoured.
-func TestProcessJournalWithOptions_NoBackupWhenSkipped(t *testing.T) {
-	tempDir := t.TempDir()
-	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
-
-	today := time.Now().Format(core.DateFormat)
-	yesterday := time.Now().AddDate(0, 0, -1).Format(core.DateFormat)
-	source := buildJournalPath(tempDir, yesterday)
-	target := buildJournalPath(tempDir, today)
-
-	// Source has at least one completed item so processJournal
-	// writes modified content back (and would create a .bak).
-	createTestFile(t, source, "---\ndate: "+yesterday+"\n---\n\n# J\n\n## Todos\n\n- [["+yesterday+"]]\n  - [x] done yesterday\n\n## Notes\n")
-	createTestFile(t, target, "---\ndate: "+today+"\n---\n\n# J\n\n## Todos\n\n- [["+today+"]]\n  - [ ] new today\n\n## Notes\n")
-
-	logger := NewLogger(ModeQuiet)
-	opts := ProcessOptions{
-		SourceFile:    source,
-		TargetFile:    target,
-		TemplateDate:  today,
-		MergeIfExists: true,
-		SkipBackup:    true,
-	}
-	if err := processJournal(opts, config, logger); err != nil {
-		t.Fatalf("processJournal: %v", err)
-	}
-
-	bak := source + ".bak"
-	if _, err := os.Stat(bak); !os.IsNotExist(err) {
-		t.Errorf("expected no .bak when SkipBackup=true, got err=%v", err)
+		t.Errorf("expected a backup at %s: %v", bak, err)
 	}
 }
 

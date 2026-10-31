@@ -33,12 +33,12 @@ func TestProcessBacksUpTheTargetItOverwrites(t *testing.T) {
 		t.Fatalf("processJournal: %v", err)
 	}
 
-	backup, err := os.ReadFile(target + ".bak")
+	backup, err := os.ReadFile(backupPath(tempDir, target))
 	if err != nil {
-		t.Fatalf("expected a .bak of the target, got: %v", err)
+		t.Fatalf("expected a backup of the target, got: %v", err)
 	}
 	if string(backup) != original {
-		t.Errorf("the .bak must hold the old target content:\ngot:\n%s\nwant:\n%s", backup, original)
+		t.Errorf("the backup must hold the old target content:\ngot:\n%s\nwant:\n%s", backup, original)
 	}
 
 	after, err := os.ReadFile(target)
@@ -85,7 +85,7 @@ func TestAddToEmptyJournal(t *testing.T) {
 	createTestFile(t, journalPath, "")
 
 	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
-	if err := cmdAdd(tempDir, "", "first todo", false, false, config, NewLogger(ModeQuiet)); err != nil {
+	if err := cmdAdd(tempDir, "", "first todo", false, config, NewLogger(ModeQuiet)); err != nil {
 		t.Fatalf("cmdAdd on an empty journal: %v", err)
 	}
 
@@ -117,7 +117,7 @@ func TestAddKeepsDaysInOrder(t *testing.T) {
 		"- [["+earlier+"]]\n  - [ ] earlier task\n\n## Notes\n")
 
 	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
-	if err := cmdAdd(tempDir, "", "new todo", false, false, config, NewLogger(ModeQuiet)); err != nil {
+	if err := cmdAdd(tempDir, "", "new todo", false, config, NewLogger(ModeQuiet)); err != nil {
 		t.Fatalf("cmdAdd: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestAddErrorNamesTheNextStep(t *testing.T) {
 	createTestFile(t, journalPath, "---\ntitle: "+today+"\n---\n\n# Journal without a todos section\n")
 
 	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
-	err := cmdAdd(tempDir, "", "a todo", false, false, config, NewLogger(ModeQuiet))
+	err := cmdAdd(tempDir, "", "a todo", false, config, NewLogger(ModeQuiet))
 	if err == nil {
 		t.Fatal("expected an error for a journal without a todos section")
 	}
@@ -156,9 +156,10 @@ func TestAddErrorNamesTheNextStep(t *testing.T) {
 	}
 }
 
-// TestProcessKeepsTheFirstTargetBackup pins that a second run cannot
-// overwrite the copy of the file the user actually had.
-func TestProcessKeepsTheFirstTargetBackup(t *testing.T) {
+// TestProcessRotatesTargetBackups pins that a second run does not throw
+// away the copy of the file the user actually had: the backups rotate, so
+// the older copy survives.
+func TestProcessRotatesTargetBackups(t *testing.T) {
 	tempDir := setupTempDir(t)
 	today := time.Now().Format(core.DateFormat)
 
@@ -169,22 +170,33 @@ func TestProcessKeepsTheFirstTargetBackup(t *testing.T) {
 	createTestFile(t, target, original)
 
 	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
-	for i := range 2 {
+	for range 2 {
 		if err := processJournal(ProcessOptions{
 			SourceFile:   source,
 			TargetFile:   target,
 			TemplateDate: today,
 		}, config, NewLogger(ModeQuiet)); err != nil {
-			t.Fatalf("run %d: %v", i, err)
+			t.Fatalf("processJournal: %v", err)
 		}
 	}
 
-	backup, err := os.ReadFile(target + ".bak")
+	// The newest backup holds the target as it was before the last run,
+	// the one before it the original.
+	newest, err := os.ReadFile(backupPath(tempDir, target))
 	if err != nil {
 		t.Fatalf("read backup: %v", err)
 	}
-	if !strings.Contains(string(backup), "MY ORIGINAL CONTENT") {
-		t.Errorf("the first backup must be kept, got:\n%s", backup)
+	if strings.Contains(string(newest), "MY ORIGINAL CONTENT") {
+		t.Errorf("the newest backup must hold the version before the last run, got:\n%s", newest)
+	}
+
+	older := strings.TrimSuffix(backupPath(tempDir, target), ".1") + ".2"
+	content, err := os.ReadFile(older)
+	if err != nil {
+		t.Fatalf("read the older backup: %v", err)
+	}
+	if !strings.Contains(string(content), "MY ORIGINAL CONTENT") {
+		t.Errorf("the older backup must still hold the original, got:\n%s", content)
 	}
 }
 
@@ -195,7 +207,7 @@ func TestNewLeavesNoTempFileInTheJournalFolder(t *testing.T) {
 	tempDir := setupTempDir(t)
 	config := &Config{RootDir: tempDir, TodosHeader: core.TodosHeader}
 
-	if err := cmdNewWithOptions(tempDir, "", false, false, config, NewLogger(ModeQuiet)); err != nil {
+	if err := cmdNewWithOptions(tempDir, "", false, config, NewLogger(ModeQuiet)); err != nil {
 		t.Fatalf("cmdNewWithOptions: %v", err)
 	}
 
