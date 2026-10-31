@@ -170,17 +170,12 @@ func main() {
 	}
 	baseLogger := NewLogger(mode)
 
-	// Load configuration from file, environment, and defaults
-	config, err := loadConfig()
+	// Load configuration from file, environment, the --root-dir flag and
+	// the defaults. Everything downstream (including where backups are
+	// kept) works from the config.
+	config, err := loadConfig(cli.RootDir)
 	if err != nil {
 		fatalError("Failed to load configuration: %v", err)
-	}
-
-	// The --root-dir flag wins over the configured root for every
-	// command, and everything downstream (including where backups are
-	// kept) works from the config.
-	if cli.RootDir != "" {
-		config.RootDir = cli.RootDir
 	}
 
 	if cli.Debug {

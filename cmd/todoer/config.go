@@ -26,7 +26,11 @@ type Config struct {
 
 // loadConfig loads configuration from file, environment variables, and CLI flags
 // Priority: CLI flags > environment variables > config file > defaults
-func loadConfig() (*Config, error) {
+//
+// rootDirOverride is the --root-dir flag. It is applied before the
+// configuration is validated, so the root the user asked for is checked
+// exactly like the one from the config file.
+func loadConfig(rootDirOverride string) (*Config, error) {
 	config := &Config{}
 
 	// Determine config file path
@@ -57,6 +61,11 @@ func loadConfig() (*Config, error) {
 			return nil, fmt.Errorf("TODOER_BACKUP_COUNT must be a number, got %q", count)
 		}
 		config.BackupCount = &n
+	}
+
+	// The CLI flag wins over the environment variable and the file
+	if rootDirOverride != "" {
+		config.RootDir = rootDirOverride
 	}
 
 	// Set defaults if not specified
