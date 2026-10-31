@@ -304,7 +304,9 @@ functions are part of the supported surface.
 ### Constants and regexes
 
 - `core.TodosHeader` (default `"## Todos"`), `core.DateFormat`
-  (`"2006-01-02"`).
+  (`"2006-01-02"`), `core.BlankLineSeparator` (`"\n\n"`),
+  `core.MovedToTemplate` (the "moved to" placeholder),
+  `core.IndentSpaces` and `core.TabSpaces` (indentation widths).
 - Compiled regexes: `core.NextSectionRegex`, `core.DayHeaderRegex`,
   `core.TodoItemRegex`, `core.BulletEntryRegex`,
   `core.ContinuationRegex`, `core.DateTagRegex`.
@@ -359,6 +361,11 @@ functions are part of the supported surface.
 - `core.CalculateTodoStatistics(journal, currentDate) core.TodoStatistics`.
 - `core.MergeCustomVariables`, `core.ValidateCustomVariables`.
 - `core.ValidateDate`.
+- `core.ProcessTodosSectionWithStats(section, originalDate, currentDate)`
+  — processes a todos section into its completed and uncompleted halves
+  and returns the parsed journal for statistics.
+- `core.BulletLine` — the type behind a non-todo line attached to a
+  todo item.
 
 ### Template functions
 

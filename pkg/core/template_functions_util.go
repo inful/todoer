@@ -19,6 +19,8 @@ func isEmptyValue(val any) bool {
 		return len(v) == 0
 	case []int:
 		return len(v) == 0
+	case []float64:
+		return len(v) == 0
 	case []any:
 		return len(v) == 0
 	case map[string]any:

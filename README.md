@@ -83,7 +83,9 @@ cp ROOT/.backups/2026/10/2026-10-31.md.3 ROOT/2026/10/2026-10-31.md
 ```
 
 Set `backup_count` in the config (or `TODOER_BACKUP_COUNT`) to keep a
-different number of copies; `0` keeps none.
+different number of copies; `0` keeps none. The copies live inside the
+journals folder, so a folder that is synced (iCloud, Dropbox) syncs them
+too — keep the count low, or `0`, if that matters.
 
 ## Configuration and templates
 
