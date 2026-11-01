@@ -1,288 +1,9 @@
 package core
 
 import (
-	"reflect"
 	"strings"
 	"testing"
-	"time"
 )
-
-func TestExtractFrontmatterMetadata(t *testing.T) {
-	t.Run("extracts metadata from existing frontmatter", func(t *testing.T) {
-		content := `---
-title: 2026-03-17
-todoer_carryover_to: 2026-03-18
-todoer_carryover_updated_at: 2026-03-17T10:30:00Z
----
-Body`
-
-		metadata, hasFrontmatter, err := ExtractFrontmatterMetadata(content)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !hasFrontmatter {
-			t.Fatalf("expected hasFrontmatter=true")
-		}
-
-		expected := map[string]string{
-			"title":                       "2026-03-17",
-			"todoer_carryover_to":         "2026-03-18",
-			"todoer_carryover_updated_at": "2026-03-17T10:30:00Z",
-		}
-		if !reflect.DeepEqual(metadata, expected) {
-			t.Fatalf("metadata mismatch\nexpected=%v\nactual=%v", expected, metadata)
-		}
-	})
-
-	t.Run("returns no frontmatter for plain markdown", func(t *testing.T) {
-		metadata, hasFrontmatter, err := ExtractFrontmatterMetadata("# Title\n\nBody")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if hasFrontmatter {
-			t.Fatalf("expected hasFrontmatter=false")
-		}
-		if len(metadata) != 0 {
-			t.Fatalf("expected empty metadata, got=%v", metadata)
-		}
-	})
-
-	t.Run("returns error for malformed frontmatter", func(t *testing.T) {
-		_, hasFrontmatter, err := ExtractFrontmatterMetadata("---\ntitle: bad\nBody")
-		if err == nil {
-			t.Fatalf("expected malformed frontmatter error")
-		}
-		if !hasFrontmatter {
-			t.Fatalf("expected hasFrontmatter=true for malformed frontmatter")
-		}
-	})
-}
-
-func TestUpsertFrontmatterMetadata(t *testing.T) {
-	t.Run("creates frontmatter when document has none", func(t *testing.T) {
-		content := "# Daily Journal\n\n## Todos\n"
-		updated, err := UpsertFrontmatterMetadata(content, map[string]string{
-			"todoer_carryover_to":         "2026-03-18",
-			"todoer_carryover_updated_at": "2026-03-17T11:00:00Z",
-		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if !strings.HasPrefix(updated, "---\n") {
-			t.Fatalf("expected frontmatter block at top, got:\n%s", updated)
-		}
-		if !strings.Contains(updated, "todoer_carryover_to: 2026-03-18") {
-			t.Fatalf("expected carryover_to metadata, got:\n%s", updated)
-		}
-		if !strings.Contains(updated, "# Daily Journal") {
-			t.Fatalf("expected original body preserved, got:\n%s", updated)
-		}
-	})
-
-	t.Run("updates keys and preserves unrelated metadata", func(t *testing.T) {
-		content := `---
-title: 2026-03-17
-weather: sunny
-todoer_carryover_to: 2026-03-17
----
-Body`
-
-		updated, err := UpsertFrontmatterMetadata(content, map[string]string{
-			"todoer_carryover_to":         "2026-03-18",
-			"todoer_carryover_updated_at": "2026-03-17T11:30:00Z",
-		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if !strings.Contains(updated, "title: 2026-03-17") || !strings.Contains(updated, "weather: sunny") {
-			t.Fatalf("expected unrelated metadata preserved, got:\n%s", updated)
-		}
-		if strings.Count(updated, "todoer_carryover_to:") != 1 {
-			t.Fatalf("expected single carryover_to key after upsert, got:\n%s", updated)
-		}
-		if !strings.Contains(updated, "todoer_carryover_to: 2026-03-18") {
-			t.Fatalf("expected updated carryover_to value, got:\n%s", updated)
-		}
-		if !strings.Contains(updated, "todoer_carryover_updated_at: 2026-03-17T11:30:00Z") {
-			t.Fatalf("expected new updated_at key, got:\n%s", updated)
-		}
-	})
-
-	t.Run("upsert is idempotent", func(t *testing.T) {
-		content := `---
-title: 2026-03-17
----
-Body`
-
-		updates := map[string]string{
-			"todoer_carryover_to":         "2026-03-18",
-			"todoer_carryover_updated_at": "2026-03-17T12:00:00Z",
-		}
-
-		first, err := UpsertFrontmatterMetadata(content, updates)
-		if err != nil {
-			t.Fatalf("unexpected error on first upsert: %v", err)
-		}
-		second, err := UpsertFrontmatterMetadata(first, updates)
-		if err != nil {
-			t.Fatalf("unexpected error on second upsert: %v", err)
-		}
-
-		if first != second {
-			t.Fatalf("expected idempotent upsert\nfirst:\n%s\nsecond:\n%s", first, second)
-		}
-	})
-
-	t.Run("malformed frontmatter falls back to prepending new block", func(t *testing.T) {
-		content := "---\ntitle: broken\n# Body"
-		updated, err := UpsertFrontmatterMetadata(content, map[string]string{
-			"todoer_carryover_to": "2026-03-18",
-		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if strings.Count(updated, "---") < 2 {
-			t.Fatalf("expected new valid frontmatter delimiters, got:\n%s", updated)
-		}
-		if !strings.Contains(updated, "todoer_carryover_to: 2026-03-18") {
-			t.Fatalf("expected prepended metadata key, got:\n%s", updated)
-		}
-		if !strings.Contains(updated, "title: broken") {
-			t.Fatalf("expected original malformed content retained, got:\n%s", updated)
-		}
-	})
-
-	t.Run("CRLF line endings are preserved on roundtrip", func(t *testing.T) {
-		content := "---\r\ntitle: 2026-03-17\r\n---\r\n# Body\r\n\r\nSome CRLF body text.\r\n"
-
-		updated, err := UpsertFrontmatterMetadata(content, map[string]string{
-			"todoer_carryover_to": "2026-03-18",
-		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		// Every line break in the result should be CRLF. Specifically,
-		// the new key we just inserted and the body separator should be
-		// CRLF rather than LF.
-		if !strings.Contains(updated, "\r\n") {
-			t.Fatalf("expected CRLF to be preserved, got:\n%q", updated)
-		}
-		if strings.Contains(updated, "title: 2026-03-17\ntodoer_carryover_to") {
-			t.Fatalf("expected new key line break to be CRLF, got:\n%q", updated)
-		}
-		if !strings.Contains(updated, "todoer_carryover_to: 2026-03-18\r\n") {
-			t.Fatalf("expected CRLF after new key, got:\n%q", updated)
-		}
-		if !strings.Contains(updated, "---\r\n# Body\r\n") {
-			t.Fatalf("expected CRLF around body, got:\n%q", updated)
-		}
-		if !strings.Contains(updated, "Some CRLF body text.\r\n") {
-			t.Fatalf("expected CRLF at end of body, got:\n%q", updated)
-		}
-
-		// And the metadata should still be readable.
-		metadata, hasFrontmatter, err := ExtractFrontmatterMetadata(updated)
-		if err != nil {
-			t.Fatalf("extract failed: %v", err)
-		}
-		if !hasFrontmatter {
-			t.Fatalf("expected frontmatter to be detectable after upsert")
-		}
-		if metadata["todoer_carryover_to"] != "2026-03-18" {
-			t.Fatalf("expected new key in metadata, got %v", metadata)
-		}
-		if metadata["title"] != "2026-03-17" {
-			t.Fatalf("expected title preserved, got %v", metadata)
-		}
-	})
-}
-
-func TestDeleteFrontmatterMetadata(t *testing.T) {
-	t.Run("removes specified keys, preserves others", func(t *testing.T) {
-		content := "---\ntitle: x\ndate: 2026-03-17\ntodoer_source_fingerprint: abc\n---\n\nbody\n"
-		got, err := DeleteFrontmatterMetadata(content, []string{"todoer_source_fingerprint"})
-		if err != nil {
-			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
-		}
-		if strings.Contains(got, "todoer_source_fingerprint") {
-			t.Fatalf("expected key removed, got:\n%s", got)
-		}
-		if !strings.Contains(got, "title: x") || !strings.Contains(got, "date: 2026-03-17") {
-			t.Fatalf("expected other keys preserved, got:\n%s", got)
-		}
-		if !strings.Contains(got, "body") {
-			t.Fatalf("expected body preserved, got:\n%s", got)
-		}
-	})
-
-	t.Run("removes multiple keys in one pass", func(t *testing.T) {
-		content := "---\ntitle: x\ntodoer_source_fingerprint: abc\ntodoer_source_fingerprint_algo: sha256\n---\n\nbody\n"
-		got, err := DeleteFrontmatterMetadata(content, []string{
-			"todoer_source_fingerprint",
-			"todoer_source_fingerprint_algo",
-		})
-		if err != nil {
-			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
-		}
-		if strings.Contains(got, "todoer_source_fingerprint") {
-			t.Fatalf("expected all legacy keys removed, got:\n%s", got)
-		}
-		if !strings.Contains(got, "title: x") {
-			t.Fatalf("expected unrelated keys preserved, got:\n%s", got)
-		}
-	})
-
-	t.Run("missing keys are no-ops", func(t *testing.T) {
-		content := "---\ntitle: x\n---\n\nbody\n"
-		got, err := DeleteFrontmatterMetadata(content, []string{"nonexistent"})
-		if err != nil {
-			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
-		}
-		if got != content {
-			t.Fatalf("expected unchanged content, got:\n%q\nwant:\n%q", got, content)
-		}
-	})
-
-	t.Run("empty keys list is a no-op", func(t *testing.T) {
-		content := "---\ntitle: x\n---\n\nbody\n"
-		got, err := DeleteFrontmatterMetadata(content, nil)
-		if err != nil {
-			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
-		}
-		if got != content {
-			t.Fatalf("expected unchanged content, got:\n%q", got)
-		}
-	})
-
-	t.Run("no frontmatter is a no-op", func(t *testing.T) {
-		content := "# Just a heading\n\nbody\n"
-		got, err := DeleteFrontmatterMetadata(content, []string{"any"})
-		if err != nil {
-			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
-		}
-		if got != content {
-			t.Fatalf("expected unchanged content, got:\n%q", got)
-		}
-	})
-
-	t.Run("preserves CRLF line endings", func(t *testing.T) {
-		content := "---\r\ntitle: x\r\ntodoer_source_fingerprint: abc\r\n---\r\n\r\nbody\r\n"
-		got, err := DeleteFrontmatterMetadata(content, []string{"todoer_source_fingerprint"})
-		if err != nil {
-			t.Fatalf("DeleteFrontmatterMetadata: %v", err)
-		}
-		if strings.Contains(got, "todoer_source_fingerprint") {
-			t.Fatalf("expected key removed, got:\n%q", got)
-		}
-		if !strings.Contains(got, "\r\n") {
-			t.Fatalf("expected CRLF line endings preserved, got:\n%q", got)
-		}
-	})
-}
 
 // Test ExtractDateFromFrontmatter function
 func TestExtractDateFromFrontmatter(t *testing.T) {
@@ -290,13 +11,13 @@ func TestExtractDateFromFrontmatter(t *testing.T) {
 		name        string
 		content     string
 		expectError bool
-		expectToday bool // Whether we expect today's date as fallback
+		expectEmpty bool // Whether we expect no date at all
 	}{
 		{
-			name:        "empty content should return today's date",
+			name:        "empty content returns no date",
 			content:     "",
 			expectError: false,
-			expectToday: true,
+			expectEmpty: true,
 		},
 		{
 			name: "valid frontmatter with date should extract date",
@@ -306,37 +27,35 @@ author: Test
 ---
 Content here`,
 			expectError: false,
-			expectToday: false,
+			expectEmpty: false,
 		},
 		{
-			name: "frontmatter without date should return today's date",
+			name: "frontmatter without a date under the key returns empty",
 			content: `---
 title: Some Title
 author: Test
 ---
 Content here`,
 			expectError: false,
-			expectToday: true,
+			expectEmpty: true,
 		},
 		{
-			name: "invalid date format in frontmatter should return today's date",
+			name: "unparseable date under the key returns empty",
 			content: `---
 title: 25-06-19
 author: Test
 ---
 Content here`,
 			expectError: false,
-			expectToday: true, // Actually returns today's date as fallback since regex doesn't match
+			expectEmpty: true,
 		},
 		{
-			name:        "no frontmatter should return today's date",
+			name:        "no frontmatter returns empty",
 			content:     "Just some content without frontmatter",
 			expectError: false,
-			expectToday: true,
+			expectEmpty: true,
 		},
 	}
-
-	today := time.Now().Format(DateFormat)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -354,9 +73,9 @@ Content here`,
 				return
 			}
 
-			if tt.expectToday {
-				if r != today {
-					t.Errorf("Expected today's date %s, got %s", today, r)
+			if tt.expectEmpty {
+				if r != "" {
+					t.Errorf("Expected an empty date, got %s", r)
 				}
 			} else {
 				// For the valid frontmatter test case
@@ -985,7 +704,91 @@ func TestFileConstants(t *testing.T) {
 	if BlankLineSeparator != "\n\n" {
 		t.Errorf("BlankLineSeparator = %q, expected %q", BlankLineSeparator, "\n\n")
 	}
-	if MovedToTemplate != "Moved to [[%s]]" {
-		t.Errorf("MovedToTemplate = %q, expected %q", MovedToTemplate, "Moved to [[%s]]")
+	if MovedToTemplate != "- [x] Moved to [[%s]]" {
+		t.Errorf("MovedToTemplate = %q, expected %q", MovedToTemplate, "- [x] Moved to [[%s]]")
+	}
+}
+
+// TestExtractDateFromFrontmatter_OtherKeyIsTried pins that a journal whose
+// frontmatter uses the other common key is still dated. The built-in
+// template writes both "title" and "date"; a hand-written journal usually
+// has only one.
+func TestExtractDateFromFrontmatter_OtherKeyIsTried(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "configured key missing, date key present",
+			content: "---\ndate: 2025-06-19\n---\nBody",
+			want:    "2025-06-19",
+		},
+		{
+			name:    "configured key missing, title key present",
+			content: "---\ntitle: 2025-06-19\n---\nBody",
+			want:    "2025-06-19",
+		},
+		{
+			name:    "no date under any key",
+			content: "---\nauthor: Someone\n---\nBody",
+			want:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractDateFromFrontmatter(tt.content, "title")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestExtractDateFromFrontmatter_OnlyTheFrontmatterBlock pins that a date in
+// the body is never taken for the file's date. The old regex matched body
+// lines such as "created_date: 2019-01-01".
+func TestExtractDateFromFrontmatter_OnlyTheFrontmatterBlock(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "body line ending in _date is ignored",
+			content: "---\nauthor: Me\n---\n\ncreated_date: 2019-01-01\n\n---\n\n## Todos\n\n- [ ] x\n",
+			want:    "",
+		},
+		{
+			name:    "body line with a date key is ignored",
+			content: "---\ntitle: Some Title\n---\n\n## Notes\n\ndate: 2019-01-01\n\n---\n\nend\n",
+			want:    "",
+		},
+		{
+			name:    "the frontmatter date wins over a body date",
+			content: "---\ndate: 2025-06-20\n---\n\ncreated_date: 2019-01-01\n",
+			want:    "2025-06-20",
+		},
+		{
+			name:    "no frontmatter at all",
+			content: "# Title\n\ndate: 2019-01-01\n",
+			want:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractDateFromFrontmatter(tt.content, "date")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

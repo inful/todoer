@@ -16,10 +16,6 @@ import (
 // 1 blank + 1 input line + 1 blank + 1 status line = N + 9.
 const nonItemLines = 9
 
-type tuiCmd struct {
-	Backup bool `help:"Preserve a .bak copy of the source journal when creating today's journal for the first time"`
-}
-
 type tuiItem struct {
 	item  *core.TodoItem
 	depth int
@@ -31,6 +27,9 @@ type tuiItem struct {
 }
 
 type tuiTickMsg struct{}
+
+// tuiCmd opens the interactive editor.
+type tuiCmd struct{}
 
 type tuiModel struct {
 	journalPath string
@@ -63,6 +62,15 @@ type tuiModel struct {
 	externalChanged bool
 	status          string
 
+	// deleteArmed is true after the first "d" press, so the delete
+	// needs two presses.
+	deleteArmed bool
+
+	// readOnly is set when the journal on disk has a line the model
+	// cannot represent. The view still loads, but nothing is written:
+	// a write would rewrite the section without that line.
+	readOnly bool
+
 	inputMode bool
 	inputText string
 
@@ -74,7 +82,7 @@ func (cmd *tuiCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) erro
 	rootDir, templateFile := sharedPaths(cli, config)
 	logger := baseLogger.WithMode(ModeQuiet)
 
-	if err := cmdNewWithOptions(rootDir, templateFile, false, cmd.Backup, config, logger); err != nil {
+	if err := cmdNewWithOptions(rootDir, templateFile, false, config, logger); err != nil {
 		return fmt.Errorf("failed to prepare today's journal for tui: %w", err)
 	}
 
@@ -162,6 +170,10 @@ func (m tuiModel) viewHeader() string {
 	}
 	if m.externalChanged {
 		stateText += ", external-changed"
+		stateStyle = tuiTheme.stateChanged
+	}
+	if m.readOnly {
+		stateText += ", read-only"
 		stateStyle = tuiTheme.stateChanged
 	}
 

@@ -49,14 +49,18 @@ architecture review.
 
 ## Findings documented but not actioned
 
-- **`ExtractTodosSectionWithHeader` regex limitation**: when the target's
-  Todos section is empty and the next section header immediately follows
-  the mandatory blank line, the next-section regex `\\n\\n## ` does not
-  match and `afterTodos` is returned empty. This causes the trailing
-  `## Notes` content to be lost in the rare "empty target + merge" case.
-  Behaviour is documented in a comment in
-  `cmd/todoer/journal_merge_test.go`. Fixing this requires changing the
-  regex in `pkg/core/file.go` and is out of scope for this cleanup.
+- ~~**`ExtractTodosSectionWithHeader` regex limitation**: when the
+  target's Todos section is empty and the next section header
+  immediately follows the mandatory blank line, the next-section regex
+  `\\n\\n## ` does not match and `afterTodos` is returned empty.~~ **Fixed**
+  in commit `f367de0` ("fix(core): match any markdown heading in
+  NextSectionRegex, preserve trailing sections") before this summary was
+  written. The next-section regex was widened to `(?m)^\n## ` and a direct
+  test added in `pkg/core/extract_todos_test.go`. The
+  `TestMergeIntoExistingTarget/empty_target_todos_section_gets_filled_with_new_items`
+  case was tightened to assert that `## Notes` and the body after it
+  survive the merge. This finding is preserved here only to record the
+  resolution; new readers should look at the commit history, not this doc.
 - **Phase 2c** (sub-struct grouping of `tuiModel`): see DEFERRED note above.
 
 ## What did not change
@@ -67,7 +71,8 @@ architecture review.
   the library surface is unchanged. The cleanup is contained to
   `cmd/todoer/` (CLI/TUI), test organisation, and one structural
   improvement in `cmd/todoer/journal.go` (the `ProcessOptions` struct).
-- Public API: `pkg/core` and `pkg/generator` are stable. The fingerprint
-  spike behind `TODOER_FINGERPRINT` is untouched.
+- Public API: `pkg/core` and `pkg/generator` are stable. (Later
+  superseded: the fingerprint spike was removed entirely and a few
+  unused exported helpers went with it.)
 - The `tests/` directory layout is unchanged; only a `tests/README.md`
   was added.

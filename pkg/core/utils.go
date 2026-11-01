@@ -4,7 +4,6 @@ package core
 import (
 	"fmt"
 	"maps"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -118,26 +117,6 @@ func CountTotalItems(items []*TodoItem) int {
 	return count
 }
 
-// CountCompletedItems recursively counts all completed todo items in a slice.
-// Only counts items where IsCompleted returns true (item and all subitems completed).
-func CountCompletedItems(items []*TodoItem) int {
-	if len(items) == 0 {
-		return 0
-	}
-
-	count := 0
-	for _, item := range items {
-		if IsCompleted(item) {
-			count++
-		}
-		// Always check subitems, even if parent is not completed
-		if item != nil && len(item.SubItems) > 0 {
-			count += CountCompletedItems(item.SubItems)
-		}
-	}
-	return count
-}
-
 // CountUncompletedTopLevelItems counts uncompleted top-level todos in a slice.
 func CountUncompletedTopLevelItems(items []*TodoItem) int {
 	count := 0
@@ -194,7 +173,6 @@ func FormatDateVariables(dateStr string) DateVariables {
 type TodoStatistics struct {
 	TotalTodos               int      // Total number of incomplete todos
 	CompletedTodos           int      // Number of completed todos
-	UncompletedTodos         int      // Number of uncompleted todos
 	TodoDates                []string // Unique dates that todos came from
 	OldestTodoDate           string   // Date of the oldest incomplete todo
 	TodoDaysSpan             int      // Number of days spanned by todos
@@ -216,7 +194,6 @@ func CalculateTodoStatistics(journal *TodoJournal, currentDate string) TodoStati
 	// Calculate basic counts
 	stats.TotalTodos = CountTotalItems(getAllTodosFromJournal(incomplete))
 	stats.CompletedTodos = CountTotalItems(getAllTodosFromJournal(completed))
-	stats.UncompletedTodos = stats.TotalTodos
 	// Count uncompleted top-level todos
 	if incomplete != nil && len(incomplete.Days) > 0 {
 		count := 0
@@ -242,13 +219,12 @@ func CalculateTodoStatistics(journal *TodoJournal, currentDate string) TodoStati
 		}
 	}
 
-	// Also add dates from completed todos for a complete picture
+	// Also add dates from completed todos for a complete picture. They
+	// do not count towards the oldest date: that is the oldest
+	// *incomplete* todo, which is what the template variables promise.
 	for _, day := range completed.Days {
 		if day != nil && !day.IsEmpty() {
 			dateSet[day.Date] = true
-			if oldestDate == "" || day.Date < oldestDate {
-				oldestDate = day.Date
-			}
 		}
 	}
 
@@ -329,7 +305,8 @@ func daysBetween(start, end time.Time) int {
 }
 
 // MergeCustomVariables merges custom variables from config into TemplateData.
-// Custom variables can override built-in variables if they have the same name.
+// They are reachable as .Custom.<Name>; the built-in names cannot be shadowed
+// (ValidateCustomVariables rejects them).
 func MergeCustomVariables(data *TemplateData, customVars map[string]any) {
 	if data == nil || customVars == nil {
 		return
@@ -427,12 +404,4 @@ func isSupportedVariableType(value any) bool {
 	default:
 		return false
 	}
-}
-
-// BuildFrontmatterDateRegex returns a compiled regex for extracting a date from frontmatter using the given key.
-func BuildFrontmatterDateRegex(key string) *regexp.Regexp {
-	// Escape the key for regex
-	key = regexp.QuoteMeta(key)
-	pattern := `(?s)---.*?` + key + `:\s*(\d{4}-\d{2}-\d{2}).*?---`
-	return regexp.MustCompile(pattern)
 }

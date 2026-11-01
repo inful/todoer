@@ -40,9 +40,9 @@ Only the configured todos section is processed.
 - The default section header is `## Todos`.
 - The header can be changed via configuration or options.
 - Content outside this section is preserved unchanged.
-- The file's line ending style (LF or CRLF) is preserved by the
-  frontmatter I/O helpers; editing metadata does not silently
-  rewrite line endings.
+- The file's line ending style (LF or CRLF) is detected and preserved:
+  a CRLF journal is found, parsed and written back with CRLF throughout,
+  whatever the editor or template used.
 
 If no todos section is found, processing continues without modifying the
 file structure outside the todos area.

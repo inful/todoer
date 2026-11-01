@@ -10,11 +10,20 @@ import (
 	"github.com/alecthomas/kong"
 )
 
+// version is set at build time (see .goreleaser.yaml). It is empty in a
+// plain "go build".
+var version = "dev"
+
+// newCmd creates today's journal. Previous versions are always kept in
+// ROOT/.backups, so there is no flag for it.
+type newCmd struct{}
+
 type cliOptions struct {
-	Debug        bool   `help:"Enable debug logging"`
-	RootDir      string `help:"Root directory for journals (overrides config/env)"`
-	TemplateFile string `help:"Template file override (applies to commands that render/create journals)"`
-	PrintPath    bool   `help:"Print resulting journal path to stdout (for composability, where applicable)"`
+	Version      kong.VersionFlag `help:"Print the version and quit."`
+	Debug        bool             `help:"Enable debug logging"`
+	RootDir      string           `help:"Root directory for journals (overrides config/env)"`
+	TemplateFile string           `help:"Template file override (applies to commands that render/create journals)"`
+	PrintPath    bool             `help:"Print resulting journal path to stdout (for composability, where applicable)"`
 
 	Process processCmd `cmd:"" help:"Process a journal file"`
 	New     newCmd     `cmd:"new" help:"Create a new daily journal file"`
@@ -29,17 +38,12 @@ type processCmd struct {
 	TemplateDate string `help:"Optional date for template rendering (YYYY-MM-DD)"`
 }
 
-type newCmd struct {
-	Backup bool `help:"Preserve a .bak copy of the source journal before applying the carryover update"`
-}
-
 func (cmd *newCmd) Help() string {
 	return "Date is always today. To process against a different date, use 'process' with --template-date."
 }
 
 type addCmd struct {
 	TodoWords []string `arg:"" name:"todo-text" help:"Todo text to add to today's journal (today's date is used; multi-word text is joined with spaces)"`
-	Backup    bool     `help:"Preserve a .bak copy of the source journal when creating today's journal for the first time"`
 }
 
 type previewCmd struct {
@@ -60,9 +64,17 @@ func loggerForCommand(baseLogger *Logger, printPath bool) *Logger {
 	return baseLogger
 }
 
+// sharedPaths resolves the root and template paths, preferring the CLI
+// flag over the config file. An empty flag means "not set".
 func sharedPaths(cli *cliOptions, config *Config) (string, string) {
-	rootDir := getConfigValue(cli.RootDir, config.RootDir)
-	templateFile := getConfigValue(cli.TemplateFile, config.TemplateFile)
+	rootDir := config.RootDir
+	if cli.RootDir != "" {
+		rootDir = cli.RootDir
+	}
+	templateFile := config.TemplateFile
+	if cli.TemplateFile != "" {
+		templateFile = cli.TemplateFile
+	}
 	return rootDir, templateFile
 }
 
@@ -70,7 +82,7 @@ func (cmd *newCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) erro
 	logger := loggerForCommand(baseLogger, cli.PrintPath)
 	logger.Debug("Executing new command")
 	rootDir, templateFile := sharedPaths(cli, config)
-	return cmdNewWithOptions(rootDir, templateFile, cli.PrintPath, cmd.Backup, config, logger)
+	return cmdNewWithOptions(rootDir, templateFile, cli.PrintPath, config, logger)
 }
 
 func (cmd *addCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
@@ -78,7 +90,7 @@ func (cmd *addCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) erro
 	logger.Debug("Executing add command")
 	rootDir, templateFile := sharedPaths(cli, config)
 	todoText := strings.Join(cmd.TodoWords, " ")
-	return cmdAdd(rootDir, templateFile, todoText, cli.PrintPath, cmd.Backup, config, logger)
+	return cmdAdd(rootDir, templateFile, todoText, cli.PrintPath, config, logger)
 }
 
 func (cmd *processCmd) Run(cli *cliOptions, config *Config, baseLogger *Logger) error {
@@ -148,6 +160,7 @@ func main() {
 		kong.Name("todoer"),
 		kong.Description("Process daily journal files, carrying over unfinished tasks in the TODO section."),
 		kong.UsageOnError(),
+		kong.Vars{"version": version},
 	)
 
 	// Determine output mode and construct logger
@@ -157,8 +170,10 @@ func main() {
 	}
 	baseLogger := NewLogger(mode)
 
-	// Load configuration from file, environment, and defaults
-	config, err := loadConfig()
+	// Load configuration from file, environment, the --root-dir flag and
+	// the defaults. Everything downstream (including where backups are
+	// kept) works from the config.
+	config, err := loadConfig(cli.RootDir)
 	if err != nil {
 		fatalError("Failed to load configuration: %v", err)
 	}

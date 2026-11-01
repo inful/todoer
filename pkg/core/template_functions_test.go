@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"text/template"
@@ -626,6 +627,90 @@ Today is {{$today}}. {{if isWeekend .Date}}Enjoy your weekend!{{else}}Have a pro
 	for _, part := range expectedParts {
 		if !strings.Contains(output, part) {
 			t.Errorf("Expected output to contain %q, but it didn't.\nFull output:\n%s", part, output)
+		}
+	}
+}
+
+// TestDaysDiffCalendarMath pins the calendar-date contract of the
+// daysDiff template function. The implementation must compute the
+// diff between the calendar dates (not the elapsed duration), so
+// that pairs of dates separated by a DST transition are still
+// reported as N calendar days. This is the same contract as the
+// internal daysBetween helper; the template function should not
+// silently regress to a duration-based diff if it is ever rewritten.
+func TestDaysDiffCalendarMath(t *testing.T) {
+	funcMap := CreateTemplateFunctions()
+	// Reach into the funcMap to call daysDiff directly. Using a
+	// template round-trip would also work but the helper-level call
+	// keeps the assertion focused on the date math.
+	daysDiff, ok := funcMap["daysDiff"].(func(string, string) int)
+	if !ok {
+		t.Fatalf("daysDiff missing or wrong type: %T", funcMap["daysDiff"])
+	}
+
+	tests := []struct {
+		name string
+		a    string
+		b    string
+		want int
+	}{
+		{"same day", "2025-06-20", "2025-06-20", 0},
+		{"positive diff", "2025-01-15", "2025-01-20", 5},
+		{"negative diff", "2025-01-20", "2025-01-15", -5},
+		// US spring-forward: 2024-03-10 -> 2024-03-11 is one calendar day.
+		// A duration-based diff between two non-UTC midnight times
+		// on these dates would be 23 hours, not 24. The template
+		// function parses via time.Parse which returns UTC, so the
+		// elapsed-duration math also gives 24 here — but the
+		// calendar-based math is the safe, intent-revealing one.
+		{"across spring-forward DST", "2024-03-10", "2024-03-11", 1},
+		// US fall-back: 2024-11-02 -> 2024-11-04 is two calendar days.
+		{"across fall-back DST", "2024-11-02", "2024-11-04", 2},
+		{"across year boundary", "2025-12-31", "2026-01-02", 2},
+		{"leap day", "2024-02-28", "2024-03-01", 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := daysDiff(tt.a, tt.b); got != tt.want {
+				t.Errorf("daysDiff(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTemplateFunctionsUnicode pins the template helpers on non-ASCII input:
+// `title` used to slice a single byte, turning "über" into a broken rune,
+// and `default` only recognised empty strings.
+func TestTemplateFunctionsUnicode(t *testing.T) {
+	tests := []struct {
+		template string
+		data     any
+		want     string
+	}{
+		{`{{title "über straße"}}`, nil, "Über Straße"},
+		{`{{title "日本語 test"}}`, nil, "日本語 Test"},
+		{`{{title "hello world"}}`, nil, "Hello World"},
+		{`{{default "fallback" .Custom.Empty}}`, TemplateData{Custom: map[string]any{"Empty": []string{}}}, "fallback"},
+		{`{{default "fallback" .TotalTodos}}`, TemplateData{TotalTodos: 0}, "fallback"},
+		{`{{default "fallback" .TodoDates}}`, TemplateData{TodoDates: []string{"2026-01-01"}}, "[2026-01-01]"},
+	}
+
+	for _, tt := range tests {
+		tmpl, err := template.New("t").Funcs(CreateTemplateFunctions()).Parse(tt.template)
+		if err != nil {
+			t.Fatalf("parse %q: %v", tt.template, err)
+		}
+		var buf bytes.Buffer
+		data := tt.data
+		if data == nil {
+			data = struct{}{}
+		}
+		if err := tmpl.Execute(&buf, data); err != nil {
+			t.Fatalf("execute %q: %v", tt.template, err)
+		}
+		if buf.String() != tt.want {
+			t.Errorf("%s => %q, want %q", tt.template, buf.String(), tt.want)
 		}
 	}
 }

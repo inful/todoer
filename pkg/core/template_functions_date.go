@@ -71,13 +71,19 @@ func createDateFunctions() template.FuncMap {
 			weekday := date.Weekday()
 			return weekday == time.Saturday || weekday == time.Sunday
 		},
+		// daysDiff returns the number of whole calendar days from
+		// dateStr1 to dateStr2 (positive when dateStr2 is later).
+		// Calendar dates, not elapsed durations — see daysBetween for
+		// why the latter is wrong across a DST transition. This
+		// delegates to daysBetween so the helper and the template
+		// function stay consistent if the rule ever changes.
 		"daysDiff": func(dateStr1, dateStr2 string) int {
 			date1, err1 := time.Parse(DateFormat, dateStr1)
 			date2, err2 := time.Parse(DateFormat, dateStr2)
 			if err1 != nil || err2 != nil {
 				return 0 // Return 0 on error
 			}
-			return int(date2.Sub(date1).Hours() / 24)
+			return daysBetween(date1, date2)
 		},
 
 		// Day of week checking functions

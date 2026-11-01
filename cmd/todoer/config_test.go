@@ -149,7 +149,7 @@ func TestLoadConfig(t *testing.T) {
 	tUnsetenv(t, "TODOER_TEMPLATE_FILE")
 
 	// Test loading config with no config file (should succeed with defaults)
-	config, err := loadConfig()
+	config, err := loadConfig("")
 	if err != nil {
 		t.Errorf("loadConfig() error = %v, want nil", err)
 	}
@@ -273,7 +273,7 @@ func TestLoadConfigWithXDG(t *testing.T) {
 			}
 
 			// Load config
-			config, err := loadConfig()
+			config, err := loadConfig("")
 
 			if tt.expectError {
 				if err == nil {
@@ -461,14 +461,87 @@ func TestEnsureDirectories_NilConfig(t *testing.T) {
 	}
 }
 
-func TestGetConfigValue(t *testing.T) {
-	if got := getConfigValue("cli", "cfg"); got != "cli" {
-		t.Fatalf("expected CLI value to win, got %q", got)
+func TestSharedPaths_CLIOverridesConfig(t *testing.T) {
+	cli := &cliOptions{RootDir: "cli-root", TemplateFile: "cli-template"}
+	config := &Config{RootDir: "cfg-root", TemplateFile: "cfg-template"}
+
+	rootDir, templateFile := sharedPaths(cli, config)
+	if rootDir != "cli-root" || templateFile != "cli-template" {
+		t.Fatalf("expected CLI values to win, got root=%q template=%q", rootDir, templateFile)
 	}
-	if got := getConfigValue("", "cfg"); got != "cfg" {
-		t.Fatalf("expected config value when CLI is empty, got %q", got)
+
+	// Empty flags fall back to the config values.
+	rootDir, templateFile = sharedPaths(&cliOptions{}, config)
+	if rootDir != "cfg-root" || templateFile != "cfg-template" {
+		t.Fatalf("expected config values, got root=%q template=%q", rootDir, templateFile)
 	}
-	if got := getConfigValue("", ""); got != "" {
-		t.Fatalf("expected empty when both are empty, got %q", got)
+}
+
+// TestLoadConfig_BackupCount pins how the backup setting is read: an
+// absent key uses the default, an explicit 0 keeps no backups, and the
+// environment variable wins over the file.
+func TestLoadConfig_BackupCount(t *testing.T) {
+	writeConfig := func(t *testing.T, content string) {
+		t.Helper()
+		configDir := filepath.Join(t.TempDir(), "todoer")
+		if err := os.MkdirAll(configDir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(content), 0o644); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
+		t.Setenv("XDG_CONFIG_HOME", filepath.Dir(configDir))
 	}
+
+	t.Run("absent key uses the default", func(t *testing.T) {
+		writeConfig(t, "root_dir = \"/tmp\"\n")
+		tUnsetenv(t, "TODOER_BACKUP_COUNT")
+
+		config, err := loadConfig("")
+		if err != nil {
+			t.Fatalf("loadConfig: %v", err)
+		}
+		if config.backups() != DefaultBackupCount {
+			t.Errorf("backups() = %d, want %d", config.backups(), DefaultBackupCount)
+		}
+	})
+
+	t.Run("an explicit zero keeps no backups", func(t *testing.T) {
+		writeConfig(t, "root_dir = \"/tmp\"\nbackup_count = 0\n")
+		tUnsetenv(t, "TODOER_BACKUP_COUNT")
+
+		config, err := loadConfig("")
+		if err != nil {
+			t.Fatalf("loadConfig: %v", err)
+		}
+		if config.backups() != 0 {
+			t.Errorf("backups() = %d, want 0", config.backups())
+		}
+	})
+
+	t.Run("a count in the file is used", func(t *testing.T) {
+		writeConfig(t, "root_dir = \"/tmp\"\nbackup_count = 5\n")
+		tUnsetenv(t, "TODOER_BACKUP_COUNT")
+
+		config, err := loadConfig("")
+		if err != nil {
+			t.Fatalf("loadConfig: %v", err)
+		}
+		if config.backups() != 5 {
+			t.Errorf("backups() = %d, want 5", config.backups())
+		}
+	})
+
+	t.Run("the environment variable wins", func(t *testing.T) {
+		writeConfig(t, "root_dir = \"/tmp\"\nbackup_count = 5\n")
+		t.Setenv("TODOER_BACKUP_COUNT", "2")
+
+		config, err := loadConfig("")
+		if err != nil {
+			t.Fatalf("loadConfig: %v", err)
+		}
+		if config.backups() != 2 {
+			t.Errorf("backups() = %d, want 2", config.backups())
+		}
+	})
 }

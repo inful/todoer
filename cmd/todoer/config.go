@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -18,11 +19,18 @@ type Config struct {
 	Custom             map[string]any `toml:"custom_variables"`
 	FrontmatterDateKey string         `toml:"frontmatter_date_key"`
 	TodosHeader        string         `toml:"todos_header"`
+	// BackupCount is how many previous versions of a file are kept in
+	// ROOT/.backups/. nil means the default; 0 keeps no backups.
+	BackupCount *int `toml:"backup_count"`
 }
 
 // loadConfig loads configuration from file, environment variables, and CLI flags
 // Priority: CLI flags > environment variables > config file > defaults
-func loadConfig() (*Config, error) {
+//
+// rootDirOverride is the --root-dir flag. It is applied before the
+// configuration is validated, so the root the user asked for is checked
+// exactly like the one from the config file.
+func loadConfig(rootDirOverride string) (*Config, error) {
 	config := &Config{}
 
 	// Determine config file path
@@ -47,6 +55,18 @@ func loadConfig() (*Config, error) {
 	if templateFile := os.Getenv("TODOER_TEMPLATE_FILE"); templateFile != "" {
 		config.TemplateFile = expandPath(templateFile)
 	}
+	if count := os.Getenv("TODOER_BACKUP_COUNT"); count != "" {
+		n, err := strconv.Atoi(count)
+		if err != nil {
+			return nil, fmt.Errorf("TODOER_BACKUP_COUNT must be a number, got %q", count)
+		}
+		config.BackupCount = &n
+	}
+
+	// The CLI flag wins over the environment variable and the file
+	if rootDirOverride != "" {
+		config.RootDir = rootDirOverride
+	}
 
 	// Set defaults if not specified
 	if config.RootDir == "" {
@@ -64,12 +84,16 @@ func loadConfig() (*Config, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	// Create any required directories that don't yet exist
-	if err := ensureDirectories(config); err != nil {
-		return nil, err
-	}
-
 	return config, nil
+}
+
+// backups returns how many previous versions of a file are kept. A config
+// without the setting uses the default.
+func (c *Config) backups() int {
+	if c == nil || c.BackupCount == nil {
+		return DefaultBackupCount
+	}
+	return *c.BackupCount
 }
 
 // loadConfigFromFile loads configuration from a TOML file

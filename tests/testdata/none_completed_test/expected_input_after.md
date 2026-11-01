@@ -8,7 +8,7 @@ Some content here.
 
 ## Todos
 
-Moved to [[2025-06-17]]
+- [x] Moved to [[2025-06-17]]
 
 ## Other Section
 

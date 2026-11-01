@@ -11,31 +11,33 @@ const (
 	TodosHeader = "## Todos"
 	// DateFormat is the standard date format used throughout the application (YYYY-MM-DD)
 	DateFormat = "2006-01-02"
-	// CompletedMarker is the character used to mark completed todos
-	CompletedMarker = "x"
-	// UncompletedMarker is the character used to mark uncompleted todos
-	UncompletedMarker = " "
 )
 
 // Compiled regex patterns for better performance
 var (
 	// NextSectionRegex matches the start of the next markdown section
 	// (## Header). The (?m) flag enables multi-line mode so that
-	// ^ anchors to the start of any line. The leading \n matches
-	// the line terminator of the previous line, so the matched
-	// position points at that newline (which is the end of the
-	// Todos content). The previous form (\n\n## ) required a blank
+	// ^ anchors to the start of any line. The leading \r?\n matches
+	// the line terminator of the previous line (either ending), so the
+	// matched position points at that terminator (which is the end of
+	// the Todos content). The previous form (\n\n## ) required a blank
 	// line in addition, which silently dropped trailing sections
 	// when the next header immediately followed the mandatory
 	// blank line.
-	NextSectionRegex = regexp.MustCompile(`(?m)^\n## `)
+	NextSectionRegex = regexp.MustCompile(`(?m)^\r?\n## `)
 
-	// DayHeaderRegex matches day headers in the format "- [[YYYY-MM-DD]]"
-	DayHeaderRegex = regexp.MustCompile(`- \[\[(\d{4}-\d{2}-\d{2})\]\]`)
+	// DayHeaderRegex matches day headers in the format "- [[YYYY-MM-DD]]".
+	// The empty alternative matches the "- [[]]" that JournalToString
+	// writes for an undated section, so a serialized journal always
+	// parses back.
+	DayHeaderRegex = regexp.MustCompile(`- \[\[(\d{4}-\d{2}-\d{2}|)\]\]`)
 
-	// TodoItemRegex matches todo items: "  - [x] Task text" or "  - [ ] Task text"
+	// TodoItemRegex matches todo items: "  - [x] Task text" or "  - [ ] Task text".
+	// The status also accepts the two spellings markdown note apps emit for
+	// finished work: "X" (capital) and "-" (cancelled). Both count as
+	// completed, so a cancelled task is not carried into the next day.
 	// Captures: (indentation, completion_status, text)
-	TodoItemRegex = regexp.MustCompile(`^(\s*)- \[([ x])\] (.+)$`)
+	TodoItemRegex = regexp.MustCompile(`^(\s*)- \[([ xX-])\] (.+)$`)
 
 	// BulletEntryRegex matches bullet entries: "  - Some text"
 	// Captures: (indentation, text)
@@ -72,21 +74,6 @@ type TodoItem struct {
 	BulletLines []BulletLine // Non-todo bullet entries and multiline content associated with this item
 }
 
-// IsEmpty returns true if the todo item has no meaningful content
-func (t *TodoItem) IsEmpty() bool {
-	return t == nil || (t.Text == "" && len(t.SubItems) == 0 && len(t.BulletLines) == 0)
-}
-
-// HasSubItems reports whether the item has any nested subitems.
-func (t *TodoItem) HasSubItems() bool {
-	return t != nil && len(t.SubItems) > 0
-}
-
-// HasBulletLines returns true if the todo item has associated bullet points or continuation lines
-func (t *TodoItem) HasBulletLines() bool {
-	return t != nil && len(t.BulletLines) > 0
-}
-
 // DaySection represents a day's todo items grouped under a specific date.
 type DaySection struct {
 	Date  string      // Date in YYYY-MM-DD format
@@ -98,14 +85,6 @@ func (d *DaySection) IsEmpty() bool {
 	return d == nil || len(d.Items) == 0
 }
 
-// ItemCount returns the number of top-level todo items in this day section.
-func (d *DaySection) ItemCount() int {
-	if d == nil {
-		return 0
-	}
-	return len(d.Items)
-}
-
 // TodoJournal is the top-level structure holding all day sections in chronological order.
 type TodoJournal struct {
 	Days []*DaySection // All day sections in chronological order
@@ -114,14 +93,6 @@ type TodoJournal struct {
 // IsEmpty returns true if the journal has no day sections
 func (j *TodoJournal) IsEmpty() bool {
 	return j == nil || len(j.Days) == 0
-}
-
-// DayCount returns the number of day sections in the journal.
-func (j *TodoJournal) DayCount() int {
-	if j == nil {
-		return 0
-	}
-	return len(j.Days)
 }
 
 // TemplateData holds the data to be passed to Go templates when generating journal files.

@@ -4,181 +4,6 @@ import (
 	"testing"
 )
 
-// Test TodoItem methods
-func TestTodoItem_IsEmpty(t *testing.T) {
-	tests := []struct {
-		name     string
-		item     *TodoItem
-		expected bool
-	}{
-		{
-			name:     "nil item should be empty",
-			item:     nil,
-			expected: true,
-		},
-		{
-			name: "item with only empty fields should be empty",
-			item: &TodoItem{
-				Completed:   false,
-				Text:        "",
-				SubItems:    []*TodoItem{},
-				BulletLines: []BulletLine{},
-			},
-			expected: true,
-		},
-		{
-			name: "item with text should not be empty",
-			item: &TodoItem{
-				Completed:   false,
-				Text:        "Some task",
-				SubItems:    []*TodoItem{},
-				BulletLines: []BulletLine{},
-			},
-			expected: false,
-		},
-		{
-			name: "item with subitems should not be empty",
-			item: &TodoItem{
-				Completed: false,
-				Text:      "",
-				SubItems: []*TodoItem{
-					{Text: "Subtask"},
-				},
-				BulletLines: []BulletLine{},
-			},
-			expected: false,
-		},
-		{
-			name: "item with bullet lines should not be empty",
-			item: &TodoItem{
-				Completed:   false,
-				Text:        "",
-				SubItems:    []*TodoItem{},
-				BulletLines: []BulletLine{{Text: "- Some note"}},
-			},
-			expected: false,
-		},
-		{
-			name: "item with all fields populated should not be empty",
-			item: &TodoItem{
-				Completed: true,
-				Text:      "Main task",
-				SubItems: []*TodoItem{
-					{Text: "Subtask"},
-				},
-				BulletLines: []BulletLine{{Text: "- Note 1"}, {Text: "- Note 2"}},
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.item.IsEmpty()
-			if result != tt.expected {
-				t.Errorf("IsEmpty() = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestTodoItem_HasSubItems(t *testing.T) {
-	tests := []struct {
-		name     string
-		item     *TodoItem
-		expected bool
-	}{
-		{
-			name:     "nil item should not have subitems",
-			item:     nil,
-			expected: false,
-		},
-		{
-			name: "item with empty subitems should not have subitems",
-			item: &TodoItem{
-				Text:     "Task",
-				SubItems: []*TodoItem{},
-			},
-			expected: false,
-		},
-		{
-			name: "item with nil subitems should not have subitems",
-			item: &TodoItem{
-				Text:     "Task",
-				SubItems: nil,
-			},
-			expected: false,
-		},
-		{
-			name: "item with subitems should have subitems",
-			item: &TodoItem{
-				Text: "Task",
-				SubItems: []*TodoItem{
-					{Text: "Subtask 1"},
-					{Text: "Subtask 2"},
-				},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.item.HasSubItems()
-			if result != tt.expected {
-				t.Errorf("HasSubItems() = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestTodoItem_HasBulletLines(t *testing.T) {
-	tests := []struct {
-		name     string
-		item     *TodoItem
-		expected bool
-	}{
-		{
-			name:     "nil item should not have bullet lines",
-			item:     nil,
-			expected: false,
-		},
-		{
-			name: "item with empty bullet lines should not have bullet lines",
-			item: &TodoItem{
-				Text:        "Task",
-				BulletLines: []BulletLine{},
-			},
-			expected: false,
-		},
-		{
-			name: "item with nil bullet lines should not have bullet lines",
-			item: &TodoItem{
-				Text:        "Task",
-				BulletLines: nil,
-			},
-			expected: false,
-		},
-		{
-			name: "item with bullet lines should have bullet lines",
-			item: &TodoItem{
-				Text:        "Task",
-				BulletLines: []BulletLine{{Text: "- Note 1"}, {Text: "- Note 2"}},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.item.HasBulletLines()
-			if result != tt.expected {
-				t.Errorf("HasBulletLines() = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-}
-
 // Test DaySection methods
 func TestDaySection_IsEmpty(t *testing.T) {
 	tests := []struct {
@@ -229,57 +54,6 @@ func TestDaySection_IsEmpty(t *testing.T) {
 	}
 }
 
-func TestDaySection_ItemCount(t *testing.T) {
-	tests := []struct {
-		name     string
-		day      *DaySection
-		expected int
-	}{
-		{
-			name:     "nil day section should have 0 items",
-			day:      nil,
-			expected: 0,
-		},
-		{
-			name: "day section with empty items should have 0 items",
-			day: &DaySection{
-				Date:  "2025-06-19",
-				Items: []*TodoItem{},
-			},
-			expected: 0,
-		},
-		{
-			name: "day section with nil items should have 0 items",
-			day: &DaySection{
-				Date:  "2025-06-19",
-				Items: nil,
-			},
-			expected: 0,
-		},
-		{
-			name: "day section with multiple items should return correct count",
-			day: &DaySection{
-				Date: "2025-06-19",
-				Items: []*TodoItem{
-					{Text: "Task 1"},
-					{Text: "Task 2"},
-					{Text: "Task 3"},
-				},
-			},
-			expected: 3,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.day.ItemCount()
-			if result != tt.expected {
-				t.Errorf("ItemCount() = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-}
-
 // Test TodoJournal methods
 func TestTodoJournal_IsEmpty(t *testing.T) {
 	tests := []struct {
@@ -322,54 +96,6 @@ func TestTodoJournal_IsEmpty(t *testing.T) {
 			result := tt.journal.IsEmpty()
 			if result != tt.expected {
 				t.Errorf("IsEmpty() = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestTodoJournal_DayCount(t *testing.T) {
-	tests := []struct {
-		name     string
-		journal  *TodoJournal
-		expected int
-	}{
-		{
-			name:     "nil journal should have 0 days",
-			journal:  nil,
-			expected: 0,
-		},
-		{
-			name: "journal with empty days should have 0 days",
-			journal: &TodoJournal{
-				Days: []*DaySection{},
-			},
-			expected: 0,
-		},
-		{
-			name: "journal with nil days should have 0 days",
-			journal: &TodoJournal{
-				Days: nil,
-			},
-			expected: 0,
-		},
-		{
-			name: "journal with multiple days should return correct count",
-			journal: &TodoJournal{
-				Days: []*DaySection{
-					{Date: "2025-06-19"},
-					{Date: "2025-06-20"},
-					{Date: "2025-06-21"},
-				},
-			},
-			expected: 3,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.journal.DayCount()
-			if result != tt.expected {
-				t.Errorf("DayCount() = %v, expected %v", result, tt.expected)
 			}
 		})
 	}
@@ -499,8 +225,24 @@ author: Test
 				shouldMatch: false,
 			},
 			{
-				name:        "malformed todo",
-				input:       "- [X] Wrong format",
+				name:           "capital X is accepted as completed",
+				input:          "- [X] Capital X task",
+				shouldMatch:    true,
+				expectedIndent: "",
+				expectedStatus: "X",
+				expectedText:   "Capital X task",
+			},
+			{
+				name:           "cancelled dash is accepted",
+				input:          "- [-] Cancelled task",
+				shouldMatch:    true,
+				expectedIndent: "",
+				expectedStatus: "-",
+				expectedText:   "Cancelled task",
+			},
+			{
+				name:        "unknown marker is rejected",
+				input:       "- [?] Wrong format",
 				shouldMatch: false,
 			},
 		}
@@ -584,12 +326,6 @@ func TestConstants(t *testing.T) {
 		}
 		if DateFormat != "2006-01-02" {
 			t.Errorf("Expected DateFormat to be '2006-01-02', got %q", DateFormat)
-		}
-		if CompletedMarker != "x" {
-			t.Errorf("Expected CompletedMarker to be 'x', got %q", CompletedMarker)
-		}
-		if UncompletedMarker != " " {
-			t.Errorf("Expected UncompletedMarker to be ' ', got %q", UncompletedMarker)
 		}
 	})
 }

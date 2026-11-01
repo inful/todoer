@@ -749,9 +749,6 @@ func TestTagCompletedItemsRecursive(t *testing.T) {
 // Test constants from journal.go
 func TestJournalConstants(t *testing.T) {
 	t.Run("constants should have expected values", func(t *testing.T) {
-		if DefaultBuilderCapacity != 1024 {
-			t.Errorf("Expected DefaultBuilderCapacity to be 1024, got %d", DefaultBuilderCapacity)
-		}
 		if IndentSpaces != 2 {
 			t.Errorf("Expected IndentSpaces to be 2, got %d", IndentSpaces)
 		}

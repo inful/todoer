@@ -64,8 +64,12 @@ func (m *tuiModel) isCarryoverView() bool {
 // emptyStateMessage returns the placeholder text shown in the
 // body of the view when the filtered item list is empty. The
 // view always shows items from all days, so a single generic
-// message covers all cases.
+// message covers all cases — except a journal that could not be
+// parsed, where "(No todos)" would state the opposite of the truth.
 func (m *tuiModel) emptyStateMessage() string {
+	if m.readOnly {
+		return "(journal cannot be parsed - read-only)"
+	}
 	return "(No todos)"
 }
 

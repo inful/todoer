@@ -119,7 +119,17 @@ func TestTUIDeleteWorksOnTodayDay(t *testing.T) {
 		t.Fatalf("expected one item, got %d", len(m.items))
 	}
 
+	// Two presses: the first one only arms the delete.
 	updated, _ := m.updateNormalMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	armed := updated.(tuiModel)
+	if len(todayDay.Items) != 1 {
+		t.Fatalf("first d must not delete anything, got %d items", len(todayDay.Items))
+	}
+	if !armed.deleteArmed {
+		t.Fatalf("first d should arm the delete")
+	}
+
+	updated, _ = armed.updateNormalMode(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
 	m2 := updated.(tuiModel)
 
 	if len(todayDay.Items) != 0 {
@@ -408,15 +418,20 @@ func TestTUIUpdateNormalMode_CtrlCAndQuitDirty(t *testing.T) {
 		t.Fatalf("expected q to persist the toggle, got:\n%s", string(after))
 	}
 
-	// ctrl+c quits without saving.
+	// ctrl+c saves too: neither quit key may drop edits.
 	m3, _ := newTUIModel(journalPath, "2026-03-16", &Config{TodosHeader: core.TodosHeader})
+	m3.items[0].item.Completed = false
 	m3.dirty = true
 	updated, cmd = m3.updateNormalMode(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
 		t.Fatalf("expected quit command on ctrl+c")
 	}
 	mCtrlC := updated.(tuiModel)
-	if !mCtrlC.dirty {
-		t.Fatalf("expected dirty to remain true on ctrl+c (no save)")
+	if mCtrlC.dirty {
+		t.Fatalf("expected ctrl+c to save, dirty should be false")
+	}
+	after, _ = os.ReadFile(journalPath)
+	if !strings.Contains(string(after), "[ ] a") {
+		t.Fatalf("expected ctrl+c to persist the toggle, got:\n%s", string(after))
 	}
 }

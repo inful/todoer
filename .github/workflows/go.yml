@@ -16,7 +16,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Set up Go
       uses: actions/setup-go@v6
@@ -29,3 +29,8 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+    - name: Lint
+      uses: golangci/golangci-lint-action@v7
+      with:
+        version: v2.14.0

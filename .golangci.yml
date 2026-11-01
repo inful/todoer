@@ -17,6 +17,17 @@ linters:
     - usetesting
     - unused
     - revive
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+  exclusions:
+    rules:
+      # Tests deliberately ignore errors and use type assertions without the
+      # comma-ok form. The strict errcheck settings apply to production code.
+      - path: _test\.go
+        linters:
+          - errcheck
 
 formatters:
   enable:
@@ -25,8 +36,3 @@ formatters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
